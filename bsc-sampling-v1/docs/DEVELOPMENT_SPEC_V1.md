@@ -769,6 +769,7 @@ Android 单元测试：
 34. **v1.1.0 高优先级批次（用户批准实施）**：① **正式签名 APK**：生成 release keystore（PKCS12，密码不入库），Gradle 签名配置 + `assembleRelease`，证书 DN `CN=Bsc Sampling, O=gpsgps.online`；版本号升到 `versionCode 101 / versionName 1.1.0`。② **崩溃可诊断**：`SamplingApp` 注册全局未捕获异常处理器，崩溃堆栈写入本地日志随诊断日志上传。③ **照片压缩+EXIF**：APP 端水印输出压缩到最长边 1600px/质量 82（上传流量与存储减半以上），并把原图 EXIF（拍摄时间/GPS）复制到成品照片。④ **备份异地镜像**：`backup.js` 增加 `--mirror` 参数，每日备份增量同步到异机目录（`schedule-backup.ps1` 已带上该参数）。⑤ **图片鉴权**：`/uploads/`、`/reference/` 改为带签名+7 天时效的 URL（`signImage`/`serveImageDir` 校验），管理站与 APP 同步接口均返回签名地址，裸路径 403。⑥ **安全响应头**：所有响应加 `X-Content-Type-Options`、`X-Frame-Options`、`Referrer-Policy`，HTML 加 CSP（self 为主）。⑦ **时间防篡改风险标志**：`captured_time_in_future`（拍摄时间晚于服务器时间）+ `exif_time_mismatch`（照片 EXIF 时间与提交时间差 >5 分钟，新增 `src/exif.js` 极简 EXIF 解析）。⑧ **健康告警**：`deploy/health-alert.ps1` 每小时检查服务存活/磁盘/证书到期/备份新鲜度，异常写 `health-alert.txt` 与事件日志。
 35. **v1.1.0 中优先级批次**：① **管理站表格视图**：顶栏"▦ 表格"切换，按采样员/状态筛选 + 编号搜索 + 全选 + **批量审核通过** + **批量补齐天气**（新端点 `/records/backfill-weather`）。② **审核页照片对比**：现场照片与参考图并排两栏（`.compare-grid`）。③ **标签打印记录**：`label_prints` 表记录每次打印（编号+时间），任务详情显示"已打印 N 次"。④ **APP 任务筛选**：任务列表加"全部/待采样/已采样/已取消"筛选条。⑤ **APP 参考图放大**：点参考图全屏查看，再点关闭。⑥ **APP 同步进度**：上传页同步完成后自动刷新，状态栏实时显示。⑦ **APP 更新提示**：`/api/v1/mobile/app-version` 端点 + 启动比对版本弹窗提醒。⑧ **激活码错误区分**：已被使用/已过期/无效三种提示分开。⑨ 修复"地图选点"与 `<dialog>` close 事件的竞态（pickPending 标记，彻底消除偶发选点失效）。
 36. **导航引导放弃（用户决定）**：村民是当地人、大方向没问题，细节靠地图寻找；GPS 不准时逐点导航价值有限，故不做箭头导航，地图+自身位置+距离排序即基础逻辑。
+37. **部署包残缺事故修复（重要，用户发现）**：v1.1.0 部署包一度缺失**整个 `bsc-server\src\` 目录**（附录 L 也漏嵌了 `src/track.js`、`src/exif.js`）。根因：① `deploy/make-package.ps1` 的 UTF-8 BOM 在编辑时被去除，PowerShell 5.1 按 GBK 解码后中文注释"吞掉"了下一行的 `Copy-Item src`（本项目历史老毛病复发）；② `tools/embed-source-doc.js` 的显式文件清单未随新增源文件更新。修复：`make-package.ps1` 重加 BOM 并内置**两道自检**（拷贝后核心文件检查 + 压缩后 zip 内容检查，缺 src 立即报错）；`schedule-backup.ps1` 同步重加 BOM；附录生成改为**自动遍历 `src/` 目录**（今后新增源文件不会再漏）；重新发布 v1.1.1 修复包。**教训**：编辑 `.ps1` 后必须校验 BOM（EF BB BF）；打包后必须核对 zip 内容。
 
 ### 28.2 未完成，不得宣称已可上线
 
@@ -831,8 +832,8 @@ Android 单元测试：
 
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-27T15:05:52.935Z  
-> 文件数：71  
+> 生成时间：2026-08-27T17:58:58.427Z  
+> 文件数：76  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
 ### L.1 收录范围
@@ -1818,6 +1819,22 @@ Write-Host 'installing platform-tools, platforms;android-35, build-tools;35.0.0.
 Write-Host "toolchain setup finished, exit=$LASTEXITCODE"
 ~~~~
 
+#### `bsc-sampling-v1/deploy/config.example.json`
+
+SHA-256: `c88763a66c7481061b1a443dc8d9ca0e946d53bed8e84362483d99a262a15177`
+
+~~~~json
+{
+  "host": "127.0.0.1",
+  "port": 3100,
+  "publicBaseUrl": "https://bsc.gpsgps.online",
+  "adminPassword": "ChangeMe-2608!",
+  "adminTotpSecret": "",
+  "sessionSecret": "首次启动自动生成随机值，正式部署请改成随机长字符串",
+  "lockHours": 12
+}
+~~~~
+
 #### `bsc-sampling-v1/deploy/DEPLOYMENT_GUIDE.md`
 
 SHA-256: `4b3628a8a485327e0cb5fbf41927180f461850b1e8ed16c957b7ec62630ff0ff`
@@ -1955,6 +1972,56 @@ powershell -ExecutionPolicy Bypass -File D:\bsc\deploy\schedule-backup.ps1
 见 `deploy\PROMPTS_FOR_SERVER_AI.md`，按阶段复制粘贴即可。
 ~~~~
 
+#### `bsc-sampling-v1/deploy/health-alert.ps1`
+
+SHA-256: `00e48d31ac0d870dc543b5d46dadbac8d17d3da110cdccdd22afe28e1ec0022e`
+
+~~~~powershell
+﻿# 巴松措采样系统 V1 - 每小时健康检查（部署到服务器）
+# 检查：服务存活 /health、磁盘余量、HTTPS 证书剩余天数、每日备份是否有新目录。
+# 异常时写入本脚本目录 health-alert.txt，并尝试写 Windows 事件日志（源 BscHealthAlert）。
+# 注册计划任务（管理员 PowerShell，每小时）：
+#   schtasks /Create /TN BscHealthAlert /SC HOURLY /TR "powershell -NoProfile -ExecutionPolicy Bypass -File C:\bsc\deploy\health-alert.ps1"
+
+$ErrorActionPreference = 'Continue'
+$appRoot = 'C:\bsc\bsc-server'   # 按实际部署路径调整
+$out = @()
+$ok = $true
+
+# 1. 服务存活（本机 3100）
+try {
+  $h = Invoke-RestMethod -Uri 'http://127.0.0.1:3100/health' -TimeoutSec 10
+  if ($h.status -ne 'healthy') { $ok = $false; $out += "health status=$($h.status)" }
+} catch { $ok = $false; $out += "服务不可达: $($_.Exception.Message)" }
+
+# 2. 磁盘余量
+$freeGb = [math]::Round((Get-PSDrive -Name (Split-Path -Qualifier $appRoot)).Free / 1GB, 1)
+if ($freeGb -lt 10) { $ok = $false; $out += "磁盘剩余 $freeGb GB（低于 10GB 告警线）" }
+
+# 3. HTTPS 证书到期（公网域名）
+try {
+  $req = [Net.HttpWebRequest]::Create('https://bsc.gpsgps.online')
+  $req.Timeout = 15000
+  $req.GetResponse() | Out-Null
+  $cert = New-Object Security.Cryptography.X509Certificates.X509Certificate2($req.ServicePoint.Certificate)
+  $days = [math]::Round(($cert.NotAfter - (Get-Date)).TotalDays, 1)
+  if ($days -lt 30) { $ok = $false; $out += "HTTPS 证书 $days 天后到期（30 天内）" }
+} catch { $ok = $false; $out += "证书检查失败: $($_.Exception.Message)" }
+
+# 4. 最近备份是否在 26 小时内（每日 02:30 计划任务应产出新目录）
+$latest = Get-ChildItem (Join-Path $appRoot 'data\v1\backups') -Directory -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+if (-not $latest -or ((Get-Date) - $latest.LastWriteTime).TotalHours -gt 26) { $ok = $false; $out += '最近备份超过 26 小时未更新' }
+
+if ($ok) { exit 0 }
+
+$msg = 'BSC健康检查异常: ' + ($out -join '；')
+$log = Join-Path $PSScriptRoot 'health-alert.txt'
+Add-Content -Path $log -Value "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] $msg"
+New-EventLog -LogName Application -Source 'BscHealthAlert' -ErrorAction SilentlyContinue
+Write-EventLog -LogName Application -Source 'BscHealthAlert' -EntryType Error -EventId 2001 -Message $msg -ErrorAction SilentlyContinue
+exit 1
+~~~~
+
 #### `bsc-sampling-v1/deploy/install-service.bat`
 
 SHA-256: `4dd2e0a52d87bb1852a0e7248421e01db364403193ae4efcf508e95402db4c5a`
@@ -2021,6 +2088,73 @@ echo   - 开机自启、异常自动重启
 echo   - 服务日志：%LOGS%
 echo 验证：浏览器打开 http://127.0.0.1:3100 应显示管理站登录页。
 echo 卸载：运行 uninstall-service.bat
+~~~~
+
+#### `bsc-sampling-v1/deploy/make-package.ps1`
+
+SHA-256: `b052410e10f8f0d6ea988198b81af317acd02ca3ef1d0a5adf5c7714953995d8`
+
+~~~~powershell
+﻿# 巴松措采样系统 V1 部署包打包脚本（在开发机上运行）
+# 产物：<workspace>\bsc-deploy-v1.zip
+# 内容：bsc-server（源码+生产依赖+文档）+ deploy（部署脚本与手册/AI提示词）
+# 注意：不包含本机测试数据库 data\v1\bsc-v1.sqlite 与 config.json。
+# 本文件必须保持 UTF-8 BOM 编码：PowerShell 5.1 会把无 BOM 的 UTF-8 按 GBK 解码，
+# 中文注释会“吞掉”下一行命令（历史上曾因此漏拷 src 目录）。
+
+$ErrorActionPreference = 'Stop'
+$workspace = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent   # deploy/ 的上级的上级 = 工作区根
+$serverRoot = Split-Path $PSScriptRoot -Parent                        # bsc-sampling-v1
+$staging = Join-Path $workspace 'deploy-staging'
+$zipPath = Join-Path $workspace 'bsc-deploy-v1.zip'
+
+Write-Host "staging: $staging"
+if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
+New-Item -ItemType Directory -Force -Path "$staging\bsc-server" | Out-Null
+
+# 1. 源码与静态资源（排除 test/、node_modules、data 实测数据、deploy 目录本身）
+Copy-Item "$serverRoot\src" "$staging\bsc-server\src" -Recurse
+Copy-Item "$serverRoot\public" "$staging\bsc-server\public" -Recurse
+Copy-Item "$serverRoot\tools" "$staging\bsc-server\tools" -Recurse
+Copy-Item "$serverRoot\docs" "$staging\bsc-server\docs" -Recurse
+Copy-Item "$serverRoot\README.md" "$staging\bsc-server\README.md"
+Copy-Item "$serverRoot\package.json" "$staging\bsc-server\package.json"
+Copy-Item "$serverRoot\package-lock.json" "$staging\bsc-server\package-lock.json"
+
+# 1b. 自检：核心文件必须已拷入，防止再次出现“缺 src”的残缺包。
+$must = @('src\server.js','src\schema.js','src\track.js','src\exif.js','public\app.js','public\index.html','package.json')
+foreach ($f in $must) {
+  if (-not (Test-Path (Join-Path "$staging\bsc-server" $f))) { throw "打包自检失败：缺少 $f，请检查本脚本编码（必须 UTF-8 BOM）" }
+}
+
+# 2. 数据目录：只放占位文件，不带任何本机测试数据。
+#    配置示例放服务器根目录（config.example.json），data\v1 内只有安装后生成的唯一 config.json，
+#    避免“示例配置 + 真实配置”并存造成混淆。
+New-Item -ItemType Directory -Force -Path "$staging\bsc-server\data\v1" | Out-Null
+New-Item -ItemType File -Force -Path "$staging\bsc-server\data\v1\.gitkeep" | Out-Null
+Copy-Item "$serverRoot\deploy\config.example.json" "$staging\bsc-server\config.example.json"
+
+# 3. 生产依赖（本机执行 npm install --omit=dev，与开发机同为 Windows x64 / Node 24）
+Write-Host 'installing production dependencies...'
+Push-Location "$staging\bsc-server"
+npm install --omit=dev --no-audit --no-fund | Out-Null
+Pop-Location
+
+# 4. 部署脚本与手册
+Copy-Item "$serverRoot\deploy" "$staging\deploy" -Recurse
+Remove-Item "$staging\deploy\config.example.json" -ErrorAction SilentlyContinue
+
+# 5. 压缩
+if (Test-Path $zipPath) { Remove-Item $zipPath -Force }
+Compress-Archive -Path "$staging\*" -DestinationPath $zipPath -CompressionLevel Optimal
+
+# 5b. 压缩包内容自检：确认 bsc-server\src\ 的 9 个源文件都在包里。
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zip = [System.IO.Compression.ZipFile]::OpenRead($zipPath)
+$srcEntries = @($zip.Entries | Where-Object { $_.FullName -like 'bsc-server\src\*' } | Select-Object -ExpandProperty FullName)
+$zip.Dispose()
+if ($srcEntries.Count -lt 9) { throw "压缩包自检失败：bsc-server\src 只有 $($srcEntries.Count) 个文件：$($srcEntries -join ', ')" }
+Write-Host "package ready: $zipPath (src files: $($srcEntries.Count))"
 ~~~~
 
 #### `bsc-sampling-v1/deploy/nginx-bsc.conf`
@@ -2208,13 +2342,13 @@ auto.gpsgps.online 站点，这些站点绝不允许改动。
 
 #### `bsc-sampling-v1/deploy/schedule-backup.ps1`
 
-SHA-256: `56b7f3bff8a4b6c452e6948f2d775fdde100a94dd37c318ef9852869748308ac`
+SHA-256: `475e562f61ea36c72421ee1035bdb3818ac6b9992a67c1d8f424f9e988aad0f0`
 
 ~~~~powershell
-# 巴松措采样系统 V1 - 每日备份计划任务注册脚本
+﻿# 巴松措采样系统 V1 - 每日备份计划任务注册脚本（必须保持 UTF-8 BOM 编码）
 # 用法（管理员 PowerShell）：
 #   powershell -ExecutionPolicy Bypass -File schedule-backup.ps1
-# 每天 02:30 执行：数据库一致快照 + 照片增量拷贝，保留 14 天，
+# 每天 02:30 执行：数据库一致快照 + 照片增量拷贝 + 异机镜像，保留 14 天，
 # 备份输出到 bsc-server\data\v1\backups\backup-<时间戳>\
 
 $ErrorActionPreference = 'Stop'
@@ -3827,6 +3961,83 @@ node tools/restore.js data/v1/backups/backup-<时间戳>   # 恢复演练
 正式上线前仍未完成（见开发文档 §28.2）：Android 真机验收、签名 APK、Windows 服务化、DNS 与 HTTPS。
 ~~~~
 
+#### `bsc-sampling-v1/src/exif.js`
+
+SHA-256: `b8f45e2778e8f3f3aa0ffc1b4559dfd3e792f0d6aa649b88673b0c2038139dd5`
+
+~~~~javascript
+'use strict';
+
+// 极简 EXIF 解析：只提取拍摄时间（DateTimeOriginal，其次 DateTime）。
+// 用于服务器侧把照片 EXIF 时间与提交的 capturedAt 交叉核对（防改时间/换图），
+// 解析失败或缺失一律返回 null（不因此惩罚记录）。
+
+function exifDateTime(buf) {
+  try {
+    if (!buf || buf.length < 8) return null;
+    // sharp 的 metadata().exif 直接给出 'Exif\0\0' 开头的负载；完整 JPEG 则扫描 APP1 段。
+    if (buf.subarray(0, 6).toString('ascii') === 'Exif\0\0') return tiffDate(buf.subarray(6));
+    if (buf.readUInt16BE(0) !== 0xFFD8) return null;
+    let off = 2;
+    while (off + 4 <= buf.length) {
+      if (buf[off] !== 0xFF) return null;
+      const marker = buf[off + 1];
+      if (marker === 0xE1) {
+        const len = buf.readUInt16BE(off + 2);
+        const seg = buf.subarray(off + 4, off + 2 + len);
+        if (seg.length >= 6 && seg.toString('ascii', 0, 6) === 'Exif\0\0') return tiffDate(seg.subarray(6));
+        return null;
+      }
+      if (marker === 0xD8 || (marker >= 0xD0 && marker <= 0xD9)) { off += 2; continue; }
+      if (marker === 0xDA) return null; // 图像数据开始，后面不会有 EXIF
+      off += 2 + buf.readUInt16BE(off + 2);
+    }
+  } catch {}
+  return null;
+}
+
+function tiffDate(t) {
+  try {
+    if (t.length < 8) return null;
+    const little = t.readUInt16BE(0) === 0x4949;
+    const r16 = (o) => (little ? t.readUInt16LE(o) : t.readUInt16BE(o));
+    const r32 = (o) => (little ? t.readUInt32LE(o) : t.readUInt32BE(o));
+    if (r16(2) !== 42) return null;
+    let ifd = r32(4);
+    while (ifd >= 8 && ifd + 2 <= t.length) {
+      const n = r16(ifd);
+      for (let i = 0; i < n; i++) {
+        const e = ifd + 2 + i * 12;
+        if (e + 12 > t.length) return null;
+        const tag = r16(e);
+        if (tag === 0x9003 || tag === 0x0132) {
+          const type = r16(e + 2);
+          const count = r32(e + 4);
+          if (type === 2 && count >= 19) {
+            const vo = count > 4 ? r32(e + 8) : e + 8;
+            if (vo + 19 > t.length) continue;
+            const s = t.toString('ascii', vo, vo + 19).replace(/\0.*$/, '').trim();
+            if (/^\d{4}:\d{2}:\d{2} \d{2}:\d{2}:\d{2}$/.test(s)) return s;
+          }
+        }
+      }
+      const next = r32(ifd + 2 + n * 12);
+      if (!next || next <= ifd || next + 2 > t.length) break;
+      ifd = next;
+    }
+  } catch {}
+  return null;
+}
+
+// 'YYYY:MM:DD HH:MM:SS' → Date（EXIF 无时区，按设备本地时间即北京时间解释）。
+function parseExifDate(s) {
+  const m = /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(String(s || ''));
+  return m ? new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}+08:00`) : null;
+}
+
+module.exports = { exifDateTime, parseExifDate };
+~~~~
+
 #### `bsc-sampling-v1/src/exports.js`
 
 SHA-256: `2fcf27442d95bbc432ee633503b55007b121b8699a51f54431b04630ec869ed9`
@@ -4667,6 +4878,75 @@ const keepAlive = setInterval(() => rateLimit.prune(), 30 * 60_000);
 keepAlive.unref?.();
 server.listen(config.port, config.host, () => console.log(`BSC Sampling V1 listening on http://${config.host}:${config.port}`));
 module.exports = server;
+~~~~
+
+#### `bsc-sampling-v1/src/track.js`
+
+SHA-256: `4100091cce9ca67c2ff90ddb278214bd67c9d99343b8a44cc60ffc55d33c8df9`
+
+~~~~javascript
+'use strict';
+
+// 轨迹展示平滑（仅用于管理站地图显示；原始轨迹点与 GPX 等导出文件一律不动，
+// 保证证据链完整）：
+// 1) 剔除孤立漂移点：与前后相邻点的推算速度都超过 8 m/s（步行/山路不可能），
+//    且只有前后都超速才算孤立点，避免误删真实快速移动；
+// 2) 按时间断点分段：相邻点间隔 >45 秒视为行程暂停/信号中断，段与段之间不连线，
+//    避免出现横穿地图的直线；
+// 3) 3 点滑动平均：消除 10 秒采样时 GPS 抖动造成的锯齿。
+
+const R = 6371008.8;
+const rad = x => x * Math.PI / 180;
+function meters(a, b) {
+  return 2 * R * Math.asin(Math.sqrt(
+    Math.sin(rad(b[1] - a[1]) / 2) ** 2 +
+    Math.cos(rad(a[1])) * Math.cos(rad(b[1])) * Math.sin(rad(b[0] - a[0]) / 2) ** 2
+  ));
+}
+
+function smoothTrack(points) {
+  const rows = [];
+  for (const p of points) {
+    const lat = Number(p.latitude), lon = Number(p.longitude);
+    const at = new Date(p.recorded_at).getTime();
+    if (Number.isFinite(lat) && Number.isFinite(lon) && Number.isFinite(at)) rows.push({ lat, lon, at });
+  }
+  let dropped = points.length - rows.length;
+
+  // 1. 孤立漂移点剔除
+  const keep = [];
+  for (let i = 0; i < rows.length; i++) {
+    const prev = rows[i - 1], cur = rows[i], next = rows[i + 1];
+    let spdPrev = 0, spdNext = 0;
+    if (prev) { const dt = (cur.at - prev.at) / 1000; if (dt > 0) spdPrev = meters([prev.lon, prev.lat], [cur.lon, cur.lat]) / dt; }
+    if (next) { const dt = (next.at - cur.at) / 1000; if (dt > 0) spdNext = meters([cur.lon, cur.lat], [next.lon, next.lat]) / dt; }
+    if (prev && next && spdPrev > 8 && spdNext > 8) { dropped++; continue; }
+    keep.push(cur);
+  }
+
+  // 2. 时间断点分段（>45s 不连线）
+  const segments = [];
+  let seg = [];
+  for (let i = 0; i < keep.length; i++) {
+    const cur = keep[i];
+    if (seg.length && cur.at - keep[i - 1].at > 45000) { segments.push(seg); seg = []; }
+    seg.push([cur.lat, cur.lon]);
+  }
+  if (seg.length) segments.push(seg);
+
+  // 3. 3 点滑动平均
+  const smoothed = segments.map(s => {
+    if (s.length < 3) return s;
+    const out = [s[0]];
+    for (let i = 1; i < s.length - 1; i++) out.push([(s[i - 1][0] + s[i][0] + s[i + 1][0]) / 3, (s[i - 1][1] + s[i][1] + s[i + 1][1]) / 3]);
+    out.push(s[s.length - 1]);
+    return out;
+  });
+
+  return { segments: smoothed, dropped, total: points.length };
+}
+
+module.exports = { smoothTrack };
 ~~~~
 
 #### `bsc-sampling-v1/src/weather.js`
@@ -6298,7 +6578,7 @@ console.log(`backup complete: ${backupDir}`);
 
 #### `bsc-sampling-v1/tools/embed-source-doc.js`
 
-SHA-256: `df64cf4fb9530f55dc342e9d016566f91662f17cdd2c8758dfc90a17c4231a5f`
+SHA-256: `5cf9d87802e575309a0167b5156395719d71dd6a6530ff169d54112e77426e66`
 
 ~~~~javascript
 'use strict';
@@ -6334,13 +6614,6 @@ const explicit = [
   ['server', serverRoot, 'public/styles.css'],
   ['server', serverRoot, 'public/favicon.svg'],
   ['server', serverRoot, 'public/sample-reference.svg'],
-  ['server', serverRoot, 'src/schema.js'],
-  ['server', serverRoot, 'src/security.js'],
-  ['server', serverRoot, 'src/server.js'],
-  ['server', serverRoot, 'src/weather.js'],
-  ['server', serverRoot, 'src/ratelimit.js'],
-  ['server', serverRoot, 'src/labels.js'],
-  ['server', serverRoot, 'src/exports.js'],
   ['server', serverRoot, 'tools/embed-source-doc.js'],
   ['server', serverRoot, 'tools/restore-from-appendix.js'],
   ['server', serverRoot, 'tools/backup.js'],
@@ -6349,6 +6622,9 @@ const explicit = [
   ['server', serverRoot, 'deploy/install-service.bat'],
   ['server', serverRoot, 'deploy/uninstall-service.bat'],
   ['server', serverRoot, 'deploy/schedule-backup.ps1'],
+  ['server', serverRoot, 'deploy/make-package.ps1'],
+  ['server', serverRoot, 'deploy/health-alert.ps1'],
+  ['server', serverRoot, 'deploy/config.example.json'],
   ['server', serverRoot, 'deploy/DEPLOYMENT_GUIDE.md'],
   ['server', serverRoot, 'deploy/PROMPTS_FOR_SERVER_AI.md']
 ];
@@ -6367,6 +6643,8 @@ function walk(root, relative, group, extensions) {
 
 const files = [
   ...explicit,
+  // src 目录整体遍历：新增源文件（如 track.js/exif.js）自动纳入，避免显式清单漏项。
+  ...walk(serverRoot, 'src', 'server', new Set(['.js'])),
   ...walk(androidRoot, 'app/src/main/java', 'android', new Set(['.java'])),
   ...walk(androidRoot, 'app/src/main/res', 'android', new Set(['.xml'])),
   ...walk(androidRoot, 'app/src/test', 'android', new Set(['.java'])),

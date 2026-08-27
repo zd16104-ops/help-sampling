@@ -31,13 +31,6 @@ const explicit = [
   ['server', serverRoot, 'public/styles.css'],
   ['server', serverRoot, 'public/favicon.svg'],
   ['server', serverRoot, 'public/sample-reference.svg'],
-  ['server', serverRoot, 'src/schema.js'],
-  ['server', serverRoot, 'src/security.js'],
-  ['server', serverRoot, 'src/server.js'],
-  ['server', serverRoot, 'src/weather.js'],
-  ['server', serverRoot, 'src/ratelimit.js'],
-  ['server', serverRoot, 'src/labels.js'],
-  ['server', serverRoot, 'src/exports.js'],
   ['server', serverRoot, 'tools/embed-source-doc.js'],
   ['server', serverRoot, 'tools/restore-from-appendix.js'],
   ['server', serverRoot, 'tools/backup.js'],
@@ -46,6 +39,9 @@ const explicit = [
   ['server', serverRoot, 'deploy/install-service.bat'],
   ['server', serverRoot, 'deploy/uninstall-service.bat'],
   ['server', serverRoot, 'deploy/schedule-backup.ps1'],
+  ['server', serverRoot, 'deploy/make-package.ps1'],
+  ['server', serverRoot, 'deploy/health-alert.ps1'],
+  ['server', serverRoot, 'deploy/config.example.json'],
   ['server', serverRoot, 'deploy/DEPLOYMENT_GUIDE.md'],
   ['server', serverRoot, 'deploy/PROMPTS_FOR_SERVER_AI.md']
 ];
@@ -64,6 +60,8 @@ function walk(root, relative, group, extensions) {
 
 const files = [
   ...explicit,
+  // src 目录整体遍历：新增源文件（如 track.js/exif.js）自动纳入，避免显式清单漏项。
+  ...walk(serverRoot, 'src', 'server', new Set(['.js'])),
   ...walk(androidRoot, 'app/src/main/java', 'android', new Set(['.java'])),
   ...walk(androidRoot, 'app/src/main/res', 'android', new Set(['.xml'])),
   ...walk(androidRoot, 'app/src/test', 'android', new Set(['.java'])),

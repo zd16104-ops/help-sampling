@@ -1,7 +1,7 @@
-# 巴松措采样系统 V1 - 每日备份计划任务注册脚本
+﻿# 巴松措采样系统 V1 - 每日备份计划任务注册脚本（必须保持 UTF-8 BOM 编码）
 # 用法（管理员 PowerShell）：
 #   powershell -ExecutionPolicy Bypass -File schedule-backup.ps1
-# 每天 02:30 执行：数据库一致快照 + 照片增量拷贝，保留 14 天，
+# 每天 02:30 执行：数据库一致快照 + 照片增量拷贝 + 异机镜像，保留 14 天，
 # 备份输出到 bsc-server\data\v1\backups\backup-<时间戳>\
 
 $ErrorActionPreference = 'Stop'
