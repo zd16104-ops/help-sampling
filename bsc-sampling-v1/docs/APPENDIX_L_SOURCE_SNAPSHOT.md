@@ -1,6 +1,6 @@
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-27T13:38:46.608Z  
+> 生成时间：2026-08-27T14:02:12.518Z  
 > 文件数：70  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
@@ -136,7 +136,7 @@ package online.gpsgps.bscsampling;import android.content.*;public final class Bo
 
 #### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/MainActivity.java`
 
-SHA-256: `8134399e81e4a5f9844c106114594bcea090137946d79a4f482569ea0c70ccca`
+SHA-256: `32dabfd38884a243e1d7c59659c3ab6e35f37cb362e43d17386ac1a12804367a`
 
 ~~~~java
 package online.gpsgps.bscsampling;
@@ -172,7 +172,7 @@ public final class MainActivity extends AppCompatActivity implements LocationLis
  public void onLocationChanged(@NonNull Location l){here=l;locationText();if(map!=null)markers();}private void locationText(){TextView v=content.findViewById(R.id.location);if(v!=null)v.setText(here==null?"正在获取WGS84位置…":String.format(Locale.CHINA,"WGS84 %.6f, %.6f　精度±%.0fm",here.getLatitude(),here.getLongitude(),here.getAccuracy()));}
  private void destroyMap(){if(mapView!=null){mapView.onStop();mapView.onDestroy();mapView=null;map=null;}}
  protected void onStart(){super.onStart();if(mapView!=null)mapView.onStart();}protected void onResume(){super.onResume();if(mapView!=null)mapView.onResume();}protected void onPause(){if(mapView!=null)mapView.onPause();super.onPause();}protected void onStop(){if(mapView!=null)mapView.onStop();super.onStop();}public void onLowMemory(){super.onLowMemory();if(mapView!=null)mapView.onLowMemory();}protected void onDestroy(){try{lm.removeUpdates(this);}catch(Exception ignored){}try{if(netCallback!=null)getSystemService(ConnectivityManager.class).unregisterNetworkCallback(netCallback);}catch(Exception ignored){}destroyMap();work.shutdown();super.onDestroy();}
- private final class DateAdapter extends BaseExpandableListAdapter{private final List<String> dates;private final List<List<Task>> groups;DateAdapter(List<String> d,List<List<Task>> g){dates=d;groups=g;}public int getGroupCount(){return dates.size();}public int getChildrenCount(int i){return groups.get(i).size();}public Object getGroup(int i){return dates.get(i);}public Object getChild(int i,int j){return groups.get(i).get(j);}public long getGroupId(int i){return i;}public long getChildId(int i,int j){return groups.get(i).get(j).id;}public boolean hasStableIds(){return true;}public boolean isChildSelectable(int i,int j){return true;}public View getGroupView(int i,boolean expanded,View v,ViewGroup p){if(v==null){v=new TextView(MainActivity.this);int pad=(int)(14*getResources().getDisplayMetrics().density);v.setPadding(pad,pad,pad,pad);((TextView)v).setTextSize(18);((TextView)v).setBackgroundResource(R.drawable.card);}int pending=0;for(Task t:groups.get(i))if(!t.submitted())pending++;( (TextView)v).setText(dates.get(i)+"　"+(expanded?"▾":"▸")+"　"+groups.get(i).size()+" 个任务 · 待采样 "+pending);((TextView)v).setTypeface(null,android.graphics.Typeface.BOLD);((TextView)v).setTextColor(0xFF17343A);return v;}public View getChildView(int i,int j,boolean last,View v,ViewGroup p){if(v==null)v=getLayoutInflater().inflate(R.layout.item_task,p,false);Task t=groups.get(i).get(j);((TextView)v.findViewById(R.id.itemTitle)).setText(t.title()+" · 历史"+t.siteCode());((TextView)v.findViewById(R.id.itemCode)).setText(t.code());double d=here==null?-1:Util.distance(here.getLatitude(),here.getLongitude(),t.lat(),t.lon());((TextView)v.findViewById(R.id.itemMeta)).setText(Util.type(t.j.optString("sample_type"))+" · "+(d<0?"距离未知":d<1000?Math.round(d)+"米":String.format(Locale.CHINA,"%.1f公里",d/1000)));TextView st=v.findViewById(R.id.itemStatus);boolean sub=t.submitted(),can=t.canceled();st.setText(sub?"已采样":can?"已取消":"待采样");st.setTextColor(sub?0xFF087557:can?0xFF777F7E:0xFFB3402F);st.setTypeface(null,android.graphics.Typeface.BOLD);v.getBackground().setTint(sub?0xFFE3F5EC:can?0xFFF0F1F1:0xFFFDECEC);return v;}}
+ private final class DateAdapter extends BaseExpandableListAdapter{private final List<String> dates;private final List<List<Task>> groups;DateAdapter(List<String> d,List<List<Task>> g){dates=d;groups=g;}public int getGroupCount(){return dates.size();}public int getChildrenCount(int i){return groups.get(i).size();}public Object getGroup(int i){return dates.get(i);}public Object getChild(int i,int j){return groups.get(i).get(j);}public long getGroupId(int i){return -i-1;}public long getChildId(int i,int j){return groups.get(i).get(j).id;}public boolean hasStableIds(){return true;}public boolean isChildSelectable(int i,int j){return true;}public View getGroupView(int i,boolean expanded,View v,ViewGroup p){if(v==null){v=new TextView(MainActivity.this);int pad=(int)(14*getResources().getDisplayMetrics().density);v.setPadding(pad,pad,pad,pad);((TextView)v).setTextSize(18);((TextView)v).setBackgroundResource(R.drawable.card);}int pending=0;for(Task t:groups.get(i))if(!t.submitted())pending++;( (TextView)v).setText(dates.get(i)+"　"+(expanded?"▾":"▸")+"　"+groups.get(i).size()+" 个任务 · 待采样 "+pending);((TextView)v).setTypeface(null,android.graphics.Typeface.BOLD);((TextView)v).setTextColor(0xFF17343A);return v;}public View getChildView(int i,int j,boolean last,View v,ViewGroup p){if(v==null)v=getLayoutInflater().inflate(R.layout.item_task,p,false);Task t=groups.get(i).get(j);((TextView)v.findViewById(R.id.itemTitle)).setText(t.title()+" · 历史"+t.siteCode());((TextView)v.findViewById(R.id.itemCode)).setText(t.code());double d=here==null?-1:Util.distance(here.getLatitude(),here.getLongitude(),t.lat(),t.lon());((TextView)v.findViewById(R.id.itemMeta)).setText(Util.type(t.j.optString("sample_type"))+" · "+(d<0?"距离未知":d<1000?Math.round(d)+"米":String.format(Locale.CHINA,"%.1f公里",d/1000)));TextView st=v.findViewById(R.id.itemStatus);boolean sub=t.submitted(),can=t.canceled();st.setText(sub?"已采样":can?"已取消":"待采样");st.setTextColor(sub?0xFF087557:can?0xFF777F7E:0xFFB3402F);st.setTypeface(null,android.graphics.Typeface.BOLD);v.getBackground().setTint(sub?0xFFE3F5EC:can?0xFFF0F1F1:0xFFFDECEC);return v;}}
 }
 ~~~~
 
@@ -587,11 +587,11 @@ SHA-256: `8d0afb85d7fb803351045df7570b4ec6a7508901c431ea661d5f95b222d8a5f8`
 
 #### `bsc-android-native/app/src/main/res/layout/view_list.xml`
 
-SHA-256: `5fac516f3edd8f1f138ebfa100067d0d298dfbd86c9c8da9d95fc631b2daa814`
+SHA-256: `0d5c49c69ea46bd142b7dc005de6f31fbdc269914c2e87c0787b6e389d7ae5e3`
 
 ~~~~xml
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="12dp"><TextView android:id="@+id/listHint" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/card" android:padding="12dp"/><ListView android:id="@+id/list" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:divider="@android:color/transparent" android:dividerHeight="8dp"/></LinearLayout>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="12dp"><TextView android:id="@+id/listHint" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/card" android:padding="12dp"/><ExpandableListView android:id="@+id/list" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:divider="@android:color/transparent" android:dividerHeight="8dp" android:childDivider="@android:color/transparent"/></LinearLayout>
 ~~~~
 
 #### `bsc-android-native/app/src/main/res/layout/view_login.xml`
@@ -1433,7 +1433,7 @@ SHA-256: `79a7eb26bae648baf649cf655c0881c2a8a3103e12ba9e8110843fd737ca8f0d`
 
 #### `bsc-sampling-v1/public/app.js`
 
-SHA-256: `ed6d9027eb9b5155544ef4d7ed7879da7e51a006f60ffba5da5e308a4dd406f3`
+SHA-256: `fa48ac8e0df7cc5373fe3ae636cb46867e2004e114cae0adbaca1a617cb038e5`
 
 ~~~~javascript
 'use strict';
@@ -1718,7 +1718,10 @@ function initMap() {
   // 把容器滚动进视口导致点击目标在 mousedown/mouseup 之间移位。
   state.map = L.map('map', { zoomControl: true, keyboard: false }).setView([30.04, 94.05], 11);
   const imagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 19, maxNativeZoom: 19, attribution: '影像 © Esri及其数据提供方 · 坐标WGS84'
+    // 该区域影像最深到 17 级（18/19 级返回"地图数据未允许"占位图而非报错，
+    // 无法用 tileerror 探测）。锁定原生层级到 17：继续放大直接拉伸 17 级影像，
+    // 不再请求更深的无数据层级（与 Android 端 maxzoom=17 保持一致）。
+    maxZoom: 19, maxNativeZoom: 17, attribution: '影像 © Esri及其数据提供方 · 坐标WGS84'
   });
   // 自适应锁定：某个缩放层级的瓦片连续加载失败（无数据/网络失败）时，
   // 不再请求更深层级，继续放大用已有层级放大显示，避免地图变空白。

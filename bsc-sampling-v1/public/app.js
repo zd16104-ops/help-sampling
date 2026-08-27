@@ -280,7 +280,10 @@ function initMap() {
   // 把容器滚动进视口导致点击目标在 mousedown/mouseup 之间移位。
   state.map = L.map('map', { zoomControl: true, keyboard: false }).setView([30.04, 94.05], 11);
   const imagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    maxZoom: 19, maxNativeZoom: 19, attribution: '影像 © Esri及其数据提供方 · 坐标WGS84'
+    // 该区域影像最深到 17 级（18/19 级返回"地图数据未允许"占位图而非报错，
+    // 无法用 tileerror 探测）。锁定原生层级到 17：继续放大直接拉伸 17 级影像，
+    // 不再请求更深的无数据层级（与 Android 端 maxzoom=17 保持一致）。
+    maxZoom: 19, maxNativeZoom: 17, attribution: '影像 © Esri及其数据提供方 · 坐标WGS84'
   });
   // 自适应锁定：某个缩放层级的瓦片连续加载失败（无数据/网络失败）时，
   // 不再请求更深层级，继续放大用已有层级放大显示，避免地图变空白。
