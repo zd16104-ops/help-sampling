@@ -1,6 +1,6 @@
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-27T14:13:23.719Z  
+> 生成时间：2026-08-27T14:18:50.775Z  
 > 文件数：71  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
@@ -1433,7 +1433,7 @@ SHA-256: `993a539bcb81926555f283a0b763e207c022a0f0c4b2757a54c4d260cd876e71`
 
 #### `bsc-sampling-v1/public/app.js`
 
-SHA-256: `5812ede9a11692be4aa578742b525d8463c34e3e9c296cbe9d4beacc1b5ead6d`
+SHA-256: `18d335e911521b1a1daccb6fc02e29b97cca8843f75dd47485b6c3f120143ec8`
 
 ~~~~javascript
 'use strict';
@@ -2161,12 +2161,14 @@ $('#saveSite').addEventListener('click', async () => {
     referenceImage: state.editingSiteId ? undefined : '',
     enabled: $('#siteEnabled').checked
   };
+  let hasReference = false;
   try {
     const file = $('#referenceImageFile').files[0];
     if (file) {
       const imageData = await resizeImage(file, 1600, 0.82);
       const uploaded = await post('/api/v1/admin/reference-images', { imageData });
       data.referenceImage = uploaded.path;
+      hasReference = true;
     }
     if (state.editingSiteId) {
       await api(`/api/v1/admin/sites/${state.editingSiteId}`, { method: 'PUT', body: JSON.stringify(data) });
@@ -2174,9 +2176,10 @@ $('#saveSite').addEventListener('click', async () => {
       data.projectId = state.projectId;
       await post('/api/v1/admin/sites', data);
     }
+    if (!hasReference && !$('#referenceImagePreviewBox').classList.contains('hidden')) hasReference = true;
     $('#siteDialog').close();
     await loadAll();
-    alert('采样点已保存。建议补充现场参考图，方便村民对照找点。');
+    alert(hasReference ? '采样点已保存。' : '采样点已保存。建议补充现场参考图，方便村民对照找点。');
   } catch (error) { alert(error.message); }
 });
 

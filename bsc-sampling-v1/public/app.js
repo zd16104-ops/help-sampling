@@ -723,12 +723,14 @@ $('#saveSite').addEventListener('click', async () => {
     referenceImage: state.editingSiteId ? undefined : '',
     enabled: $('#siteEnabled').checked
   };
+  let hasReference = false;
   try {
     const file = $('#referenceImageFile').files[0];
     if (file) {
       const imageData = await resizeImage(file, 1600, 0.82);
       const uploaded = await post('/api/v1/admin/reference-images', { imageData });
       data.referenceImage = uploaded.path;
+      hasReference = true;
     }
     if (state.editingSiteId) {
       await api(`/api/v1/admin/sites/${state.editingSiteId}`, { method: 'PUT', body: JSON.stringify(data) });
@@ -736,9 +738,10 @@ $('#saveSite').addEventListener('click', async () => {
       data.projectId = state.projectId;
       await post('/api/v1/admin/sites', data);
     }
+    if (!hasReference && !$('#referenceImagePreviewBox').classList.contains('hidden')) hasReference = true;
     $('#siteDialog').close();
     await loadAll();
-    alert('采样点已保存。建议补充现场参考图，方便村民对照找点。');
+    alert(hasReference ? '采样点已保存。' : '采样点已保存。建议补充现场参考图，方便村民对照找点。');
   } catch (error) { alert(error.message); }
 });
 

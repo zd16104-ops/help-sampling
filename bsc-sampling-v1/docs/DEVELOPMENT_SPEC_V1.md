@@ -765,6 +765,7 @@ Android 单元测试：
 30. **修复手机端"任务列表第二次进入闪退"**：根因是 `view_list.xml` 仍声明 `<ListView>` 而代码强转为 `ExpandableListView`（ClassCastException），且按日期分组适配器的组 ID 与子项 ID（任务 ID）存在重复（stable ID 冲突会二次崩溃）。布局改为 `ExpandableListView`，组 ID 用负值 `-i-1` 与任务 ID 正数错开。
 31. **网页地图最深层级处理（用户要求）**：实测该区域 Esri 影像最深到 **17 级**（18/19 级返回"地图数据未允许"占位图而非加载错误，无法靠 tileerror 探测）。影像层锁定 `maxNativeZoom=17`、`maxZoom=19`：继续放大直接**拉伸 17 级影像**，不再请求更深的无数据层级（与 Android 端 `maxzoom=17` 一致）；原有 tileerror 自适应锁定保留（应对 17 级以内个别瓦片的网络失败）。
 32. **网页端轨迹显示平滑（用户反馈"轨迹不正常"）**：轨迹异常不是采样频率或格式问题，而是 10 秒采样下 GPS 抖动锯齿 + 行程暂停/信号中断后把两段用直线连起来 + 个别漂移点刺出。新增 `src/track.js` 展示层平滑（**原始轨迹点与 GPX 导出完全不动**）：① 孤立漂移点剔除（与前后相邻点的推算速度都 >8 m/s 才滤除）；② 相邻点间隔 >45 秒按时间断点分段，段间不连线；③ 段内 3 点滑动平均去锯齿。管理端轨迹接口返回 `display.segments`，详情页画平滑分段并在图下注明滤除/分段情况。新增 `test/track.test.js` 5 项单元测试。轨迹文件格式（GPX/KML）不影响数据质量，导出保持原始 GPX 作为证据。
+33. **管理站保存采样点提示修正（用户反馈）**：上传了现场参考图（或编辑时保留原图）后，保存提示不再出现"建议补充现场参考图"，只提示"采样点已保存"；确实没有参考图时才保留建议文案。另对 Android 端做了一次**与"任务列表闪退"同类的全面排查**：逐一核对全部布局 XML 与 Java 的类型/ID（MainActivity/TaskActivity/ScanActivity/PhotoActivity/各 view 布局、自定义 Overlay 构造函数、Service/Receiver），未再发现视图强转、ID 缺失或 stable ID 冲突类问题；相关双重 bug（ListView 强转 ExpandableListView + 组/子项 ID 冲突）是仅有的两处。
 
 ### 28.2 未完成，不得宣称已可上线
 
@@ -828,7 +829,7 @@ Android 单元测试：
 
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-27T14:13:23.719Z  
+> 生成时间：2026-08-27T14:18:50.775Z  
 > 文件数：71  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
@@ -2261,7 +2262,7 @@ SHA-256: `993a539bcb81926555f283a0b763e207c022a0f0c4b2757a54c4d260cd876e71`
 
 #### `bsc-sampling-v1/public/app.js`
 
-SHA-256: `5812ede9a11692be4aa578742b525d8463c34e3e9c296cbe9d4beacc1b5ead6d`
+SHA-256: `18d335e911521b1a1daccb6fc02e29b97cca8843f75dd47485b6c3f120143ec8`
 
 ~~~~javascript
 'use strict';
@@ -2989,12 +2990,14 @@ $('#saveSite').addEventListener('click', async () => {
     referenceImage: state.editingSiteId ? undefined : '',
     enabled: $('#siteEnabled').checked
   };
+  let hasReference = false;
   try {
     const file = $('#referenceImageFile').files[0];
     if (file) {
       const imageData = await resizeImage(file, 1600, 0.82);
       const uploaded = await post('/api/v1/admin/reference-images', { imageData });
       data.referenceImage = uploaded.path;
+      hasReference = true;
     }
     if (state.editingSiteId) {
       await api(`/api/v1/admin/sites/${state.editingSiteId}`, { method: 'PUT', body: JSON.stringify(data) });
@@ -3002,9 +3005,10 @@ $('#saveSite').addEventListener('click', async () => {
       data.projectId = state.projectId;
       await post('/api/v1/admin/sites', data);
     }
+    if (!hasReference && !$('#referenceImagePreviewBox').classList.contains('hidden')) hasReference = true;
     $('#siteDialog').close();
     await loadAll();
-    alert('采样点已保存。建议补充现场参考图，方便村民对照找点。');
+    alert(hasReference ? '采样点已保存。' : '采样点已保存。建议补充现场参考图，方便村民对照找点。');
   } catch (error) { alert(error.message); }
 });
 
