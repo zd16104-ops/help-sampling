@@ -727,7 +727,7 @@ Android 单元测试：
 - 25 个已提供点位的 WGS84 初始数据。
 - 服务器补齐（本机完成并测试）：管理员点位编辑（PUT + 审计）、参考图上传压缩、任务取消/解锁、40 枚/页 A4 标签打印页、导出（CSV/GeoJSON/GPX/照片ZIP/审计CSV）、历史天气服务器补齐（独立字段，不覆盖手机原文）、登录/PIN 限速与短时锁定、磁盘空间健康检查、管理站静态文件服务、上传照片临时文件+原子改名、轨迹批量去重、异常原因必填校验、12 小时锁过期在本次请求内生效。
 - 备份与恢复：`tools/backup.js`（VACUUM INTO 一致快照 + 照片增量拷贝 + 保留期清理）、`tools/restore.js`（临时目录恢复演练，校验照片记录可打开）。
-- 自动化测试：`test/security.test.js`、`test/schema.test.js`、`test/api.test.js` 共 38 项全部通过（npm test）；`test/smoke.js` 30 项端到端冒烟全部通过。
+- 自动化测试：`test/security.test.js`、`test/schema.test.js`、`test/api.test.js`、`test/backup.test.js` 共 39 项全部通过（npm test）；`test/smoke.js` 30 项端到端冒烟全部通过。
 - Android 已完成本机首次完整编译：`assembleDebug` 构建成功（app-debug.apk 约 65 MB），仅剩编译告警（过时 API 提示）；CameraX 由 1.6.1 调整为 1.5.2（1.6.x 要求 compileSdk 36 + AGP 8.9.1，与本工程 compileSdk 35 + AGP 8.7.3 不兼容）；`QrDataTest` 单元测试 8/8 通过（含 `5.1`/`9.5`/`9.6` 历史序号保留与错误输入拒绝）；构建工具链脚本 `tools/setup-toolchain.ps1` 入库。
 - 管理站前端已全部切换到 `/api/v1`（`public/index.html`、`public/app.js`、`public/styles.css`）：管理员登录（密码+可选 TOTP）、项目与采样日期自动归档导航、待采样入口、卫星地图与状态色标记（灰/橙/绿/红，点位名称常显）、点位管理（地图选点+拖动微调、CSV 导入、编辑、参考图可选上传、启用开关）、任务下发（多点位×多类型批量生成、全选）、40 枚/页 A4 标签打印页、审核详情（现场照片/参考图/轨迹/风险标志中文解释/审核意见追加，不修改原始记录）、任务取消/改期（重新编号）与设备解锁、服务器天气补齐、项目增删改查、导出（CSV/GeoJSON/照片包/审计/GPX）、设备激活二维码、诊断日志与磁盘健康提示。Leaflet 1.9.4 与 qrcodejs 已本地托管于 `public/vendor/`，不再依赖 CDN。无头浏览器端到端测试 `test/frontend.e2e.js`（Playwright）全部通过（断言数随数据量动态变化，覆盖登录/响应式/地图选点/审核/标签/激活/日志等全流程）。
 
@@ -761,6 +761,7 @@ Android 单元测试：
 26. **手机任务按日期归档**：任务列表改为按计划日期分组，日期行显示"日期 ▸/▾ 任务数 · 待采样数"，点击展开/收缩（ExpandableListView），组内按距离排序。
 27. **上传界面明细 + 断网自动同步**：上传页逐条列出每条记录"✅ 已同步（编号+时间）"或"⏳ 未同步（编号+上次失败原因）"；MainActivity 注册网络回调，网络恢复即自动同步（原有 WorkManager 每 15 分钟联网同步保留）。
 28. **距离过远不再要求选原因（用户要求）**：30 米外照常允许拍照采样，服务器按实际距离自动打 `distance_30_80m`/`distance_80_300m` 风险标志（APP 端移除选原因弹窗，服务器取消距离类"异常原因必填"校验；无水记录仍必填原因）。超过 300 米仍禁止。
+29. **备份脚本 bug 修复（重要）**：`tools/backup.js` 的 `copyDir()` 原先只在遇到子目录时创建目标目录，`reference/` 顶层一旦直接放真实参考图（管理员上传后即如此），`--photos` 备份就 ENOENT 失败，导致每天 02:30 的计划任务备份中断。现改为进入目录前先 `mkdirSync(to,{recursive:true})`，并顺带修复同一秒重复执行撞目录名的问题（追加 `-2` 序号）。新增 `test/backup.test.js` 回归测试（含顶层文件拷贝与同秒重跑两个断言），`npm test` 纳入。
 
 ### 28.2 未完成，不得宣称已可上线
 
@@ -824,8 +825,8 @@ Android 单元测试：
 
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-27T12:30:46.048Z  
-> 文件数：69  
+> 生成时间：2026-08-27T13:38:46.608Z  
+> 文件数：70  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
 ### L.1 收录范围
@@ -2223,7 +2224,7 @@ echo [完成] 服务已卸载。数据目录 bsc-server\data\v1 已保留，可�
 
 #### `bsc-sampling-v1/package.json`
 
-SHA-256: `bb380bff5bf5c92d3e7a511de4c7c9635484b2c6d02fa14cfa98a22a16b22439`
+SHA-256: `79a7eb26bae648baf649cf655c0881c2a8a3103e12ba9e8110843fd737ca8f0d`
 
 ~~~~json
 {
@@ -2235,7 +2236,7 @@ SHA-256: `bb380bff5bf5c92d3e7a511de4c7c9635484b2c6d02fa14cfa98a22a16b22439`
     "start": "node src/server.js",
     "start:legacy": "node server.js",
     "check": "node --check src/server.js && node --check src/schema.js && node --check src/security.js && node --check src/weather.js && node --check src/ratelimit.js && node --check src/labels.js && node --check src/exports.js && node --check public/app.js && node --check test/frontend.e2e.js",
-    "test": "node --test test/security.test.js test/schema.test.js test/api.test.js",
+    "test": "node --test test/security.test.js test/schema.test.js test/api.test.js test/backup.test.js",
     "test:unit": "node --test test/security.test.js test/schema.test.js",
     "test:api": "node --test test/api.test.js",
     "test:e2e": "node test/frontend.e2e.js",
@@ -3597,7 +3598,7 @@ dialog{width:min(680px,calc(100% - 28px));border:0;border-radius:18px;padding:0;
 
 #### `bsc-sampling-v1/README.md`
 
-SHA-256: `a58cd91ce30910f523f0fb93969646a9a512512115f94e33adbe3a99ca108a1b`
+SHA-256: `274d7713f767cc0d800dfa7cb20564044d0a4888ffd52d0ee2b1752ed5d1f479`
 
 ~~~~markdown
 # 巴松措采样系统 V1 服务器与管理站
@@ -3628,7 +3629,7 @@ HTTP 语义：422 业务拒绝（超 300 m、二维码不匹配、异常原因�
 
 ```powershell
 npm run check      # 全部 JS 语法检查
-npm test           # 38 项自动化测试（安全单元、数据库迁移、API 集成）
+npm test           # 39 项自动化测试（安全单元、数据库迁移、API 集成、备份回归）
 npm run smoke      # 30 项端到端冒烟（需要本机已启动服务器）
 npm run test:e2e   # 无头浏览器端到端（Playwright，断言数随数据量动态变化，需要 npm start 运行中）
 npm run backup     # 日常备份：node tools/backup.js --photos --keep 14
@@ -5107,6 +5108,54 @@ test('admin login rate limiting (last: locks admin key)', async () => {
 });
 ~~~~
 
+#### `bsc-sampling-v1/test/backup.test.js`
+
+SHA-256: `30558385ca5f72f3e46066caef1d49c6459e22598bcb657e050ea6222cac69fd`
+
+~~~~javascript
+'use strict';
+
+// 备份回归测试：reference/ 顶层直接放文件时 --photos 必须成功（历史 ENOENT bug），
+// 且同一秒重复执行不因目录撞名失败。
+
+const test = require('node:test');
+const assert = require('node:assert');
+const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { DatabaseSync } = require('node:sqlite');
+
+test('backup --photos copies top-level reference files and survives same-second rerun', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bsc-backup-test-'));
+  try {
+    const data = path.join(tmp, 'data', 'v1');
+    fs.mkdirSync(path.join(data, 'reference'), { recursive: true });
+    fs.mkdirSync(path.join(data, 'uploads', '1'), { recursive: true });
+    const db = new DatabaseSync(path.join(data, 'bsc-v1.sqlite'));
+    db.exec('CREATE TABLE t(x)');
+    db.close();
+    fs.writeFileSync(path.join(data, 'reference', 'ref-real.jpg'), Buffer.alloc(128, 1));
+    fs.writeFileSync(path.join(data, 'uploads', '1', 'p.jpg'), Buffer.alloc(64, 2));
+    const bk = path.join(tmp, 'bk');
+    const args = [path.join(__dirname, '..', 'tools', 'backup.js'), '--photos', '--dir', bk];
+    const env = { ...process.env, DATA_DIR: data };
+    const run = spawnSync(process.execPath, args, { env, encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    const newest = fs.readdirSync(bk).filter(d => d.startsWith('backup-')).sort().pop();
+    assert.ok(newest, '备份目录已创建');
+    assert.ok(fs.existsSync(path.join(bk, newest, 'photos', 'reference', 'ref-real.jpg')), 'reference 顶层文件已拷贝（ENOENT 回归）');
+    assert.ok(fs.existsSync(path.join(bk, newest, 'photos', 'uploads', '1', 'p.jpg')), 'uploads 嵌套文件已拷贝');
+    const run2 = spawnSync(process.execPath, args, { env, encoding: 'utf8' });
+    assert.equal(run2.status, 0, `同一秒重复执行不应失败: ${run2.stderr}`);
+    const dirs = fs.readdirSync(bk).filter(d => d.startsWith('backup-'));
+    assert.equal(dirs.length, 2, '两次执行生成两个不撞名的备份目录');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+~~~~
+
 #### `bsc-sampling-v1/test/frontend.e2e.js`
 
 SHA-256: `05321c007fa2927efa15c6b7abc5c331e4a86670ab8da7c316a76bb850b2f356`
@@ -5726,7 +5775,7 @@ main().catch(e => { console.error(e); process.exit(1); });
 
 #### `bsc-sampling-v1/tools/backup.js`
 
-SHA-256: `01afd9a734f3e2807e8720b8c7bfb73e565805c815a4880bbbf430414de57518`
+SHA-256: `57b18e81d83ab53505fa00e42211040f5de3a32142987b53dfce97209f8c14bb`
 
 ~~~~javascript
 'use strict';
@@ -5753,7 +5802,9 @@ const withPhotos = process.argv.includes('--photos');
 const keepIdx = process.argv.indexOf('--keep');
 const keepDays = keepIdx >= 0 ? Number(process.argv[keepIdx + 1]) : 14;
 const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-const backupDir = path.join(backupRoot, `backup-${stamp}`);
+let backupDir = path.join(backupRoot, `backup-${stamp}`);
+// 同一秒内重复执行（手动重试）会撞名导致 VACUUM INTO 失败；追加序号避免。
+for (let n = 2; fs.existsSync(backupDir); n++) backupDir = path.join(backupRoot, `backup-${stamp}-${n}`);
 
 fs.mkdirSync(backupDir, { recursive: true });
 
@@ -5773,6 +5824,9 @@ if (withPhotos) {
   fs.mkdirSync(target, { recursive: true });
   const copyDir = (from, to) => {
     if (!fs.existsSync(from)) return;
+    // 先建目标目录再拷贝：reference/ 等目录可能顶层直接放文件，
+    // 旧实现只在遇到子目录时建目录，顶层文件会导致 ENOENT 备份失败。
+    fs.mkdirSync(to, { recursive: true });
     for (const entry of fs.readdirSync(from, { withFileTypes: true })) {
       const src = path.join(from, entry.name);
       const dst = path.join(to, entry.name);

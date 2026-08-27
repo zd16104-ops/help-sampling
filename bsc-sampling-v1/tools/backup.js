@@ -22,7 +22,9 @@ const withPhotos = process.argv.includes('--photos');
 const keepIdx = process.argv.indexOf('--keep');
 const keepDays = keepIdx >= 0 ? Number(process.argv[keepIdx + 1]) : 14;
 const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-const backupDir = path.join(backupRoot, `backup-${stamp}`);
+let backupDir = path.join(backupRoot, `backup-${stamp}`);
+// 同一秒内重复执行（手动重试）会撞名导致 VACUUM INTO 失败；追加序号避免。
+for (let n = 2; fs.existsSync(backupDir); n++) backupDir = path.join(backupRoot, `backup-${stamp}-${n}`);
 
 fs.mkdirSync(backupDir, { recursive: true });
 
@@ -42,6 +44,9 @@ if (withPhotos) {
   fs.mkdirSync(target, { recursive: true });
   const copyDir = (from, to) => {
     if (!fs.existsSync(from)) return;
+    // 先建目标目录再拷贝：reference/ 等目录可能顶层直接放文件，
+    // 旧实现只在遇到子目录时建目录，顶层文件会导致 ENOENT 备份失败。
+    fs.mkdirSync(to, { recursive: true });
     for (const entry of fs.readdirSync(from, { withFileTypes: true })) {
       const src = path.join(from, entry.name);
       const dst = path.join(to, entry.name);

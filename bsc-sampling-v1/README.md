@@ -26,7 +26,7 @@ HTTP 语义：422 业务拒绝（超 300 m、二维码不匹配、异常原因�
 
 ```powershell
 npm run check      # 全部 JS 语法检查
-npm test           # 38 项自动化测试（安全单元、数据库迁移、API 集成）
+npm test           # 39 项自动化测试（安全单元、数据库迁移、API 集成、备份回归）
 npm run smoke      # 30 项端到端冒烟（需要本机已启动服务器）
 npm run test:e2e   # 无头浏览器端到端（Playwright，断言数随数据量动态变化，需要 npm start 运行中）
 npm run backup     # 日常备份：node tools/backup.js --photos --keep 14

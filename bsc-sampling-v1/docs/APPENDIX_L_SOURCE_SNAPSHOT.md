@@ -1,7 +1,7 @@
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-27T12:30:46.048Z  
-> 文件数：69  
+> 生成时间：2026-08-27T13:38:46.608Z  
+> 文件数：70  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
 ### L.1 收录范围
@@ -1399,7 +1399,7 @@ echo [完成] 服务已卸载。数据目录 bsc-server\data\v1 已保留，可�
 
 #### `bsc-sampling-v1/package.json`
 
-SHA-256: `bb380bff5bf5c92d3e7a511de4c7c9635484b2c6d02fa14cfa98a22a16b22439`
+SHA-256: `79a7eb26bae648baf649cf655c0881c2a8a3103e12ba9e8110843fd737ca8f0d`
 
 ~~~~json
 {
@@ -1411,7 +1411,7 @@ SHA-256: `bb380bff5bf5c92d3e7a511de4c7c9635484b2c6d02fa14cfa98a22a16b22439`
     "start": "node src/server.js",
     "start:legacy": "node server.js",
     "check": "node --check src/server.js && node --check src/schema.js && node --check src/security.js && node --check src/weather.js && node --check src/ratelimit.js && node --check src/labels.js && node --check src/exports.js && node --check public/app.js && node --check test/frontend.e2e.js",
-    "test": "node --test test/security.test.js test/schema.test.js test/api.test.js",
+    "test": "node --test test/security.test.js test/schema.test.js test/api.test.js test/backup.test.js",
     "test:unit": "node --test test/security.test.js test/schema.test.js",
     "test:api": "node --test test/api.test.js",
     "test:e2e": "node test/frontend.e2e.js",
@@ -2773,7 +2773,7 @@ dialog{width:min(680px,calc(100% - 28px));border:0;border-radius:18px;padding:0;
 
 #### `bsc-sampling-v1/README.md`
 
-SHA-256: `a58cd91ce30910f523f0fb93969646a9a512512115f94e33adbe3a99ca108a1b`
+SHA-256: `274d7713f767cc0d800dfa7cb20564044d0a4888ffd52d0ee2b1752ed5d1f479`
 
 ~~~~markdown
 # 巴松措采样系统 V1 服务器与管理站
@@ -2804,7 +2804,7 @@ HTTP 语义：422 业务拒绝（超 300 m、二维码不匹配、异常原因�
 
 ```powershell
 npm run check      # 全部 JS 语法检查
-npm test           # 38 项自动化测试（安全单元、数据库迁移、API 集成）
+npm test           # 39 项自动化测试（安全单元、数据库迁移、API 集成、备份回归）
 npm run smoke      # 30 项端到端冒烟（需要本机已启动服务器）
 npm run test:e2e   # 无头浏览器端到端（Playwright，断言数随数据量动态变化，需要 npm start 运行中）
 npm run backup     # 日常备份：node tools/backup.js --photos --keep 14
@@ -4283,6 +4283,54 @@ test('admin login rate limiting (last: locks admin key)', async () => {
 });
 ~~~~
 
+#### `bsc-sampling-v1/test/backup.test.js`
+
+SHA-256: `30558385ca5f72f3e46066caef1d49c6459e22598bcb657e050ea6222cac69fd`
+
+~~~~javascript
+'use strict';
+
+// 备份回归测试：reference/ 顶层直接放文件时 --photos 必须成功（历史 ENOENT bug），
+// 且同一秒重复执行不因目录撞名失败。
+
+const test = require('node:test');
+const assert = require('node:assert');
+const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { DatabaseSync } = require('node:sqlite');
+
+test('backup --photos copies top-level reference files and survives same-second rerun', () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bsc-backup-test-'));
+  try {
+    const data = path.join(tmp, 'data', 'v1');
+    fs.mkdirSync(path.join(data, 'reference'), { recursive: true });
+    fs.mkdirSync(path.join(data, 'uploads', '1'), { recursive: true });
+    const db = new DatabaseSync(path.join(data, 'bsc-v1.sqlite'));
+    db.exec('CREATE TABLE t(x)');
+    db.close();
+    fs.writeFileSync(path.join(data, 'reference', 'ref-real.jpg'), Buffer.alloc(128, 1));
+    fs.writeFileSync(path.join(data, 'uploads', '1', 'p.jpg'), Buffer.alloc(64, 2));
+    const bk = path.join(tmp, 'bk');
+    const args = [path.join(__dirname, '..', 'tools', 'backup.js'), '--photos', '--dir', bk];
+    const env = { ...process.env, DATA_DIR: data };
+    const run = spawnSync(process.execPath, args, { env, encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    const newest = fs.readdirSync(bk).filter(d => d.startsWith('backup-')).sort().pop();
+    assert.ok(newest, '备份目录已创建');
+    assert.ok(fs.existsSync(path.join(bk, newest, 'photos', 'reference', 'ref-real.jpg')), 'reference 顶层文件已拷贝（ENOENT 回归）');
+    assert.ok(fs.existsSync(path.join(bk, newest, 'photos', 'uploads', '1', 'p.jpg')), 'uploads 嵌套文件已拷贝');
+    const run2 = spawnSync(process.execPath, args, { env, encoding: 'utf8' });
+    assert.equal(run2.status, 0, `同一秒重复执行不应失败: ${run2.stderr}`);
+    const dirs = fs.readdirSync(bk).filter(d => d.startsWith('backup-'));
+    assert.equal(dirs.length, 2, '两次执行生成两个不撞名的备份目录');
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+~~~~
+
 #### `bsc-sampling-v1/test/frontend.e2e.js`
 
 SHA-256: `05321c007fa2927efa15c6b7abc5c331e4a86670ab8da7c316a76bb850b2f356`
@@ -4902,7 +4950,7 @@ main().catch(e => { console.error(e); process.exit(1); });
 
 #### `bsc-sampling-v1/tools/backup.js`
 
-SHA-256: `01afd9a734f3e2807e8720b8c7bfb73e565805c815a4880bbbf430414de57518`
+SHA-256: `57b18e81d83ab53505fa00e42211040f5de3a32142987b53dfce97209f8c14bb`
 
 ~~~~javascript
 'use strict';
@@ -4929,7 +4977,9 @@ const withPhotos = process.argv.includes('--photos');
 const keepIdx = process.argv.indexOf('--keep');
 const keepDays = keepIdx >= 0 ? Number(process.argv[keepIdx + 1]) : 14;
 const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-const backupDir = path.join(backupRoot, `backup-${stamp}`);
+let backupDir = path.join(backupRoot, `backup-${stamp}`);
+// 同一秒内重复执行（手动重试）会撞名导致 VACUUM INTO 失败；追加序号避免。
+for (let n = 2; fs.existsSync(backupDir); n++) backupDir = path.join(backupRoot, `backup-${stamp}-${n}`);
 
 fs.mkdirSync(backupDir, { recursive: true });
 
@@ -4949,6 +4999,9 @@ if (withPhotos) {
   fs.mkdirSync(target, { recursive: true });
   const copyDir = (from, to) => {
     if (!fs.existsSync(from)) return;
+    // 先建目标目录再拷贝：reference/ 等目录可能顶层直接放文件，
+    // 旧实现只在遇到子目录时建目录，顶层文件会导致 ENOENT 备份失败。
+    fs.mkdirSync(to, { recursive: true });
     for (const entry of fs.readdirSync(from, { withFileTypes: true })) {
       const src = path.join(from, entry.name);
       const dst = path.join(to, entry.name);
