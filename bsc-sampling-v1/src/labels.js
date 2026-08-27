@@ -20,7 +20,8 @@ function renderLabelPage(tasks) {
         <img class="qr" alt="二维码" src="${task.qr_data_url}">
         <div class="text">
           <div class="code">${escapeHtml(task.sample_code)}</div>
-          <div class="meta">${escapeHtml(task.site_code)} · ${escapeHtml(TYPE_NAMES[task.sample_type] || task.sample_type)} · ${escapeHtml(task.planned_date)}</div>
+          <div class="type">${escapeHtml(TYPE_NAMES[task.sample_type] || task.sample_type)}</div>
+          <div class="meta">${escapeHtml(task.site_code)} · ${escapeHtml(task.planned_date)}</div>
           <div class="meta">${escapeHtml(task.project_code || 'BSC')} · 巴松措采样</div>
         </div>
       </div>`).join('');
@@ -40,7 +41,8 @@ function renderLabelPage(tasks) {
   .qr { width: 15mm; height: 15mm; flex: none; }
   .text { min-width: 0; }
   .code { font-size: 3.2mm; font-weight: 900; letter-spacing: .1mm; word-break: break-all; }
-  .meta { font-size: 2.4mm; color: #333; margin-top: 0.8mm; word-break: break-all; }
+  .type { font-size: 4.6mm; font-weight: 900; color: #0b5b45; margin-top: .4mm; word-break: break-all; }
+  .meta { font-size: 2.3mm; color: #333; margin-top: .5mm; word-break: break-all; }
   @media print { .page { padding: 0; } }
 </style>
 </head>

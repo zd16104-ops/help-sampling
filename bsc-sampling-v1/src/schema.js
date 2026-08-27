@@ -204,6 +204,9 @@ function migrate(db) {
   if (!recordColumns.includes('server_weather_status')) {
     db.exec("ALTER TABLE records ADD COLUMN server_weather_status TEXT NOT NULL DEFAULT 'pending'");
   }
+  // 旧库种子点位曾写入 /sample-reference.svg 占位参考图（SVG，安卓端无法解码，
+  // 造成"参考图传不到手机"的假象）。清空后由管理员在管理站上传真实照片。
+  db.prepare("UPDATE sites SET reference_image='' WHERE reference_image='/sample-reference.svg'").run();
 }
 
 function seed(db) {
@@ -232,7 +235,7 @@ function seed(db) {
   ];
   for (const [order, code, lat, lon, altitude, types, remarks] of points) {
     addSite.run(formal, order, code, `采样点${code}`, lat, lon, altitude, JSON.stringify(types), remarks,
-      '/sample-reference.svg', '按照参考图片核对地点，安全取样后拍摄瓶子与实际环境。', '注意河岸湿滑、落石和水位变化');
+      '', '按照参考图片核对地点，安全取样后拍摄瓶子与实际环境。', '注意河岸湿滑、落石和水位变化');
   }
   const pin = hashPin('1234');
   db.prepare('INSERT INTO villagers (username,display_name,pin_salt,pin_hash) VALUES (?,?,?,?)')

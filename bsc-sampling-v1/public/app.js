@@ -93,6 +93,17 @@ $('#loginForm').addEventListener('submit', async e => {
   } catch (error) { $('#loginError').textContent = error.message; }
 });
 $('#logoutButton').addEventListener('click', showLogin);
+// 小屏下侧栏抽屉：☰ 展开 / 点遮罩关闭；点击侧栏内任意按钮后自动收起。
+$('#menuButton').addEventListener('click', () => {
+  document.querySelector('.sidebar').classList.add('open');
+  document.querySelector('.sidebar-backdrop').classList.remove('hidden');
+});
+document.querySelector('.sidebar-backdrop').addEventListener('click', closeDrawer);
+$('.sidebar').addEventListener('click', e => { if (e.target.closest('button')) closeDrawer(); });
+function closeDrawer() {
+  document.querySelector('.sidebar').classList.remove('open');
+  document.querySelector('.sidebar-backdrop').classList.add('hidden');
+}
 
 // ---------- 初始化 ----------
 async function init() {
@@ -476,7 +487,6 @@ async function showDetail(task) {
     : '';
   body.innerHTML = `
     <img class="record-photo" src="${esc(task.photo_path)}" alt="现场采样照片">
-    <div class="watermark-preview">${esc(task.site_name)} · ${esc(task.sample_code)}<br>WGS84 ${Number(task.latitude).toFixed(6)}, ${Number(task.longitude).toFixed(6)} · 精度±${task.accuracy_m ?? '-'}m<br>${formatTime(task.captured_at)} · ${esc(task.weather_text)}</div>
     ${riskBadges(task)}
     <div class="record-grid">
       <div><small>历史序号</small><strong>${esc(task.site_code)}</strong></div>
@@ -484,7 +494,7 @@ async function showDetail(task) {
       <div><small>采样人员</small><strong>${esc(task.villager_name || '-')}</strong></div>
       <div><small>目标坐标(WGS84)</small><strong>${Number(task.target_latitude).toFixed(6)}, ${Number(task.target_longitude).toFixed(6)}</strong></div>
       <div><small>距目标点</small><strong>${Number(task.distance_m || 0).toFixed(1)} 米</strong></div>
-      <div><small>定位精度</small><strong>±${task.accuracy_m ?? '-'} 米</strong></div>
+      <div><small>定位精度</small><strong>±${task.accuracy_m != null && task.accuracy_m !== '' ? Math.round(Number(task.accuracy_m)) : '-'} 米</strong></div>
       <div><small>手机拍摄</small><strong>${formatTime(task.captured_at)}</strong></div>
       <div><small>服务器接收</small><strong>${formatTime(task.received_at)}</strong></div>
       <div><small>上传延迟</small><strong>${delayMinutes == null ? '-' : `${delayMinutes} 分钟`}</strong></div>

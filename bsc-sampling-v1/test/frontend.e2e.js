@@ -79,6 +79,21 @@ async function main() {
   await page.waitForSelector('#app:not(.hidden)', { timeout: 10000 });
   check('登录后进入主界面', await page.locator('#app:not(.hidden)').isVisible());
 
+  // 1c. 响应式：手机宽度下侧栏变抽屉（☰ 展开），桌面宽度下菜单按钮隐藏
+  check('桌面宽度不显示菜单按钮', !(await page.locator('#menuButton').isVisible()));
+  await page.setViewportSize({ width: 480, height: 820 });
+  await page.waitForTimeout(250);
+  check('手机宽度显示菜单按钮', await page.locator('#menuButton').isVisible());
+  check('手机宽度侧栏默认收起', !(await page.locator('.sidebar').evaluate(el => el.getBoundingClientRect().left >= 0)));
+  await page.click('#menuButton');
+  await page.waitForTimeout(350);
+  check('点击☰展开侧栏', await page.locator('.sidebar').evaluate(el => el.getBoundingClientRect().left >= 0));
+  await page.click('#refresh');
+  await page.waitForTimeout(350);
+  check('点击侧栏项后抽屉收起', !(await page.locator('.sidebar').evaluate(el => el.getBoundingClientRect().left >= 0)));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.waitForTimeout(250);
+
   // 1b. 顶栏按钮"!"信息点与悬停详情
   check('顶栏按钮均带"!"信息点', await page.locator('.top-action-wrap .info-badge').count() === 7);
   await page.hover('#exportCsv');
@@ -150,6 +165,9 @@ async function main() {
         check('审核面板显示（照片/风险/意见）', (await page.locator('#detailBody .record-photo').count()) >= 1);
         const bodyText = await page.locator('#detailBody').textContent();
         check('审核页显示历史序号/目标坐标/上传延迟', bodyText.includes('历史序号') && bodyText.includes('目标坐标') && bodyText.includes('上传延迟'));
+        check('照片不再叠加重复水印文字', (await page.locator('#detailBody .watermark-preview').count()) === 0);
+        const accText = bodyText.match(/±([\d.]+) 米/);
+        check('定位精度取整显示（无小数）', accText !== null && !accText[1].includes('.'), `精度=${accText ? accText[1] : '无'}`);
         if (/审核状态已通过/.test(bodyText)) {
           await page.click('#closeDetail');
           await page.waitForTimeout(150);

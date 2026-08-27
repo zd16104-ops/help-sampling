@@ -10,7 +10,7 @@ npm start            # node src/server.js，监听 127.0.0.1:3100
 ```
 
 - 数据目录：`data/v1/`（数据库 `bsc-v1.sqlite`、照片 `uploads/`、参考图 `reference/`、配置 `config.json`、备份 `backups/`）。
-- 首次启动自动建库并写入种子数据：2 个项目、25 个正式点位（含 `5.1`、`9.5`、`9.6` 等历史序号）、采样员 `cmy01`（PIN 1234）。
+- 首次启动自动建库并写入种子数据：2 个项目、25 个正式点位（含 `5.1`、`9.5`、`9.6` 等历史序号）、采样员 `cmy01`（扫码激活即登录，无 PIN）。
 - 默认管理员密码 `ChangeMe-2608!`：正式部署必须通过 `data/v1/config.json` 或环境变量 `ADMIN_PASSWORD`/`SESSION_SECRET` 修改，建议配置 `ADMIN_TOTP_SECRET` 启用动态验证码。
 - 环境变量：`HOST`、`PORT`、`DATA_DIR`、`PUBLIC_BASE_URL`（激活二维码中的服务器地址）。
 
@@ -26,9 +26,9 @@ HTTP 语义：422 业务拒绝（超 300 m、二维码不匹配、异常原因�
 
 ```powershell
 npm run check      # 全部 JS 语法检查
-npm test           # 34 项自动化测试（安全单元、数据库迁移、API 集成）
+npm test           # 38 项自动化测试（安全单元、数据库迁移、API 集成）
 npm run smoke      # 30 项端到端冒烟（需要本机已启动服务器）
-npm run test:e2e   # 19 项无头浏览器端到端（Playwright，需要 npm start 运行中）
+npm run test:e2e   # 130 项无头浏览器端到端（Playwright，需要 npm start 运行中）
 npm run backup     # 日常备份：node tools/backup.js --photos --keep 14
 node tools/restore.js data/v1/backups/backup-<时间戳>   # 恢复演练
 ```

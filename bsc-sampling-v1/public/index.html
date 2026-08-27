@@ -40,10 +40,11 @@
         <button id="logoutButton" class="side-action ghost">退出登录</button>
       </div>
     </aside>
+    <div class="sidebar-backdrop hidden"></div>
 
     <main class="main">
       <header class="topbar">
-        <div><p id="crumb" class="crumb">项目</p><h2 id="pageTitle">待采样任务</h2></div>
+        <div class="topbar-title"><button id="menuButton" class="menu-button" title="菜单">☰</button><div><p id="crumb" class="crumb">项目</p><h2 id="pageTitle">待采样任务</h2></div></div>
         <div class="top-actions">
           <span class="top-action-wrap"><button id="exportCsv" class="secondary">导出CSV</button><i class="info-badge">!</i><span class="info-tip">导出当前项目的全部采样记录为 CSV 表格（编号、历史序号、WGS84 坐标、距离、精度、风险标志中文解释、审核意见、照片 SHA-256），可用 Excel 打开。</span></span>
           <span class="top-action-wrap"><button id="exportGeo" class="secondary">GeoJSON</button><i class="info-badge">!</i><span class="info-tip">导出采样记录为 GeoJSON（WGS84 点要素），可在 QGIS、ArcGIS 等地图软件中打开。</span></span>

@@ -729,7 +729,7 @@ Android 单元测试：
 - 备份与恢复：`tools/backup.js`（VACUUM INTO 一致快照 + 照片增量拷贝 + 保留期清理）、`tools/restore.js`（临时目录恢复演练，校验照片记录可打开）。
 - 自动化测试：`test/security.test.js`、`test/schema.test.js`、`test/api.test.js` 共 38 项全部通过（npm test）；`test/smoke.js` 30 项端到端冒烟全部通过。
 - Android 已完成本机首次完整编译：`assembleDebug` 构建成功（app-debug.apk 约 65 MB），仅剩编译告警（过时 API 提示）；CameraX 由 1.6.1 调整为 1.5.2（1.6.x 要求 compileSdk 36 + AGP 8.9.1，与本工程 compileSdk 35 + AGP 8.7.3 不兼容）；`QrDataTest` 单元测试 8/8 通过（含 `5.1`/`9.5`/`9.6` 历史序号保留与错误输入拒绝）；构建工具链脚本 `tools/setup-toolchain.ps1` 入库。
-- 管理站前端已全部切换到 `/api/v1`（`public/index.html`、`public/app.js`、`public/styles.css`）：管理员登录（密码+可选 TOTP）、项目与采样日期自动归档导航、待采样入口、卫星地图与状态色标记（灰/橙/绿/红，点位名称常显）、点位管理（地图选点+拖动微调、CSV 导入、编辑、参考图可选上传、启用开关）、任务下发（多点位×多类型批量生成、全选）、40 枚/页 A4 标签打印页、审核详情（现场照片/参考图/轨迹/风险标志中文解释/审核意见追加，不修改原始记录）、任务取消/改期（重新编号）与设备解锁、服务器天气补齐、项目增删改查、导出（CSV/GeoJSON/照片包/审计/GPX）、设备激活二维码、诊断日志与磁盘健康提示。Leaflet 1.9.4 与 qrcodejs 已本地托管于 `public/vendor/`，不再依赖 CDN。无头浏览器端到端测试 `test/frontend.e2e.js`（Playwright）73 项全部通过。
+- 管理站前端已全部切换到 `/api/v1`（`public/index.html`、`public/app.js`、`public/styles.css`）：管理员登录（密码+可选 TOTP）、项目与采样日期自动归档导航、待采样入口、卫星地图与状态色标记（灰/橙/绿/红，点位名称常显）、点位管理（地图选点+拖动微调、CSV 导入、编辑、参考图可选上传、启用开关）、任务下发（多点位×多类型批量生成、全选）、40 枚/页 A4 标签打印页、审核详情（现场照片/参考图/轨迹/风险标志中文解释/审核意见追加，不修改原始记录）、任务取消/改期（重新编号）与设备解锁、服务器天气补齐、项目增删改查、导出（CSV/GeoJSON/照片包/审计/GPX）、设备激活二维码、诊断日志与磁盘健康提示。Leaflet 1.9.4 与 qrcodejs 已本地托管于 `public/vendor/`，不再依赖 CDN。无头浏览器端到端测试 `test/frontend.e2e.js`（Playwright）130 项全部通过。
 
 ### 28.3 需求变更记录（用户本机测试反馈，2026-08-26）
 
@@ -750,6 +750,13 @@ Android 单元测试：
 15. Android 端地图与任务标记增强：任务标记**自动显示历史序号**（水滴图标内数字），状态配色与文案（绿=已采样、灰=已取消、蓝=进行中、橙=待采样）；**单击地图任意位置复制**该点 WGS84 坐标、**长按**弹窗确认复制（`【WGS84】…°N，…°E` 格式），"我的位置"按钮弹出坐标对话框可直接复制；地图标记图标改用 MapLibre 11 的 `IconFactory`/`Icon` API（11.x 已移除 `BitmapDescriptor`）。
 16. Android 端"开始前往记录轨迹"改为直接跳转地图页（`CLEAR_TOP|SINGLE_TOP` + `finish()`），不再停留在任务详情。
 17. 服务端任务列表（`/admin/tasks` 与 `/syncData`）统一输出 `canceled_at: t.canceled_at || null`，避免 SQLite 取值差异导致任务详情"已取消"状态显示异常。
+18. **手机端一次绑定、终身免登录（用户要求）**：手机登录令牌有效期由 30 天改为 **10 年**（`/activate` 与 `/login`）；APP 端 `SyncEngine` 在同步遇到 401/403 时用已存的账号+设备编号**静默重新登录**并自动重试（无需再扫码，记录 `AUTO_RELOGIN` 日志）；修复重启 APP 后 `unlocked` 未按已激活状态恢复、导致登录页与底部标签栏/主界面**重叠**的 bug（`onCreate` 直接 `unlocked=prefs.activated()`，各标签页增加未激活守卫）。管理端停用采样员/设备仍然即时生效（每次请求都校验 `devices.enabled`）。
+19. **参考图传不到手机的问题修复**：根因是旧库 25 个种子点位写入了 `/sample-reference.svg` 占位图（SVG 格式，安卓 `BitmapFactory` 无法解码，永远不显示，也没有报错日志）。服务器迁移清空该占位（新库种子也不再写），管理员在管理站上传真实 JPG 后即可在任务详情顶部看到；APP 端参考图无值或下载/解码失败时隐藏灰色占位框。
+20. 管理站审核详情：村民照片上已有水印，**移除重复叠加的 `watermark-preview` 文字层**；"定位精度"显示取整（`±2 米`，不再显示 `±2.700000047683716 米`）。
+21. 管理站全页面**响应式自适应**：≤650px 宽时侧栏变为抽屉（顶栏 ☰ 按钮展开、遮罩关闭、点击侧栏项自动收起），审核详情全宽、详情网格/统计卡改单列、表单单列、触摸提示气泡隐藏；≤900px 侧栏收窄、统计两列；≤400px 统计单列。
+22. **瓶子标签改版**：样品类型（如"河流水"）单独一行**加粗放大**（4.6mm 深绿粗体），编号、历史序号·日期、项目码分行显示，村民远看即可分辨。
+23. Android "我的任务"列表状态一目了然：**待采样=淡红底色、已采样=淡绿底色、已取消=浅灰底色**，状态文字加粗同色，不再只靠文字区分；地图标记颜色沿用绿/灰/蓝/橙四色。
+24. Playwright CLI 真浏览器验收（管理站登录、地图、坐标解析等）通过；E2E 新增响应式抽屉、无水印叠加、精度取整等断言。
 
 ### 28.2 未完成，不得宣称已可上线
 
@@ -813,7 +820,7 @@ Android 单元测试：
 
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-27T05:14:21.768Z  
+> 生成时间：2026-08-27T11:55:32.391Z  
 > 文件数：69  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
@@ -949,7 +956,7 @@ package online.gpsgps.bscsampling;import android.content.*;public final class Bo
 
 #### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/MainActivity.java`
 
-SHA-256: `b2467fc07726b10697dacddb2874364ff1a8ee0a08440f946beb9d5abd4f5321`
+SHA-256: `9ec719d378f8b53d9b6bc4add6d341f9cec36fe9a9b60404e169242ce3b957d8`
 
 ~~~~java
 package online.gpsgps.bscsampling;
@@ -961,8 +968,8 @@ public final class MainActivity extends AppCompatActivity implements LocationLis
  private final ActivityResultLauncher<Intent> scan=registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),r->{if(r.getResultCode()!=RESULT_OK||r.getData()==null)return;try{activation=QrData.parse(r.getData().getStringExtra(ScanActivity.RESULT));if(!activation.activation)throw new IllegalArgumentException("请扫描设备激活二维码");showLogin();}catch(Exception e){Toast.makeText(this,e.getMessage(),Toast.LENGTH_LONG).show();}});
  private final ActivityResultLauncher<String[]> permissions=registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(),r->locations());
  private final ActivityResultLauncher<String> mapFile=registerForActivityResult(new ActivityResultContracts.GetContent(),this::importMap);
- protected void onCreate(Bundle b){super.onCreate(b);MapLibre.getInstance(this);setContentView(R.layout.activity_main);prefs=new Prefs(this);db=new Store(this);lm=getSystemService(LocationManager.class);content=findViewById(R.id.content);tabs=findViewById(R.id.tabs);header=findViewById(R.id.header);title=findViewById(R.id.title);status=findViewById(R.id.status);findViewById(R.id.tabMap).setOnClickListener(v->showMap());findViewById(R.id.tabTasks).setOnClickListener(v->showTasks());findViewById(R.id.tabUpload).setOnClickListener(v->showUpload());findViewById(R.id.tabMine).setOnClickListener(v->showMine());findViewById(R.id.sync).setOnClickListener(v->sync());showLogin();}
- private void showLogin(){destroyMap();tabs.setVisibility(View.GONE);findViewById(R.id.sync).setVisibility(View.GONE);content.removeAllViews();View v=getLayoutInflater().inflate(R.layout.view_login,content,false);content.addView(v);MaterialButton scanButton=v.findViewById(R.id.scanActivation);TextView hint=v.findViewById(R.id.loginHint);v.findViewById(R.id.copyLog).setOnClickListener(x->copyLog());if(prefs.activated()){enter();return;}scanButton.setOnClickListener(x->scan.launch(new Intent(this,ScanActivity.class)));if(activation!=null){hint.setText("已扫码：正在激活设备并自动登录…");scanButton.setEnabled(false);work.execute(()->{try{JSONObject r=new Api(this).activate(activation.server,activation.user,activation.token),u=r.getJSONObject("villager");prefs.save(activation.server,r.getString("token"),u.getString("username"),u.getString("displayName"),r.getLong("deviceId"));unlocked=true;runOnUiThread(this::enter);}catch(Exception e){db.log("error","ACTIVATE "+e.getMessage());runOnUiThread(()->{scanButton.setEnabled(true);hint.setText("激活失败："+e.getMessage()+"\n请让管理员重新生成激活二维码");});}});}else hint.setText("首次使用：扫描管理员生成的设备激活二维码\n扫码后自动激活并登录，之后打开无需再登录");}
+ protected void onCreate(Bundle b){super.onCreate(b);MapLibre.getInstance(this);setContentView(R.layout.activity_main);prefs=new Prefs(this);db=new Store(this);lm=getSystemService(LocationManager.class);content=findViewById(R.id.content);tabs=findViewById(R.id.tabs);header=findViewById(R.id.header);title=findViewById(R.id.title);status=findViewById(R.id.status);unlocked=prefs.activated();findViewById(R.id.tabMap).setOnClickListener(v->showMap());findViewById(R.id.tabTasks).setOnClickListener(v->showTasks());findViewById(R.id.tabUpload).setOnClickListener(v->showUpload());findViewById(R.id.tabMine).setOnClickListener(v->showMine());findViewById(R.id.sync).setOnClickListener(v->sync());showLogin();}
+ private void showLogin(){destroyMap();tabs.setVisibility(View.GONE);findViewById(R.id.sync).setVisibility(View.GONE);content.removeAllViews();View v=getLayoutInflater().inflate(R.layout.view_login,content,false);content.addView(v);MaterialButton scanButton=v.findViewById(R.id.scanActivation);TextView hint=v.findViewById(R.id.loginHint);v.findViewById(R.id.copyLog).setOnClickListener(x->copyLog());if(prefs.activated()){unlocked=true;enter();return;}unlocked=false;scanButton.setOnClickListener(x->scan.launch(new Intent(this,ScanActivity.class)));if(activation!=null){hint.setText("已扫码：正在激活设备并自动登录…");scanButton.setEnabled(false);work.execute(()->{try{JSONObject r=new Api(this).activate(activation.server,activation.user,activation.token),u=r.getJSONObject("villager");prefs.save(activation.server,r.getString("token"),u.getString("username"),u.getString("displayName"),r.getLong("deviceId"));unlocked=true;runOnUiThread(this::enter);}catch(Exception e){db.log("error","ACTIVATE "+e.getMessage());runOnUiThread(()->{scanButton.setEnabled(true);hint.setText("激活失败："+e.getMessage()+"\n请让管理员重新生成激活二维码");});}});}else hint.setText("首次使用：扫描管理员生成的设备激活二维码\n扫码后自动激活并登录，之后打开无需再登录");}
  private void enter(){tabs.setVisibility(View.VISIBLE);findViewById(R.id.sync).setVisibility(View.VISIBLE);askPermissions();showMap();sync();String details="{}";try{details=new JSONObject().put("network",Util.networkType(this)).put("online",Util.online(this)).put("fineLocation",ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED).put("backgroundLocation",ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_BACKGROUND_LOCATION)==PackageManager.PERMISSION_GRANTED).put("camera",ContextCompat.checkSelfPermission(this,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED).put("notifications",android.os.Build.VERSION.SDK_INT<33||ContextCompat.checkSelfPermission(this,Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED).put("pendingRecords",db.count("status!='uploaded'")).put("activeJourney",prefs.activeJourney()).toString();}catch(Exception ignored){}db.log("info","APP_READY",details);}
  private void askPermissions(){List<String> x=new ArrayList<>();if(ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED)x.add(Manifest.permission.ACCESS_FINE_LOCATION);if(Build.VERSION.SDK_INT>=33&&ContextCompat.checkSelfPermission(this,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)x.add(Manifest.permission.POST_NOTIFICATIONS);if(x.isEmpty())locations();else permissions.launch(x.toArray(new String[0]));}
  private void locations(){if(ActivityCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED)return;try{lm.requestLocationUpdates(LocationManager.GPS_PROVIDER,5000,0,this);if(lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER))lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,5000,0,this);Location x=lm.getLastKnownLocation(LocationManager.GPS_PROVIDER);if(x!=null)onLocationChanged(x);}catch(Exception e){db.log("error","LOCATION "+e.getMessage());}}
@@ -976,16 +983,16 @@ public final class MainActivity extends AppCompatActivity implements LocationLis
  private void markers(){if(map==null||map.getStyle()==null)return;map.clear();markerTasks.clear();for(Task t:db.tasks()){String j=db.active(t.j.optLong("site_id"));boolean active=j!=null&&!j.isEmpty();int color=t.submitted()?0xFF16A27A:t.canceled()?0xFF7F8D8C:active?0xFF3A84C6:0xFFEF9C2F;String prefix=t.submitted()?"✓ ":t.canceled()?"已取消 ":active?"进行中 ":"待采样 ";Marker m=map.addMarker(new MarkerOptions().position(new LatLng(t.lat(),t.lon())).icon(markerIcon(t.siteCode(),color)).title(prefix+t.title()).snippet(t.code()));markerTasks.put(m.getId(),t);}if(here!=null)map.addMarker(new MarkerOptions().position(new LatLng(here.getLatitude(),here.getLongitude())).title("我的位置（WGS84）"));}
  protected void onNewIntent(Intent i){super.onNewIntent(i);if(prefs.activated()&&unlocked)showMap();}
  private void center(){if(map!=null&&here!=null)map.setCameraPosition(new CameraPosition.Builder().target(new LatLng(here.getLatitude(),here.getLongitude())).zoom(14).build());}
- private void showTasks(){destroyMap();title.setText("我的任务");content.removeAllViews();View v=getLayoutInflater().inflate(R.layout.view_list,content,false);content.addView(v);List<Task> a=new ArrayList<>(db.tasks());a.sort(Comparator.comparingDouble(t->here==null?t.id:Util.distance(here.getLatitude(),here.getLongitude(),t.lat(),t.lon())));((TextView)v.findViewById(R.id.listHint)).setText("按距离从近到远 · 共"+a.size()+"个任务");ListView list=v.findViewById(R.id.list);list.setAdapter(new TaskAdapter(a));list.setOnItemClickListener((p,x,i,id)->startActivity(new Intent(this,TaskActivity.class).putExtra("task",a.get(i).id)));}
- private void showUpload(){destroyMap();title.setText("上传");LinearLayout p=panel();text(p,"待上传 "+db.count("status!='uploaded'")+" 条",22);text(p,"数据会一直保存在手机，直到服务器确认成功；不会因退出APP自动删除。",16);text(p,"已上传 "+db.count("status='uploaded'")+" 条",22);MaterialButton b=button("立即重试上传");b.setOnClickListener(v->sync());p.addView(b);content.removeAllViews();content.addView(p);}
- private void showMine(){destroyMap();title.setText("我的");LinearLayout p=panel();text(p,prefs.name()+"（"+prefs.user()+"）",22);text(p,"服务器："+prefs.server()+"\n设备："+Util.uuid(this)+"\n坐标：WGS84\n版本："+BuildConfig.VERSION_NAME,16);MaterialButton map=button(prefs.map().isEmpty()?"导入离线卫星地图包（MBTiles）":"更换离线地图包");map.setOnClickListener(v->mapFile.launch("*/*"));p.addView(map);MaterialButton log=button("复制诊断日志");log.setOnClickListener(v->copyLog());p.addView(log);content.removeAllViews();content.addView(p);}
+ private void showTasks(){if(!unlocked)return;destroyMap();title.setText("我的任务");content.removeAllViews();View v=getLayoutInflater().inflate(R.layout.view_list,content,false);content.addView(v);List<Task> a=new ArrayList<>(db.tasks());a.sort(Comparator.comparingDouble(t->here==null?t.id:Util.distance(here.getLatitude(),here.getLongitude(),t.lat(),t.lon())));((TextView)v.findViewById(R.id.listHint)).setText("按距离从近到远 · 共"+a.size()+"个任务");ListView list=v.findViewById(R.id.list);list.setAdapter(new TaskAdapter(a));list.setOnItemClickListener((p,x,i,id)->startActivity(new Intent(this,TaskActivity.class).putExtra("task",a.get(i).id)));}
+ private void showUpload(){if(!unlocked)return;destroyMap();title.setText("上传");LinearLayout p=panel();text(p,"待上传 "+db.count("status!='uploaded'")+" 条",22);text(p,"数据会一直保存在手机，直到服务器确认成功；不会因退出APP自动删除。",16);text(p,"已上传 "+db.count("status='uploaded'")+" 条",22);MaterialButton b=button("立即重试上传");b.setOnClickListener(v->sync());p.addView(b);content.removeAllViews();content.addView(p);}
+ private void showMine(){if(!unlocked)return;destroyMap();title.setText("我的");LinearLayout p=panel();text(p,prefs.name()+"（"+prefs.user()+"）",22);text(p,"服务器："+prefs.server()+"\n设备："+Util.uuid(this)+"\n坐标：WGS84\n版本："+BuildConfig.VERSION_NAME,16);MaterialButton map=button(prefs.map().isEmpty()?"导入离线卫星地图包（MBTiles）":"更换离线地图包");map.setOnClickListener(v->mapFile.launch("*/*"));p.addView(map);MaterialButton log=button("复制诊断日志");log.setOnClickListener(v->copyLog());p.addView(log);content.removeAllViews();content.addView(p);}
  private LinearLayout panel(){LinearLayout p=new LinearLayout(this);p.setOrientation(LinearLayout.VERTICAL);p.setPadding(24,24,24,24);return p;}private void text(LinearLayout p,String s,int size){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(Color.DKGRAY);v.setPadding(10,16,10,16);p.addView(v);}private MaterialButton button(String s){MaterialButton b=new MaterialButton(this);b.setText(s);b.setTextSize(18);b.setMinHeight(64);return b;}
  private void importMap(Uri u){if(u==null)return;work.execute(()->{try{long declared=-1;try(Cursor c=getContentResolver().query(u,new String[]{OpenableColumns.SIZE},null,null,null)){if(c!=null&&c.moveToFirst())declared=c.getLong(0);}if(declared>2_000_000_000L)throw new IOException("地图包超过2GB");File out=new File(getFilesDir(),"basongcuo.mbtiles");try(InputStream in=getContentResolver().openInputStream(u);FileOutputStream o=new FileOutputStream(out)){byte[] b=new byte[1024*1024];int n;long total=0;while((n=in.read(b))>=0){total+=n;if(total>2_000_000_000L)throw new IOException("地图包超过2GB");o.write(b,0,n);}}byte[] h=new byte[16];try(FileInputStream in=new FileInputStream(out)){if(in.read(h)!=16||!new String(h,StandardCharsets.US_ASCII).startsWith("SQLite format 3"))throw new IOException("不是有效MBTiles地图包");}prefs.map(out.getPath());runOnUiThread(()->Toast.makeText(this,"离线地图导入成功",Toast.LENGTH_LONG).show());}catch(Exception e){db.log("error","MAP_IMPORT "+e.getMessage());runOnUiThread(()->Toast.makeText(this,e.getMessage(),Toast.LENGTH_LONG).show());}});}
  private void copyLog(){getSystemService(android.content.ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("巴松措采样日志",db.diagnostics()));Toast.makeText(this,"日志已复制，可以发给管理员",Toast.LENGTH_LONG).show();}
  public void onLocationChanged(@NonNull Location l){here=l;locationText();if(map!=null)markers();}private void locationText(){TextView v=content.findViewById(R.id.location);if(v!=null)v.setText(here==null?"正在获取WGS84位置…":String.format(Locale.CHINA,"WGS84 %.6f, %.6f　精度±%.0fm",here.getLatitude(),here.getLongitude(),here.getAccuracy()));}
  private void destroyMap(){if(mapView!=null){mapView.onStop();mapView.onDestroy();mapView=null;map=null;}}
  protected void onStart(){super.onStart();if(mapView!=null)mapView.onStart();}protected void onResume(){super.onResume();if(mapView!=null)mapView.onResume();}protected void onPause(){if(mapView!=null)mapView.onPause();super.onPause();}protected void onStop(){if(mapView!=null)mapView.onStop();super.onStop();}public void onLowMemory(){super.onLowMemory();if(mapView!=null)mapView.onLowMemory();}protected void onDestroy(){try{lm.removeUpdates(this);}catch(Exception ignored){}destroyMap();work.shutdown();super.onDestroy();}
- private final class TaskAdapter extends BaseAdapter{private final List<Task>a;TaskAdapter(List<Task>a){this.a=a;}public int getCount(){return a.size();}public Object getItem(int i){return a.get(i);}public long getItemId(int i){return a.get(i).id;}public View getView(int i,View v,ViewGroup p){if(v==null)v=getLayoutInflater().inflate(R.layout.item_task,p,false);Task t=a.get(i);((TextView)v.findViewById(R.id.itemTitle)).setText(t.title()+" · 历史"+t.siteCode());((TextView)v.findViewById(R.id.itemCode)).setText(t.code());double d=here==null?-1:Util.distance(here.getLatitude(),here.getLongitude(),t.lat(),t.lon());((TextView)v.findViewById(R.id.itemMeta)).setText(Util.type(t.j.optString("sample_type"))+" · "+(d<0?"距离未知":d<1000?Math.round(d)+"米":String.format(Locale.CHINA,"%.1f公里",d/1000))+" · "+t.j.optString("planned_date"));((TextView)v.findViewById(R.id.itemStatus)).setText(t.submitted()?"已采样":t.canceled()?"已取消":"待采样");return v;}}
+ private final class TaskAdapter extends BaseAdapter{private final List<Task>a;TaskAdapter(List<Task>a){this.a=a;}public int getCount(){return a.size();}public Object getItem(int i){return a.get(i);}public long getItemId(int i){return a.get(i).id;}public View getView(int i,View v,ViewGroup p){if(v==null)v=getLayoutInflater().inflate(R.layout.item_task,p,false);Task t=a.get(i);((TextView)v.findViewById(R.id.itemTitle)).setText(t.title()+" · 历史"+t.siteCode());((TextView)v.findViewById(R.id.itemCode)).setText(t.code());double d=here==null?-1:Util.distance(here.getLatitude(),here.getLongitude(),t.lat(),t.lon());((TextView)v.findViewById(R.id.itemMeta)).setText(Util.type(t.j.optString("sample_type"))+" · "+(d<0?"距离未知":d<1000?Math.round(d)+"米":String.format(Locale.CHINA,"%.1f公里",d/1000))+" · "+t.j.optString("planned_date"));TextView st=v.findViewById(R.id.itemStatus);boolean sub=t.submitted(),can=t.canceled();st.setText(sub?"已采样":can?"已取消":"待采样");st.setTextColor(sub?0xFF087557:can?0xFF777F7E:0xFFB3402F);st.setTypeface(null,android.graphics.Typeface.BOLD);v.getBackground().setTint(sub?0xFFE3F5EC:can?0xFFF0F1F1:0xFFFDECEC);return v;}}
 }
 ~~~~
 
@@ -1153,7 +1160,7 @@ final class Store extends SQLiteOpenHelper {
 
 #### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/SyncEngine.java`
 
-SHA-256: `1a56cbb3879633a5f2d5ec25c42a5b73c3ac0b35da2ae4eed5a956fb61955797`
+SHA-256: `06dc0f3aae122faa8efd1313919efdf63749910ee71ce2ab123f4e6bfebadfc7`
 
 ~~~~java
 package online.gpsgps.bscsampling;
@@ -1170,7 +1177,13 @@ final class SyncEngine {
   private final Context c;private final Store d;private final Api a;
   SyncEngine(Context c){this.c=c.getApplicationContext();d=new Store(c);a=new Api(c);}
   Result run(){Result out=new Result();if(!Util.online(c)){out.message="当前离线，数据已保存在手机";d.log("info","SYNC_SKIP_OFFLINE",detail());return out;}d.log("info","SYNC_BEGIN",detail());
-    try{JSONArray t=a.sync().optJSONArray("tasks");if(t!=null){d.tasks(t);out.tasks=t.length();}}catch(Exception e){fail("SYNC_TASKS",e);out.errors++;out.message=e.getMessage();d.log("info","SYNC_END",detail());return out;}
+    JSONArray t=null;
+    try{t=a.sync().optJSONArray("tasks");}
+    catch(Exception e){boolean auth=e instanceof Api.ApiError&&(((Api.ApiError)e).status==401||((Api.ApiError)e).status==403);if(!auth){fail("SYNC_TASKS",e);out.errors++;out.message=e.getMessage();d.log("info","SYNC_END",detail());return out;}
+      // 设备已绑定：令牌过期/失效时用已存账号+设备编号静默重新登录（无需再扫码），一次绑定终身免登录。
+      try{String tok=new Api(c).login().getString("token");new Prefs(c).token(tok);d.log("info","AUTO_RELOGIN 绑定设备自动重新登录");t=a.sync().optJSONArray("tasks");}
+      catch(Exception e2){fail("SYNC_TASKS",e2);out.errors++;out.message=e2.getMessage();d.log("info","SYNC_END",detail());return out;}}
+    if(t!=null){d.tasks(t);out.tasks=t.length();}
     for(JSONObject j:d.journeys("status='active' AND server_id IS NULL")){try{JSONObject r=a.start(j.optLong("taskId"),j.optDouble("latitude"),j.optDouble("longitude"),j.optDouble("accuracyM"));d.serverJourney(j.optString("localId"),r.getJSONObject("journey").getLong("id"));}catch(Exception e){fail("SYNC_START task="+j.optLong("taskId"),e);out.errors++;}}
     for(JSONObject j:d.journeys("server_id IS NOT NULL")){JSONArray points=d.tracks(j.optString("localId"));if(points.length()>0)try{a.tracks(j.optLong("serverId"),points);d.tracksDone(j.optString("localId"),points.optJSONObject(points.length()-1).optInt("sequence"));}catch(Exception e){fail("SYNC_TRACK",e);out.errors++;}}
     for(JSONObject r:d.records()){try{JSONObject j=d.journey(r.optString("journeyId"));if(j==null||!j.has("serverId"))continue;File f=new File(r.optString("photo"));if(!f.isFile())throw new IllegalStateException("本地照片不存在");JSONObject p=r.getJSONObject("payload");if(p.optString("weatherText").equals("待补充"))try{p.put("weatherText",a.weather(p.optDouble("latitude"),p.optDouble("longitude"),p.optString("capturedAt")));}catch(Exception ignored){}p.put("offlineStart",j.optBoolean("offlineStart"));p.put("photoDataUrl","data:image/jpeg;base64,"+Base64.encodeToString(Files.readAllBytes(f.toPath()),Base64.NO_WRAP));a.record(r.optLong("taskId"),p);d.recordResult(r.optString("clientId"),true,null);out.uploaded++;}catch(Exception e){d.recordResult(r.optString("clientId"),false,e.getMessage());fail("SYNC_RECORD task="+r.optLong("taskId"),e);out.errors++;}}
@@ -1205,7 +1218,7 @@ final class Task { final JSONObject j; final long id; Task(JSONObject j){this.j=
 
 #### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/TaskActivity.java`
 
-SHA-256: `210c36b3d0bcc8fb1e7a38e7873fdbd400da8db364977f75ca5d7f664516f6f3`
+SHA-256: `8bd0a98d865197d3362df7caa6c164d190813edb9a75d8a2a40c4f050cb6998e`
 
 ~~~~java
 package online.gpsgps.bscsampling;
@@ -1234,7 +1247,7 @@ public final class TaskActivity extends AppCompatActivity implements LocationLis
  private void photoResult(int code,Intent data){if(code!=RESULT_OK||data==null)return;photo=data.getStringExtra(PhotoActivity.PATH);captured=data.getStringExtra(PhotoActivity.AT);weather=data.getStringExtra(PhotoActivity.WEATHER);if(photo==null||!new File(photo).isFile()){message.setText("照片保存失败，请重拍");return;}preview.setImageBitmap(BitmapFactory.decodeFile(photo));preview.setVisibility(View.VISIBLE);save.setVisibility(View.VISIBLE);photoButton.setText("重新拍照");message.setText("照片已加时间、天气、WGS84水印。确认瓶子/标签和后方环境都能辨认。");}
  private void save(){if(here==null||photo.isEmpty())return;try{JSONObject p=new JSONObject().put("capturedAt",captured).put("latitude",here.getLatitude()).put("longitude",here.getLongitude()).put("accuracyM",here.getAccuracy()).put("weatherText",weather==null?"待补充":weather).put("noWater",noWater).put("manualCode",manual).put("submittedCode",manual?task.code():"").put("qrToken",qr).put("exceptionCategory",reason).put("exceptionDetail",detail).put("mockLocation",Util.mock(here));db.record(task.id,journey,photo,p);db.taskQueued(task.id);String saveDetail="{}";try{saveDetail=new JSONObject().put("taskId",task.id).put("distance",Math.round(distance())).put("noWater",noWater).put("manual",manual).put("queue",db.count("status!='uploaded'")).put("network",Util.networkType(this)).toString();}catch(Exception ignored){}db.log("info","SAVE_QUEUED",saveDetail);boolean sibling=db.sibling(task.j.optLong("site_id"),task.id);if(!sibling){db.finish(journey);TrackingService.stop(this);prefs.journey("");}WorkManager.getInstance(this).enqueue(new OneTimeWorkRequest.Builder(SyncWorker.class).setConstraints(new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build());new AlertDialog.Builder(this).setTitle("采样已安全保存").setMessage(Util.online(this)?"正在后台上传；失败也不会删除。":"当前离线，联网后自动上传。"+(sibling?"\n同点还有任务，轨迹继续记录。":"")).setPositiveButton("返回",(d,w)->finish()).setCancelable(false).show();}catch(Exception e){message.setText("本地保存失败，请不要退出："+e.getMessage());db.log("error","SAVE "+e.getMessage());}}
  private double distance(){return here==null?Double.MAX_VALUE:Util.distance(here.getLatitude(),here.getLongitude(),task.lat(),task.lon());}public void onLocationChanged(@NonNull Location l){here=l;double d=distance();String level=d<=30?"30米内：正常":d<=80?"30～80米：需写原因":d<=300?"80～300米：严重可疑":"超过300米：禁止";loc.setText(String.format(Locale.CHINA,"WGS84 %.6f, %.6f\n距点 %.0f米 · 精度±%.0f米\n%s%s",l.getLatitude(),l.getLongitude(),d,l.getAccuracy(),level,Util.mock(l)?"\n⚠检测到模拟位置":""));}
- private void reference(){String path=task.j.optString("reference_image");if(path.isEmpty())return;work.execute(()->{try(Response r=new OkHttpClient().newCall(new Request.Builder().url(path.startsWith("http")?path:prefs.server()+path).build()).execute()){if(r.isSuccessful()&&r.body()!=null){byte[] b=r.body().bytes();runOnUiThread(()->((ImageView)findViewById(R.id.reference)).setImageBitmap(BitmapFactory.decodeByteArray(b,0,b.length)));}}catch(Exception e){db.log("warning","REFERENCE "+e.getMessage());}});}
+ private void reference(){String path=task.j.optString("reference_image");ImageView ref=findViewById(R.id.reference);if(path==null||path.isEmpty()){ref.setVisibility(View.GONE);return;}work.execute(()->{try(Response r=new OkHttpClient().newCall(new Request.Builder().url(path.startsWith("http")?path:prefs.server()+path).build()).execute()){if(!r.isSuccessful()||r.body()==null){runOnUiThread(()->ref.setVisibility(View.GONE));return;}byte[] b=r.body().bytes();android.graphics.Bitmap bm=BitmapFactory.decodeByteArray(b,0,b.length);runOnUiThread(()->{if(bm==null)ref.setVisibility(View.GONE);else{ref.setImageBitmap(bm);ref.setVisibility(View.VISIBLE);}});}catch(Exception e){db.log("warning","REFERENCE "+e.getMessage());runOnUiThread(()->ref.setVisibility(View.GONE));}});}
  protected void onDestroy(){try{lm.removeUpdates(this);}catch(Exception ignored){}work.shutdown();super.onDestroy();}
 }
 ~~~~
@@ -2234,7 +2247,7 @@ SHA-256: `bb380bff5bf5c92d3e7a511de4c7c9635484b2c6d02fa14cfa98a22a16b22439`
 
 #### `bsc-sampling-v1/public/app.js`
 
-SHA-256: `b3251fca13b60e9c83f550b808e31c1d877da7980af69030fe5bb075f262ad3b`
+SHA-256: `ed6d9027eb9b5155544ef4d7ed7879da7e51a006f60ffba5da5e308a4dd406f3`
 
 ~~~~javascript
 'use strict';
@@ -2332,6 +2345,17 @@ $('#loginForm').addEventListener('submit', async e => {
   } catch (error) { $('#loginError').textContent = error.message; }
 });
 $('#logoutButton').addEventListener('click', showLogin);
+// 小屏下侧栏抽屉：☰ 展开 / 点遮罩关闭；点击侧栏内任意按钮后自动收起。
+$('#menuButton').addEventListener('click', () => {
+  document.querySelector('.sidebar').classList.add('open');
+  document.querySelector('.sidebar-backdrop').classList.remove('hidden');
+});
+document.querySelector('.sidebar-backdrop').addEventListener('click', closeDrawer);
+$('.sidebar').addEventListener('click', e => { if (e.target.closest('button')) closeDrawer(); });
+function closeDrawer() {
+  document.querySelector('.sidebar').classList.remove('open');
+  document.querySelector('.sidebar-backdrop').classList.add('hidden');
+}
 
 // ---------- 初始化 ----------
 async function init() {
@@ -2715,7 +2739,6 @@ async function showDetail(task) {
     : '';
   body.innerHTML = `
     <img class="record-photo" src="${esc(task.photo_path)}" alt="现场采样照片">
-    <div class="watermark-preview">${esc(task.site_name)} · ${esc(task.sample_code)}<br>WGS84 ${Number(task.latitude).toFixed(6)}, ${Number(task.longitude).toFixed(6)} · 精度±${task.accuracy_m ?? '-'}m<br>${formatTime(task.captured_at)} · ${esc(task.weather_text)}</div>
     ${riskBadges(task)}
     <div class="record-grid">
       <div><small>历史序号</small><strong>${esc(task.site_code)}</strong></div>
@@ -2723,7 +2746,7 @@ async function showDetail(task) {
       <div><small>采样人员</small><strong>${esc(task.villager_name || '-')}</strong></div>
       <div><small>目标坐标(WGS84)</small><strong>${Number(task.target_latitude).toFixed(6)}, ${Number(task.target_longitude).toFixed(6)}</strong></div>
       <div><small>距目标点</small><strong>${Number(task.distance_m || 0).toFixed(1)} 米</strong></div>
-      <div><small>定位精度</small><strong>±${task.accuracy_m ?? '-'} 米</strong></div>
+      <div><small>定位精度</small><strong>±${task.accuracy_m != null && task.accuracy_m !== '' ? Math.round(Number(task.accuracy_m)) : '-'} 米</strong></div>
       <div><small>手机拍摄</small><strong>${formatTime(task.captured_at)}</strong></div>
       <div><small>服务器接收</small><strong>${formatTime(task.received_at)}</strong></div>
       <div><small>上传延迟</small><strong>${delayMinutes == null ? '-' : `${delayMinutes} 分钟`}</strong></div>
@@ -3219,7 +3242,7 @@ SHA-256: `56ea901d1568162180fb0187726da544ff446b0ccc6fba614cd913e472cbe7a1`
 
 #### `bsc-sampling-v1/public/index.html`
 
-SHA-256: `12e5918c99e13e9b66d66d824ec3b60d689bf0c73692487ff685a4e348fa6c2f`
+SHA-256: `501eb7762bcd5a4409c13645258a5bb2b187157fd707fd45dd7c01ffe980e84d`
 
 ~~~~html
 <!doctype html>
@@ -3264,10 +3287,11 @@ SHA-256: `12e5918c99e13e9b66d66d824ec3b60d689bf0c73692487ff685a4e348fa6c2f`
         <button id="logoutButton" class="side-action ghost">退出登录</button>
       </div>
     </aside>
+    <div class="sidebar-backdrop hidden"></div>
 
     <main class="main">
       <header class="topbar">
-        <div><p id="crumb" class="crumb">项目</p><h2 id="pageTitle">待采样任务</h2></div>
+        <div class="topbar-title"><button id="menuButton" class="menu-button" title="菜单">☰</button><div><p id="crumb" class="crumb">项目</p><h2 id="pageTitle">待采样任务</h2></div></div>
         <div class="top-actions">
           <span class="top-action-wrap"><button id="exportCsv" class="secondary">导出CSV</button><i class="info-badge">!</i><span class="info-tip">导出当前项目的全部采样记录为 CSV 表格（编号、历史序号、WGS84 坐标、距离、精度、风险标志中文解释、审核意见、照片 SHA-256），可用 Excel 打开。</span></span>
           <span class="top-action-wrap"><button id="exportGeo" class="secondary">GeoJSON</button><i class="info-badge">!</i><span class="info-tip">导出采样记录为 GeoJSON（WGS84 点要素），可在 QGIS、ArcGIS 等地图软件中打开。</span></span>
@@ -3462,19 +3486,19 @@ SHA-256: `15c86461400dd919267ef3ce2d9838a553d252d0f47efcd6484a230c5e30c9ea`
 
 #### `bsc-sampling-v1/public/styles.css`
 
-SHA-256: `5700b82cf12a01a2264cab39d33d9f58d4ed68c915b1f14adf5cf0bc5bc810d0`
+SHA-256: `9ee30c00f632ba9b9c65526f6527ab1694222b1b40aa87e6188f98558a891cc9`
 
 ~~~~css
 :root{--ink:#17343a;--muted:#708187;--line:#dbe5e4;--soft:#f3f7f6;--green:#16a27a;--green-dark:#087557;--aqua:#dff6ef;--amber:#ef9c2f;--red:#d95d58;--blue:#3a84c6;--shadow:0 16px 48px rgba(25,54,58,.13)}
 *{box-sizing:border-box}body{margin:0;font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);background:#eef4f2}button,input,select,textarea{font:inherit}button{cursor:pointer}.hidden{display:none!important}.muted{color:var(--muted)}.error{min-height:22px;color:var(--red);font-size:13px}.primary,.secondary,.ghost{border:0;border-radius:10px;padding:11px 18px;font-weight:700}.primary{background:var(--green);color:#fff;box-shadow:0 8px 22px rgba(22,162,122,.23)}.primary:hover{background:var(--green-dark)}.secondary{background:#fff;border:1px solid var(--line);color:var(--ink)}.ghost{background:transparent;color:var(--muted)}
 .login-shell{min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 25% 20%,#e5fff6 0,transparent 32%),linear-gradient(135deg,#edf6f3,#dceae6)}.login-card{width:min(440px,calc(100% - 32px));padding:42px;background:#fff;border-radius:24px;box-shadow:var(--shadow)}.brand-mark{display:grid;place-items:center;width:62px;height:62px;border-radius:20px 20px 26px 26px;background:linear-gradient(145deg,#24c49a,#0d8064);color:#fff;font-size:30px;font-weight:900;box-shadow:0 12px 30px rgba(13,128,100,.25)}.brand-mark.small{width:42px;height:42px;border-radius:14px 14px 18px 18px;font-size:20px;box-shadow:none}.eyebrow{margin:24px 0 7px;color:var(--green);font-size:12px;font-weight:800;letter-spacing:1px}.login-card h1{margin:0;font-size:29px}.login-card form{margin-top:28px}.login-card label,.form-grid label{display:grid;gap:7px;font-size:13px;font-weight:700}.login-card input,.form-grid input,.form-grid select,.form-grid textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:12px;background:#fbfdfc;color:var(--ink);outline:none}.login-card input:focus,.form-grid input:focus,.form-grid textarea:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(22,162,122,.12)}.login-card .primary{width:100%;margin-top:14px}
 .app{height:100vh;display:grid;grid-template-columns:250px minmax(0,1fr);overflow:hidden}.sidebar{position:relative;background:#fff;border-right:1px solid var(--line);padding:22px 14px}.brand{display:flex;align-items:center;gap:11px;padding:0 8px 24px}.brand strong,.brand small{display:block}.brand strong{font-size:18px}.brand small{color:var(--muted);font-size:12px;margin-top:2px}.section-label{margin:8px 10px;color:#9ba9ac;font-size:11px;font-weight:800;letter-spacing:1px}.project,.date-list button{width:100%;display:flex;align-items:center;gap:9px;border:0;border-radius:10px;background:transparent;padding:11px;text-align:left;color:var(--ink)}.project.active{background:var(--aqua);color:var(--green-dark);font-weight:800}.side-heading{display:flex;justify-content:space-between;align-items:center;margin:27px 10px 8px;font-size:12px;color:var(--muted);font-weight:800}.side-heading button{border:0;background:transparent;color:var(--green);font-size:20px}.date-list{display:grid;gap:4px}.date-list button{justify-content:space-between;font-size:13px}.date-list button.active{background:#edf5f3;color:var(--green-dark);font-weight:800}.date-list b{display:grid;place-items:center;min-width:24px;height:20px;border-radius:10px;background:#e6efed;font-size:11px}.sidebar-bottom{position:absolute;left:24px;right:24px;bottom:24px;display:grid;gap:8px;color:var(--muted);font-size:11px}.server-dot{display:flex;align-items:center;gap:7px;color:#53706c}.server-dot i{width:8px;height:8px;border-radius:50%;background:#30b987;box-shadow:0 0 0 4px #e1f7ef}
-.main{min-width:0;padding:22px 25px 26px;overflow:auto}.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.crumb{margin:0 0 4px;color:var(--muted);font-size:12px}.topbar h2{margin:0;font-size:25px}.top-actions{display:flex;gap:9px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}.stats article{display:flex;align-items:center;gap:12px;padding:15px 18px;background:#fff;border:1px solid #e3ebe9;border-radius:14px}.stats small,.stats strong{display:block}.stats small{font-size:11px;color:var(--muted);margin-bottom:4px}.stats strong{font-size:22px}.stat-icon{display:grid;place-items:center;width:35px;height:35px;border-radius:11px;font-weight:900}.stat-icon.blue{background:#e5f0fa;color:var(--blue)}.stat-icon.green{background:#dcf5ec;color:var(--green)}.stat-icon.amber{background:#fff0da;color:var(--amber)}.stat-icon.gray{background:#edf1f1;color:#889595}
+.main{min-width:0;padding:22px 25px 26px;overflow:auto}.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.topbar-title{display:flex;align-items:center;gap:12px;min-width:0}.menu-button{display:none;flex:none;border:0;background:var(--aqua);color:var(--green-dark);width:44px;height:44px;border-radius:12px;font-size:20px;font-weight:900}.sidebar-backdrop{display:none}.crumb{margin:0 0 4px;color:var(--muted);font-size:12px}.topbar h2{margin:0;font-size:25px}.top-actions{display:flex;gap:9px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}.stats article{display:flex;align-items:center;gap:12px;padding:15px 18px;background:#fff;border:1px solid #e3ebe9;border-radius:14px}.stats small,.stats strong{display:block}.stats small{font-size:11px;color:var(--muted);margin-bottom:4px}.stats strong{font-size:22px}.stat-icon{display:grid;place-items:center;width:35px;height:35px;border-radius:11px;font-weight:900}.stat-icon.blue{background:#e5f0fa;color:var(--blue)}.stat-icon.green{background:#dcf5ec;color:var(--green)}.stat-icon.amber{background:#fff0da;color:var(--amber)}.stat-icon.gray{background:#edf1f1;color:#889595}
 .map-panel{position:relative;height:calc(100vh - 190px);min-height:500px;background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 9px 30px rgba(34,61,62,.06)}.map-toolbar{height:50px;display:flex;align-items:center;justify-content:space-between;padding:0 15px;border-bottom:1px solid var(--line)}.legend{display:flex;gap:15px;font-size:11px;color:var(--muted)}.legend span{display:flex;align-items:center;gap:5px}.pin{width:9px;height:9px;border-radius:50%;display:inline-block}.pin.gray{background:#879493}.pin.amber{background:var(--amber)}.pin.green{background:var(--green)}.pin.red{background:var(--red)}.map-action{border:0;background:#edf7f4;color:var(--green-dark);border-radius:9px;padding:7px 10px;font-size:12px;font-weight:800}#map{height:calc(100% - 50px);background:#dfe9e5}.leaflet-control-attribution{font-size:9px}.sample-marker{width:34px;height:42px;border-radius:18px 18px 18px 3px;transform:rotate(-45deg);border:3px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,.28);display:grid;place-items:center}.sample-marker span{transform:rotate(45deg);color:#fff;font-weight:900}.sample-marker.gray{background:#7f8d8c}.sample-marker.amber{background:var(--amber)}.sample-marker.green{background:var(--green)}.sample-marker.red{background:var(--red)}.map-fallback{position:absolute;inset:50px 0 0;z-index:400;display:grid;place-content:center;text-align:center;gap:8px;background:linear-gradient(135deg,#dfeae6,#c7d9d3);color:var(--ink)}.map-fallback span{font-size:12px;color:var(--muted)}
-.detail{position:fixed;z-index:1100;top:0;right:0;width:min(430px,100%);height:100vh;background:#fff;box-shadow:-18px 0 50px rgba(17,43,47,.16);overflow:auto}.detail-head{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:22px;background:#fff;border-bottom:1px solid var(--line)}.detail-head small{color:var(--green);font-weight:800}.detail-head h3{margin:4px 0 0;font-size:22px}.detail-head button,.dialog-head button{border:0;background:#eef4f2;width:36px;height:36px;border-radius:50%;font-size:24px;color:var(--muted)}#detailBody{padding:20px}.record-photo{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:14px;background:#edf2f0}.watermark-preview{margin-top:-75px;position:relative;padding:10px 13px;border-radius:0 0 14px 14px;background:rgba(9,27,32,.72);color:#fff;font-size:11px;line-height:1.6}.record-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:18px 0}.record-grid div{padding:12px;background:var(--soft);border-radius:10px}.record-grid small,.record-grid strong{display:block}.record-grid small{color:var(--muted);font-size:10px;margin-bottom:4px}.record-grid strong{font-size:13px}.reference{display:flex;gap:12px;padding:12px;border:1px solid var(--line);border-radius:12px}.reference img{width:90px;height:68px;object-fit:cover;border-radius:8px}.reference strong,.reference small{display:block}.reference small{color:var(--muted);font-size:11px;margin-top:5px;line-height:1.45}.review-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}.review-actions button{border:0;border-radius:10px;padding:12px;font-weight:800}.approve{background:#dff7ee;color:#087557}.suspicious{background:#fff0da;color:#9a5a05}.reject{background:#fde4e2;color:#9f332e}.risk{margin:12px 0;padding:10px;border-radius:10px;background:#fff2df;color:#8a530b;font-size:12px}.empty-detail{padding:25px;text-align:center;color:var(--muted)}
+.detail{position:fixed;z-index:1100;top:0;right:0;width:min(430px,100%);height:100vh;background:#fff;box-shadow:-18px 0 50px rgba(17,43,47,.16);overflow:auto}.detail-head{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:22px;background:#fff;border-bottom:1px solid var(--line)}.detail-head small{color:var(--green);font-weight:800}.detail-head h3{margin:4px 0 0;font-size:22px}.detail-head button,.dialog-head button{border:0;background:#eef4f2;width:36px;height:36px;border-radius:50%;font-size:24px;color:var(--muted)}#detailBody{padding:20px}.record-photo{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:14px;background:#edf2f0}.record-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:18px 0}.record-grid div{padding:12px;background:var(--soft);border-radius:10px}.record-grid small,.record-grid strong{display:block}.record-grid small{color:var(--muted);font-size:10px;margin-bottom:4px}.record-grid strong{font-size:13px}.reference{display:flex;gap:12px;padding:12px;border:1px solid var(--line);border-radius:12px}.reference img{width:90px;height:68px;object-fit:cover;border-radius:8px}.reference strong,.reference small{display:block}.reference small{color:var(--muted);font-size:11px;margin-top:5px;line-height:1.45}.review-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}.review-actions button{border:0;border-radius:10px;padding:12px;font-weight:800}.approve{background:#dff7ee;color:#087557}.suspicious{background:#fff0da;color:#9a5a05}.reject{background:#fde4e2;color:#9f332e}.risk{margin:12px 0;padding:10px;border-radius:10px;background:#fff2df;color:#8a530b;font-size:12px}.empty-detail{padding:25px;text-align:center;color:var(--muted)}
 dialog{width:min(680px,calc(100% - 28px));border:0;border-radius:18px;padding:0;box-shadow:var(--shadow)}dialog::backdrop{background:rgba(13,34,38,.36);backdrop-filter:blur(3px)}dialog form{padding:22px}.dialog-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}.dialog-head small{color:var(--green);font-weight:800}.dialog-head h3{margin:4px 0 0;font-size:22px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:15px}.form-grid .wide{grid-column:1/-1}.dialog-tip{font-size:11px;color:var(--muted)}.dialog-actions{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px;align-items:center;margin-top:18px}.file-input{display:block;width:100%;margin:20px 0;padding:22px;border:1px dashed #9dbdb5;border-radius:12px;background:#f3faf7}.import-result{font-size:12px;color:var(--muted)}code{display:block;padding:12px;border-radius:8px;background:#eff5f3;white-space:normal;color:#35615a}.label-result{display:grid;grid-template-columns:150px 1fr;align-items:center;gap:22px;margin-top:20px;padding:20px;border:2px dashed #9bbeb5;border-radius:14px;background:#f5fbf8}.label-result #qrcode{width:132px;height:132px;padding:6px;background:#fff}.label-result #qrcode img,.label-result #qrcode canvas{width:120px!important;height:120px!important}.label-result small,.label-result strong{display:block}.label-result small{color:var(--muted);font-size:11px}.label-result strong{margin:6px 0;font-size:24px;letter-spacing:.5px}.label-result p{color:var(--muted);font-size:11px;line-height:1.5}
 @media print{body *{visibility:hidden}#labelResult,#labelResult *{visibility:visible}#labelResult{position:absolute;left:20mm;top:20mm;width:85mm;border:1px solid #222;background:#fff}.label-result p{display:none}}
-@media(max-width:900px){.app{grid-template-columns:200px minmax(0,1fr)}.stats{grid-template-columns:1fr 1fr}.map-panel{height:calc(100vh - 280px)}.legend{display:none}}@media(max-width:650px){.app{display:block;overflow:auto}.sidebar{display:none}.main{padding:14px}.topbar{align-items:flex-start;gap:12px}.top-actions{display:grid}.stats{grid-template-columns:1fr 1fr}.map-panel{height:70vh}.form-grid{grid-template-columns:1fr}.form-grid .wide{grid-column:auto}}
+@media(max-width:900px){.app{grid-template-columns:200px minmax(0,1fr)}.stats{grid-template-columns:1fr 1fr}.map-panel{height:calc(100vh - 280px)}.legend{display:none}}@media(max-width:650px){.app{display:block;overflow:auto}.menu-button{display:block}.sidebar{position:fixed;top:0;left:0;bottom:0;width:270px;z-index:1300;transform:translateX(-105%);transition:transform .22s ease;box-shadow:18px 0 50px rgba(17,43,47,.16);overflow:auto;display:block}.sidebar.open{transform:translateX(0)}.sidebar-backdrop{display:block;position:fixed;inset:0;z-index:1250;background:rgba(13,34,38,.42)}.main{padding:14px}.topbar{align-items:flex-start;gap:12px}.top-actions{display:grid}.topbar h2{font-size:21px}.stats{grid-template-columns:1fr 1fr}.map-panel{height:70vh}.form-grid{grid-template-columns:1fr}.form-grid .wide{grid-column:auto}.record-grid{grid-template-columns:1fr}.detail{width:100%}.top-action-wrap .info-tip{display:none}}@media(max-width:400px){.stats{grid-template-columns:1fr}.stat-icon{display:none}.dialog-actions{grid-template-columns:1fr 1fr}.activation-result{flex-direction:column}}
 .reference-upload{display:flex;align-items:center;gap:12px;padding:10px;border:1px dashed #9bbeb4;border-radius:12px;background:#eff8f5}.reference-upload img{width:132px;height:88px;object-fit:cover;border-radius:9px}.reference-upload span{font-size:12px;color:var(--muted);font-weight:800}
 
 /* --- V1 /api/v1 前端新增样式 --- */
@@ -3563,7 +3587,7 @@ dialog{width:min(680px,calc(100% - 28px));border:0;border-radius:18px;padding:0;
 
 #### `bsc-sampling-v1/README.md`
 
-SHA-256: `b20c00984fe07e5de43c8ee79483daec117734bac4cee392bc1ff588f2f04349`
+SHA-256: `13c063badb9ecae63cfbdd0893ad7df2bbc9e333da820edb2e7363accd9cf0ca`
 
 ~~~~markdown
 # 巴松措采样系统 V1 服务器与管理站
@@ -3578,7 +3602,7 @@ npm start            # node src/server.js，监听 127.0.0.1:3100
 ```
 
 - 数据目录：`data/v1/`（数据库 `bsc-v1.sqlite`、照片 `uploads/`、参考图 `reference/`、配置 `config.json`、备份 `backups/`）。
-- 首次启动自动建库并写入种子数据：2 个项目、25 个正式点位（含 `5.1`、`9.5`、`9.6` 等历史序号）、采样员 `cmy01`（PIN 1234）。
+- 首次启动自动建库并写入种子数据：2 个项目、25 个正式点位（含 `5.1`、`9.5`、`9.6` 等历史序号）、采样员 `cmy01`（扫码激活即登录，无 PIN）。
 - 默认管理员密码 `ChangeMe-2608!`：正式部署必须通过 `data/v1/config.json` 或环境变量 `ADMIN_PASSWORD`/`SESSION_SECRET` 修改，建议配置 `ADMIN_TOTP_SECRET` 启用动态验证码。
 - 环境变量：`HOST`、`PORT`、`DATA_DIR`、`PUBLIC_BASE_URL`（激活二维码中的服务器地址）。
 
@@ -3594,9 +3618,9 @@ HTTP 语义：422 业务拒绝（超 300 m、二维码不匹配、异常原因�
 
 ```powershell
 npm run check      # 全部 JS 语法检查
-npm test           # 34 项自动化测试（安全单元、数据库迁移、API 集成）
+npm test           # 38 项自动化测试（安全单元、数据库迁移、API 集成）
 npm run smoke      # 30 项端到端冒烟（需要本机已启动服务器）
-npm run test:e2e   # 19 项无头浏览器端到端（Playwright，需要 npm start 运行中）
+npm run test:e2e   # 130 项无头浏览器端到端（Playwright，需要 npm start 运行中）
 npm run backup     # 日常备份：node tools/backup.js --photos --keep 14
 node tools/restore.js data/v1/backups/backup-<时间戳>   # 恢复演练
 ```
@@ -3794,7 +3818,7 @@ module.exports = { recordsCsv, sitesGeoJson, recordsGeoJson, gpx, zipStore, RISK
 
 #### `bsc-sampling-v1/src/labels.js`
 
-SHA-256: `51dae68f402c9e33975bfb282056406ec5309b21b5f152abb930c53227085fa5`
+SHA-256: `be6e2cc281881954e46ab5ca5049bbfd5d7a582a0a57ec2c49d0e2c188d0bbf9`
 
 ~~~~javascript
 'use strict';
@@ -3819,7 +3843,8 @@ function renderLabelPage(tasks) {
         <img class="qr" alt="二维码" src="${task.qr_data_url}">
         <div class="text">
           <div class="code">${escapeHtml(task.sample_code)}</div>
-          <div class="meta">${escapeHtml(task.site_code)} · ${escapeHtml(TYPE_NAMES[task.sample_type] || task.sample_type)} · ${escapeHtml(task.planned_date)}</div>
+          <div class="type">${escapeHtml(TYPE_NAMES[task.sample_type] || task.sample_type)}</div>
+          <div class="meta">${escapeHtml(task.site_code)} · ${escapeHtml(task.planned_date)}</div>
           <div class="meta">${escapeHtml(task.project_code || 'BSC')} · 巴松措采样</div>
         </div>
       </div>`).join('');
@@ -3839,7 +3864,8 @@ function renderLabelPage(tasks) {
   .qr { width: 15mm; height: 15mm; flex: none; }
   .text { min-width: 0; }
   .code { font-size: 3.2mm; font-weight: 900; letter-spacing: .1mm; word-break: break-all; }
-  .meta { font-size: 2.4mm; color: #333; margin-top: 0.8mm; word-break: break-all; }
+  .type { font-size: 4.6mm; font-weight: 900; color: #0b5b45; margin-top: .4mm; word-break: break-all; }
+  .meta { font-size: 2.3mm; color: #333; margin-top: .5mm; word-break: break-all; }
   @media print { .page { padding: 0; } }
 </style>
 </head>
@@ -3911,7 +3937,7 @@ module.exports = { check, recordFailure, recordSuccess, prune };
 
 #### `bsc-sampling-v1/src/schema.js`
 
-SHA-256: `7e2b53863c60d0239f810bd2b94ca0ac7bfe9eba5abe45233f9416bbc284a086`
+SHA-256: `33e7ad03476a0d1f970c542df86d52cb934d03468a1dfd89106a72d89f2a7d0d`
 
 ~~~~javascript
 'use strict';
@@ -4120,6 +4146,9 @@ function migrate(db) {
   if (!recordColumns.includes('server_weather_status')) {
     db.exec("ALTER TABLE records ADD COLUMN server_weather_status TEXT NOT NULL DEFAULT 'pending'");
   }
+  // 旧库种子点位曾写入 /sample-reference.svg 占位参考图（SVG，安卓端无法解码，
+  // 造成"参考图传不到手机"的假象）。清空后由管理员在管理站上传真实照片。
+  db.prepare("UPDATE sites SET reference_image='' WHERE reference_image='/sample-reference.svg'").run();
 }
 
 function seed(db) {
@@ -4148,7 +4177,7 @@ function seed(db) {
   ];
   for (const [order, code, lat, lon, altitude, types, remarks] of points) {
     addSite.run(formal, order, code, `采样点${code}`, lat, lon, altitude, JSON.stringify(types), remarks,
-      '/sample-reference.svg', '按照参考图片核对地点，安全取样后拍摄瓶子与实际环境。', '注意河岸湿滑、落石和水位变化');
+      '', '按照参考图片核对地点，安全取样后拍摄瓶子与实际环境。', '注意河岸湿滑、落石和水位变化');
   }
   const pin = hashPin('1234');
   db.prepare('INSERT INTO villagers (username,display_name,pin_salt,pin_hash) VALUES (?,?,?,?)')
@@ -4244,7 +4273,7 @@ module.exports = { hashPin, verifyPin, safeEqual, signToken, verifyToken, totp, 
 
 #### `bsc-sampling-v1/src/server.js`
 
-SHA-256: `d6d0536449e24d454cfebd48d8ce2c7c236e2d311f35370b0027167b6b3b87d3`
+SHA-256: `6629a61fb4d4b03fcd9f60618da1501c3d97e3ec183dc64859e03519388cdaa1`
 
 ~~~~javascript
 'use strict';
@@ -4387,8 +4416,8 @@ async function adminApi(req, res, url) {
 function syncData(session) { expire(); const tasks = db.prepare(`SELECT t.*,p.name project_name,p.code project_code,s.code site_code,s.name site_name,s.latitude target_latitude,s.longitude target_longitude,s.normal_radius_m,s.exception_radius_m,s.severe_radius_m,s.reference_image,s.instructions,s.risk_note,s.remarks,r.id record_id,r.review_status,r.photo_path FROM tasks t JOIN projects p ON p.id=t.project_id JOIN sites s ON s.id=t.site_id LEFT JOIN records r ON r.task_id=t.id AND r.is_primary=1 WHERE t.villager_id=? AND p.enabled=1 AND s.deleted_at IS NULL ORDER BY CASE WHEN t.status IN('assigned','in_progress') THEN 0 ELSE 1 END,t.planned_date DESC,t.id`).all(session.villagerId).map(t => ({ ...t, canceled_at: t.canceled_at || null, canceled_reason: t.canceled_reason || null })); return { serverTime: new Date().toISOString(), tasks, rules: { normalRadiusM: 30, exceptionRadiusM: 80, severeRadiusM: 300, poorAccuracyM: 40, trackIntervalSeconds: 10, liveIntervalSeconds: 30 } }; }
 
 async function mobileApi(req, res, url) {
-  if (url.pathname === '/api/v1/mobile/activate' && req.method === 'POST') { const p = await body(req, 50_000), key = `mobile:${ipOf(req)}:${String(p.username || '').toLowerCase()}`; const lim = rateLimit.check(key); if (lim.limited) throw error(429, '尝试过多，请稍后再试'); const user = db.prepare('SELECT * FROM villagers WHERE username=? AND enabled=1').get(required(p.username, '账号').toLowerCase()); if (!user) { rateLimit.recordFailure(key); throw error(401, '账号不存在或已停用'); } const hash = crypto.createHash('sha256').update(required(p.activationToken, '激活码')).digest('hex'), act = db.prepare("SELECT * FROM activation_codes WHERE villager_id=? AND token_hash=? AND used_at IS NULL AND datetime(expires_at)>datetime('now')").get(user.id, hash); if (!act) { rateLimit.recordFailure(key); throw error(403, '激活二维码无效或已过期'); } rateLimit.recordSuccess(key); const device = transaction(() => { let d = db.prepare('SELECT id FROM devices WHERE villager_id=? AND device_uuid=?').get(user.id, required(p.deviceUuid, '设备编号')); let id; if (d) { id = d.id; db.prepare('UPDATE devices SET enabled=1,device_name=?,android_version=?,app_version=?,last_seen_at=CURRENT_TIMESTAMP WHERE id=?').run(String(p.deviceName || ''), String(p.androidVersion || ''), String(p.appVersion || ''), id); } else id = Number(db.prepare('INSERT INTO devices(villager_id,device_uuid,device_name,android_version,app_version,last_seen_at) VALUES(?,?,?,?,?,CURRENT_TIMESTAMP)').run(user.id, p.deviceUuid, String(p.deviceName || ''), String(p.androidVersion || ''), String(p.appVersion || '')).lastInsertRowid); db.prepare('UPDATE activation_codes SET used_at=CURRENT_TIMESTAMP WHERE id=?').run(act.id); return id; }); audit(db, 'mobile', user.id, 'activate', 'device', device, { username: user.username }, ipOf(req)); return output(res, 200, { token: signToken(config.sessionSecret, 'villager', user.id, { deviceId: device }, 30 * 86400), villager: { id: user.id, username: user.username, displayName: user.display_name }, deviceId: device }); }
-  if (url.pathname === '/api/v1/mobile/login' && req.method === 'POST') { const p = await body(req, 30_000), key = `mobile:${ipOf(req)}:${String(p.username || '').toLowerCase()}`; const lim = rateLimit.check(key); if (lim.limited) throw error(429, '尝试过多，请稍后再试'); const user = db.prepare('SELECT * FROM villagers WHERE username=? AND enabled=1').get(String(p.username || '').toLowerCase()); if (!user) { rateLimit.recordFailure(key); throw error(401, '账号不存在或已停用'); } const d = db.prepare('SELECT * FROM devices WHERE villager_id=? AND device_uuid=? AND enabled=1').get(user.id, String(p.deviceUuid || '')); if (!d) throw error(403, '手机尚未激活'); rateLimit.recordSuccess(key); return output(res, 200, { token: signToken(config.sessionSecret, 'villager', user.id, { deviceId: d.id }, 30 * 86400), villager: { id: user.id, username: user.username, displayName: user.display_name }, deviceId: d.id }); }
+  if (url.pathname === '/api/v1/mobile/activate' && req.method === 'POST') { const p = await body(req, 50_000), key = `mobile:${ipOf(req)}:${String(p.username || '').toLowerCase()}`; const lim = rateLimit.check(key); if (lim.limited) throw error(429, '尝试过多，请稍后再试'); const user = db.prepare('SELECT * FROM villagers WHERE username=? AND enabled=1').get(required(p.username, '账号').toLowerCase()); if (!user) { rateLimit.recordFailure(key); throw error(401, '账号不存在或已停用'); } const hash = crypto.createHash('sha256').update(required(p.activationToken, '激活码')).digest('hex'), act = db.prepare("SELECT * FROM activation_codes WHERE villager_id=? AND token_hash=? AND used_at IS NULL AND datetime(expires_at)>datetime('now')").get(user.id, hash); if (!act) { rateLimit.recordFailure(key); throw error(403, '激活二维码无效或已过期'); } rateLimit.recordSuccess(key); const device = transaction(() => { let d = db.prepare('SELECT id FROM devices WHERE villager_id=? AND device_uuid=?').get(user.id, required(p.deviceUuid, '设备编号')); let id; if (d) { id = d.id; db.prepare('UPDATE devices SET enabled=1,device_name=?,android_version=?,app_version=?,last_seen_at=CURRENT_TIMESTAMP WHERE id=?').run(String(p.deviceName || ''), String(p.androidVersion || ''), String(p.appVersion || ''), id); } else id = Number(db.prepare('INSERT INTO devices(villager_id,device_uuid,device_name,android_version,app_version,last_seen_at) VALUES(?,?,?,?,?,CURRENT_TIMESTAMP)').run(user.id, p.deviceUuid, String(p.deviceName || ''), String(p.androidVersion || ''), String(p.appVersion || '')).lastInsertRowid); db.prepare('UPDATE activation_codes SET used_at=CURRENT_TIMESTAMP WHERE id=?').run(act.id); return id; }); audit(db, 'mobile', user.id, 'activate', 'device', device, { username: user.username }, ipOf(req)); return output(res, 200, { token: signToken(config.sessionSecret, 'villager', user.id, { deviceId: device }, 3650 * 86400), villager: { id: user.id, username: user.username, displayName: user.display_name }, deviceId: device }); }
+  if (url.pathname === '/api/v1/mobile/login' && req.method === 'POST') { const p = await body(req, 30_000), key = `mobile:${ipOf(req)}:${String(p.username || '').toLowerCase()}`; const lim = rateLimit.check(key); if (lim.limited) throw error(429, '尝试过多，请稍后再试'); const user = db.prepare('SELECT * FROM villagers WHERE username=? AND enabled=1').get(String(p.username || '').toLowerCase()); if (!user) { rateLimit.recordFailure(key); throw error(401, '账号不存在或已停用'); } const d = db.prepare('SELECT * FROM devices WHERE villager_id=? AND device_uuid=? AND enabled=1').get(user.id, String(p.deviceUuid || '')); if (!d) throw error(403, '手机尚未激活'); rateLimit.recordSuccess(key); return output(res, 200, { token: signToken(config.sessionSecret, 'villager', user.id, { deviceId: d.id }, 3650 * 86400), villager: { id: user.id, username: user.username, displayName: user.display_name }, deviceId: d.id }); }
   const session = mobile(req); if (url.pathname === '/api/v1/mobile/sync' && req.method === 'GET') return output(res, 200, syncData(session));
   let m = /^\/api\/v1\/mobile\/tasks\/(\d+)\/start$/.exec(url.pathname);
   if (m && req.method === 'POST') { const id = Number(m[1]), p = await body(req); expire(); const task = db.prepare('SELECT t.*,s.latitude lat,s.longitude lon FROM tasks t JOIN sites s ON s.id=t.site_id WHERE t.id=? AND t.villager_id=?').get(id, session.villagerId); if (!task) throw error(404, '任务不存在'); if (task.locked_device_id && task.locked_device_id !== session.device.id) throw error(423, '任务已被另一台手机锁定'); const lat = number(p.latitude, '纬度'), lon = number(p.longitude, '经度'), acc = number(p.accuracyM ?? 9999, '精度'), startDistance = distance(lat, lon, task.lat, task.lon); const journey = transaction(() => { let j = db.prepare("SELECT * FROM journeys WHERE villager_id=? AND device_id=? AND site_id=? AND status='active' ORDER BY id DESC LIMIT 1").get(session.villagerId, session.device.id, task.site_id); if (!j) { const rid = db.prepare('INSERT INTO journeys(villager_id,device_id,site_id,started_at,start_latitude,start_longitude,start_accuracy_m,start_distance_m,weak_evidence) VALUES(?,?,?,CURRENT_TIMESTAMP,?,?,?,?,?)').run(session.villagerId, session.device.id, task.site_id, lat, lon, acc, startDistance, startDistance < 300 ? 1 : 0).lastInsertRowid; j = db.prepare('SELECT * FROM journeys WHERE id=?').get(rid); } db.prepare("UPDATE tasks SET locked_device_id=?,locked_at=CURRENT_TIMESTAMP,journey_id=?,status='in_progress' WHERE id=?").run(session.device.id, j.id, id); return j; }); return output(res, 200, { journey, startDistanceM: startDistance, weakEvidence: startDistance < 300 }); }
@@ -5067,7 +5096,7 @@ test('admin login rate limiting (last: locks admin key)', async () => {
 
 #### `bsc-sampling-v1/test/frontend.e2e.js`
 
-SHA-256: `edbf5488d84f77396952b3ebaf95e0e5f3742bac3206dde1948d1a55a07a9844`
+SHA-256: `651ce2693be4128e79a3f217d58a5da08150e962a603f550da57f6b0419b5aba`
 
 ~~~~javascript
 'use strict';
@@ -5151,6 +5180,21 @@ async function main() {
   await page.waitForSelector('#app:not(.hidden)', { timeout: 10000 });
   check('登录后进入主界面', await page.locator('#app:not(.hidden)').isVisible());
 
+  // 1c. 响应式：手机宽度下侧栏变抽屉（☰ 展开），桌面宽度下菜单按钮隐藏
+  check('桌面宽度不显示菜单按钮', !(await page.locator('#menuButton').isVisible()));
+  await page.setViewportSize({ width: 480, height: 820 });
+  await page.waitForTimeout(250);
+  check('手机宽度显示菜单按钮', await page.locator('#menuButton').isVisible());
+  check('手机宽度侧栏默认收起', !(await page.locator('.sidebar').evaluate(el => el.getBoundingClientRect().left >= 0)));
+  await page.click('#menuButton');
+  await page.waitForTimeout(350);
+  check('点击☰展开侧栏', await page.locator('.sidebar').evaluate(el => el.getBoundingClientRect().left >= 0));
+  await page.click('#refresh');
+  await page.waitForTimeout(350);
+  check('点击侧栏项后抽屉收起', !(await page.locator('.sidebar').evaluate(el => el.getBoundingClientRect().left >= 0)));
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.waitForTimeout(250);
+
   // 1b. 顶栏按钮"!"信息点与悬停详情
   check('顶栏按钮均带"!"信息点', await page.locator('.top-action-wrap .info-badge').count() === 7);
   await page.hover('#exportCsv');
@@ -5222,6 +5266,9 @@ async function main() {
         check('审核面板显示（照片/风险/意见）', (await page.locator('#detailBody .record-photo').count()) >= 1);
         const bodyText = await page.locator('#detailBody').textContent();
         check('审核页显示历史序号/目标坐标/上传延迟', bodyText.includes('历史序号') && bodyText.includes('目标坐标') && bodyText.includes('上传延迟'));
+        check('照片不再叠加重复水印文字', (await page.locator('#detailBody .watermark-preview').count()) === 0);
+        const accText = bodyText.match(/±([\d.]+) 米/);
+        check('定位精度取整显示（无小数）', accText !== null && !accText[1].includes('.'), `精度=${accText ? accText[1] : '无'}`);
         if (/审核状态已通过/.test(bodyText)) {
           await page.click('#closeDetail');
           await page.waitForTimeout(150);
