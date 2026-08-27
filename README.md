@@ -84,7 +84,7 @@ cd bsc-sampling-v1
 npm run check      # 全部 JS 语法检查
 npm test           # 38 项自动化测试（安全单元 / 数据库迁移 / API 集成）
 npm run smoke      # 30 项端到端冒烟（需先 npm start）
-npm run test:e2e   # 130 项无头浏览器端到端（Playwright，需 npm start）
+npm run test:e2e   # 无头浏览器端到端（Playwright，断言数随数据量动态变化，需 npm start）
 ```
 
 Android 单元测试：`cd bsc-android-native && node tools\gradle-with-proxy.js testDebugUnitTest`（`QrDataTest` 8 项）。

@@ -228,8 +228,8 @@ test('30/80/300 m boundary rules and mandatory exception reason', async () => {
   assert.ok(!within.res.json.riskFlags.includes('distance_30_80m'));
   assert.ok(!within.res.json.riskFlags.includes('distance_80_300m'));
   const midNoReason = await boundaryRecord(50);
-  assert.equal(midNoReason.res.status, 422, '30-80m without reason rejected');
-  assert.match(midNoReason.res.json.message, /异常原因/);
+  assert.equal(midNoReason.res.status, 201, '30-80m without reason accepted (需求变更：距离过远不再强制选原因)');
+  assert.ok(midNoReason.res.json.riskFlags.includes('distance_30_80m'));
   const mid = await boundaryRecord(50, { exceptionCategory: '河岸无法靠近' });
   assert.equal(mid.res.status, 201);
   assert.ok(mid.res.json.riskFlags.includes('distance_30_80m'));
@@ -268,9 +268,12 @@ test('risk flags: accuracy, manual code, mock location, offline start, late samp
   const late = await boundaryRecord(10, { capturedAt: `${today}T08:00:00+08:00` }, { plannedDate: tomorrow });
   assert.ok(late.res.json.riskFlags.includes('late_sampling'));
   const cancelTaskId = await adminCreateTask();
+  const canceledTask = await syncTask(mobileA, cancelTaskId); // 取消前手机已缓存该任务
   const cancel = await call('POST', `/api/v1/admin/tasks/${cancelTaskId}/cancel`, { reason: '测试取消' }, adminToken);
   assert.equal(cancel.status, 200);
-  const canceledTask = await syncTask(mobileA, cancelTaskId);
+  const afterCancelSync = await call('GET', '/api/v1/mobile/sync', null, mobileA);
+  assert.equal(afterCancelSync.status, 200);
+  assert.ok(!afterCancelSync.json.tasks.some(t => t.id === cancelTaskId), '已取消任务不再下发到手机端');
   const afterCancel = await call('POST', `/api/v1/mobile/tasks/${cancelTaskId}/record`, {
     clientRecordId: `c-${Date.now()}`, capturedAt: `${today}T08:00:00+08:00`,
     latitude: 30.07534404, longitude: 94.14583272, accuracyM: 5, weatherText: '晴',

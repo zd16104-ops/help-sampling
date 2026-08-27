@@ -158,7 +158,8 @@ async function main() {
     const markerCount2 = await page.locator('.sample-marker').count();
     // 从最新的标记倒序找（最新任务排在后面，优先找到本轮 seed 的待审核记录）
     for (let i = markerCount2 - 1; i >= 0 && !reviewed; i--) {
-      await page.locator('.sample-marker').nth(i).click({ force: true });
+      // 大量任务堆叠时坐标点击会命中最上层标记；直接对标记元素派发 click 事件精确命中
+      await page.locator('.sample-marker').nth(i).dispatchEvent('click');
       await page.waitForSelector('#detail:not(.hidden)', { timeout: 5000 });
       const hasReview = await page.locator('.review-actions button').count();
       if (hasReview) {
