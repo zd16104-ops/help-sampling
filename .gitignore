@@ -38,3 +38,6 @@ water-sampling-system/
 # ==== 通用 ====
 .DS_Store
 Thumbs.db
+
+# Playwright CLI 测试产物
+.playwright-cli/
