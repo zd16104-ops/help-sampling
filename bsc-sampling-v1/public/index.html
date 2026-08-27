@@ -46,6 +46,7 @@
       <header class="topbar">
         <div class="topbar-title"><button id="menuButton" class="menu-button" title="菜单">☰</button><div><p id="crumb" class="crumb">项目</p><h2 id="pageTitle">待采样任务</h2></div></div>
         <div class="top-actions">
+          <button id="tableViewButton" class="secondary">▦ 表格</button>
           <span class="top-action-wrap"><button id="exportCsv" class="secondary">导出CSV</button><i class="info-badge">!</i><span class="info-tip">导出当前项目的全部采样记录为 CSV 表格（编号、历史序号、WGS84 坐标、距离、精度、风险标志中文解释、审核意见、照片 SHA-256），可用 Excel 打开。</span></span>
           <span class="top-action-wrap"><button id="exportGeo" class="secondary">GeoJSON</button><i class="info-badge">!</i><span class="info-tip">导出采样记录为 GeoJSON（WGS84 点要素），可在 QGIS、ArcGIS 等地图软件中打开。</span></span>
           <span class="top-action-wrap"><button id="exportPhotos" class="secondary">照片包</button><i class="info-badge">!</i><span class="info-tip">把全部现场水印照片打包为 ZIP 下载，文件名含样品编号，可作原始证据归档。</span></span>
@@ -61,6 +62,30 @@
         <article><span class="stat-icon green">✓</span><div><small>审核通过</small><strong id="statApproved">0</strong></div></article>
         <article><span class="stat-icon amber">!</span><div><small>待审核/可疑</small><strong id="statPending">0</strong></div></article>
         <article><span class="stat-icon gray">○</span><div><small>尚未采样</small><strong id="statUnfinished">0</strong></div></article>
+      </section>
+
+      <section id="taskTableWrap" class="task-table-wrap hidden">
+        <div class="task-table-tools">
+          <select id="tableVillager"><option value="">全部采样员</option></select>
+          <select id="tableStatus">
+            <option value="">全部状态</option>
+            <option value="pending">待采样</option>
+            <option value="review">待审核/可疑</option>
+            <option value="approved">已通过</option>
+            <option value="rejected">已退回</option>
+            <option value="canceled">已取消</option>
+          </select>
+          <input id="tableSearch" placeholder="搜索编号/点位名称">
+          <label class="checkbox-line"><input type="checkbox" id="tableCheckAll"> 全选本页待审核</label>
+          <button id="batchApprove" class="secondary">批量审核通过</button>
+          <button id="batchWeather" class="secondary">补齐本页天气</button>
+        </div>
+        <div class="task-table-scroll">
+          <table class="task-table">
+            <thead><tr><th></th><th>编号</th><th>点位</th><th>类型</th><th>日期</th><th>采样员</th><th>距离</th><th>审核状态</th><th>操作</th></tr></thead>
+            <tbody id="taskTableBody"></tbody>
+          </table>
+        </div>
       </section>
 
       <section class="map-panel">

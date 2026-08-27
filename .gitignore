@@ -24,6 +24,10 @@ bsc-android-native/.cxx/
 # 机器相关（SDK 路径）
 bsc-android-native/local.properties
 
+# 正式签名密钥（绝不入库！请单独备份 keystore 与 keystore.properties）
+bsc-android-native/app/keystore/
+bsc-android-native/app/keystore.properties
+
 # ==== 本机专用，不入库 ====
 # Android 构建工具链（SDK，约 500 MB）
 android-toolchain/

@@ -19,14 +19,16 @@ const RISK_NAMES = {
   missing_track: '提交时无轨迹点',
   late_sampling: '拍摄日期与计划日期不一致',
   task_canceled: '任务已取消后提交',
-  weather_pending: '天气待补充'
+  weather_pending: '天气待补充',
+  captured_time_in_future: '拍摄时间晚于服务器时间',
+  exif_time_mismatch: '照片EXIF时间与提交时间不一致'
 };
 const SEVERE_RISKS = new Set(['distance_80_300m', 'manual_bottle_code', 'mock_location', 'duplicate_photo', 'task_canceled']);
 
 const state = {
   projects: [], villagers: [], projectId: null, selectedDate: 'pending',
-  tasks: [], sites: [], map: null, markers: [], siteMode: false,
-  editingSiteId: null, editingProjectId: null, pickMarker: null, lastCreatedTaskIds: [], trackPolylines: []
+  tasks: [], sites: [], map: null, markers: [], siteMode: false, tableMode: false,
+  editingSiteId: null, editingProjectId: null, pickMarker: null, pickPending: false, lastCreatedTaskIds: [], trackPolylines: []
 };
 
 function token() { return localStorage.getItem(TOKEN_KEY); }
@@ -270,7 +272,58 @@ function render() {
   $('#statApproved').textContent = tasks.filter(t => t.review_status === 'approved').length;
   $('#statPending').textContent = tasks.filter(t => t.record_id && t.review_status !== 'approved').length;
   $('#statUnfinished').textContent = tasks.filter(t => !t.record_id).length;
-  renderMap(tasks);
+  const tableWrap = $('#taskTableWrap');
+  const mapPanel = document.querySelector('.map-panel');
+  if (state.tableMode) {
+    tableWrap.classList.remove('hidden');
+    mapPanel.classList.add('hidden');
+    $('#tableViewButton').textContent = '⌖ 地图';
+    renderTable(tasks);
+  } else {
+    tableWrap.classList.add('hidden');
+    mapPanel.classList.remove('hidden');
+    $('#tableViewButton').textContent = '▦ 表格';
+    renderMap(tasks);
+  }
+}
+
+// ---------- 表格视图（筛选 + 批量审核 + 批量天气） ----------
+function renderTable(tasks) {
+  const vill = $('#tableVillager');
+  const names = [...new Set(state.tasks.map(t => t.villager_name).filter(Boolean))].sort();
+  vill.innerHTML = '<option value="">全部采样员</option>' + names.map(n => `<option${vill.value === n ? ' selected' : ''}>${esc(n)}</option>`).join('');
+  const q = $('#tableSearch').value.trim().toLowerCase();
+  const status = $('#tableStatus').value;
+  const vf = vill.value;
+  const rows = tasks.filter(t => {
+    if (vf && t.villager_name !== vf) return false;
+    if (q && !(String(t.sample_code).toLowerCase().includes(q) || String(t.site_name).toLowerCase().includes(q))) return false;
+    if (status === 'pending') return !t.record_id && !t.canceled_at;
+    if (status === 'review') return t.record_id && t.review_status !== 'approved' && t.review_status !== 'rejected';
+    if (status === 'approved') return t.review_status === 'approved';
+    if (status === 'rejected') return t.review_status === 'rejected';
+    if (status === 'canceled') return Boolean(t.canceled_at);
+    return true;
+  });
+  $('#taskTableBody').innerHTML = rows.map(t => {
+    const reviewable = t.record_id && t.review_status !== 'approved' && t.review_status !== 'rejected';
+    return `<tr data-id="${t.id}">
+      <td>${reviewable ? `<input type="checkbox" class="row-check" data-record="${t.record_id}">` : ''}</td>
+      <td>${esc(t.sample_code)}</td>
+      <td>${esc(t.site_name)}${t.canceled_at ? '<br><span class="cancel-note">已取消</span>' : ''}</td>
+      <td>${esc(TYPE_NAMES[t.sample_type] || t.sample_type)}</td>
+      <td>${esc(t.planned_date)}</td>
+      <td>${esc(t.villager_name || '')}</td>
+      <td>${t.distance_m != null ? Math.round(Number(t.distance_m)) + ' 米' : '-'}</td>
+      <td>${t.record_id ? reviewName(t.review_status) : (t.canceled_at ? '已取消' : '待采样')}</td>
+      <td><button class="ghost row-open">查看</button></td>
+    </tr>`;
+  }).join('');
+  document.querySelectorAll('#taskTableBody .row-open').forEach(b => b.addEventListener('click', () => {
+    const t = state.tasks.find(x => x.id === Number(b.closest('tr').dataset.id));
+    if (t) showDetail(t);
+  }));
+  $('#tableCheckAll').checked = false;
 }
 
 // ---------- 地图 ----------
@@ -405,6 +458,28 @@ async function renderMap(tasks) {
 }
 
 $('#fitMap').addEventListener('click', () => renderMap(state.siteMode ? state.sites : currentTasks()));
+// 表格视图：切换、筛选、批量审核通过、批量补齐天气
+$('#tableViewButton').addEventListener('click', () => { state.tableMode = !state.tableMode; render(); });
+$('#tableVillager').addEventListener('change', () => renderTable(currentTasks()));
+$('#tableStatus').addEventListener('change', () => renderTable(currentTasks()));
+$('#tableSearch').addEventListener('input', () => renderTable(currentTasks()));
+$('#tableCheckAll').addEventListener('change', e => document.querySelectorAll('#taskTableBody .row-check').forEach(c => { c.checked = e.target.checked; }));
+$('#batchApprove').addEventListener('click', async () => {
+  const ids = [...document.querySelectorAll('#taskTableBody .row-check:checked')].map(c => Number(c.dataset.record));
+  if (!ids.length) return alert('请先勾选要审核的记录');
+  if (!confirm(`批量审核通过 ${ids.length} 条记录？`)) return;
+  let ok = 0, failed = 0;
+  for (const id of ids) {
+    try { await post(`/api/v1/admin/records/${id}/review`, { status: 'approved' }); ok++; } catch { failed++; }
+  }
+  alert(`完成：通过 ${ok} 条${failed ? `，失败 ${failed} 条` : ''}`);
+  await loadAll(); render();
+});
+$('#batchWeather').addEventListener('click', async () => {
+  const ids = currentTasks().filter(t => t.record_id && t.server_weather_status !== 'complete').map(t => t.record_id);
+  if (!ids.length) return alert('本页没有需要补齐天气的记录');
+  try { const res = await post('/api/v1/admin/records/backfill-weather', { recordIds: ids }); alert(`已排队补齐 ${res.queued} 条记录，稍后刷新查看。`); } catch (e) { alert(e.message); }
+});
 $('#refresh').addEventListener('click', async () => { await loadAll(); checkHealth(); });
 
 // ---------- 审核详情 ----------
@@ -500,7 +575,7 @@ async function showDetail(task) {
     ? `<div class="record-grid"><div><small>开始时距目标</small><strong>${Number(task.start_distance_m).toFixed(1)} 米${Number(task.start_distance_m) < 300 ? '（弱证据）' : ''}</strong></div><div><small>轨迹状态</small><strong>${task.interrupted ? '⚠ 中断后恢复' : '连续记录'}</strong></div></div>`
     : '';
   body.innerHTML = `
-    <img class="record-photo" src="${esc(task.photo_path)}" alt="现场采样照片">
+    ${task.reference_image ? `<div class="compare-grid"><figure><img src="${esc(task.photo_path)}" alt="现场采样照片"><figcaption>现场照片</figcaption></figure><figure><img src="${esc(task.reference_image)}" alt="管理员参考图"><figcaption>管理员参考图</figcaption></figure></div>` : `<img class="record-photo" src="${esc(task.photo_path)}" alt="现场采样照片">`}
     ${riskBadges(task)}
     <div class="record-grid">
       <div><small>历史序号</small><strong>${esc(task.site_code)}</strong></div>
@@ -520,7 +595,8 @@ async function showDetail(task) {
     </div>
     ${task.journey_id ? trackInfo : ''}
     ${journeyMeta}
-    ${task.reference_image ? `<div class="reference"><img src="${esc(task.reference_image)}"><div><strong>管理员参考照片</strong><small>${esc(task.instructions || '对照现场地形和水体位置。')}</small></div></div>` : ''}
+    ${task.reference_image ? `<div class="reference"><strong>管理员参考照片</strong><small>${esc(task.instructions || '对照现场地形和水体位置。')}</small></div>` : ''}
+    ${task.printed_count ? `<p class="dialog-tip">标签已打印 ${task.printed_count} 次${task.printed_last ? `（最近 ${formatTime(task.printed_last)}）` : ''}；改期后旧标签作废，需重新打印。</p>` : ''}
     <div class="review-block">
       <textarea id="reviewNote" rows="2" placeholder="追加审核意见（不修改原始记录，只追加）">${esc(task.review_note || '')}</textarea>
       <div class="review-actions"><button class="approve" data-status="approved">✓ 审核通过</button><button class="suspicious" data-status="suspicious">! 标记可疑</button><button class="reject" data-status="rejected">↩ 退回重采</button><button data-status="pending">稍后审核</button></div>
@@ -644,21 +720,21 @@ $('#siteCoords').addEventListener('input', () => {
   if (state.pickMarker && parsed) state.pickMarker.setLatLng([parsed.latitude, parsed.longitude]);
 });
 $('#siteDialog').addEventListener('close', () => {
+  // 由"在地图上选点"触发的关闭不清除选点模式（用 pickPending 标记区分），
+  // 彻底消除 close 事件异步派发与 setTimeout 之间的竞态。
+  if (state.pickPending) { state.pickPending = false; return; }
   state.pickMode = false;
   if (state.pickMarker) { state.pickMarker.remove(); state.pickMarker = null; }
 });
 
 $('#pickMap').addEventListener('click', () => {
-  // 注意：<dialog>.close() 的 close 事件是异步派发的，会在此处之后执行并复位
-  // pickMode，所以用 setTimeout 延后开启选点模式，保证 close 监听器先跑完。
+  state.pickPending = true;
+  state.pickMode = true;
   $('#siteDialog').close();
-  setTimeout(() => {
-    state.pickMode = true;
-    const c = currentCoords();
-    const lat = c ? c.latitude : 30.04;
-    const lng = c ? c.longitude : 94.05;
-    state.map.setView([lat, lng], Math.max(state.map.getZoom(), 13));
-  }, 0);
+  const c = currentCoords();
+  const lat = c ? c.latitude : 30.04;
+  const lng = c ? c.longitude : 94.05;
+  state.map.setView([lat, lng], Math.max(state.map.getZoom(), 13));
 });
 
 function finishPick(lat, lng) {

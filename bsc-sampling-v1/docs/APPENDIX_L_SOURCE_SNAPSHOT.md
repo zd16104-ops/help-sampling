@@ -1,6 +1,6 @@
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-27T14:18:50.775Z  
+> 生成时间：2026-08-27T15:05:52.935Z  
 > 文件数：71  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
@@ -14,7 +14,7 @@
 
 #### `bsc-android-native/app/build.gradle`
 
-SHA-256: `1be784d2c1e46ca3e74053fc8509b29756ab6c3a5c49a56fe77a2b0a3cd87e0f`
+SHA-256: `a9d49b2de2f5a6ef585d4fb1e3b31fe7dba2e8b590b06ccf649ecae318cf4442`
 
 ~~~~groovy
 plugins { id 'com.android.application' }
@@ -27,13 +27,33 @@ android {
         applicationId 'online.gpsgps.bscsampling'
         minSdk 29
         targetSdk 35
-        versionCode 100
-        versionName '1.0.0'
+        versionCode 101
+        versionName '1.1.0'
         buildConfigField 'String', 'DEFAULT_SERVER', '"https://bsc.gpsgps.online"'
     }
     buildFeatures { buildConfig true }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     packaging { resources.excludes += ['META-INF/DEPENDENCIES','META-INF/LICENSE*','META-INF/NOTICE*'] }
+    // 正式签名：keystore 与密码放在 app/keystore.properties（不入库、不提交）。
+    // 没有该文件时 release 不签名（仅本地 debug 构建用）。
+    signingConfigs {
+        release {
+            if (file('keystore.properties').exists()) {
+                def kp = new Properties()
+                kp.load(new FileInputStream(file('keystore.properties')))
+                storeFile file(kp['storeFile'])
+                storePassword kp['storePassword']
+                keyAlias kp['keyAlias']
+                keyPassword kp['keyPassword']
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (file('keystore.properties').exists()) signingConfig signingConfigs.release
+        }
+    }
 }
 
 dependencies {
@@ -92,7 +112,7 @@ SHA-256: `4eec6df529cfbf27a0691f92d8aad18f91b8fff11f9a49f3fc52858c656163e3`
 
 #### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/Api.java`
 
-SHA-256: `41e3dd8cac560c1939ad152b8afd6d00db96484787f510ea457620c7ad81aa0f`
+SHA-256: `7d0f76f54eafc2752a051ec1f34135635961fb56701f35fce0af4dc3a5bafa1c`
 
 ~~~~java
 package online.gpsgps.bscsampling;
@@ -116,6 +136,7 @@ final class Api {
   Api(Context c){this.c=c.getApplicationContext();p=new Prefs(c);}
   JSONObject activate(String server,String user,String code)throws Exception{JSONObject b=new JSONObject().put("username",user).put("activationToken",code).put("deviceUuid",Util.uuid(c)).put("deviceName",android.os.Build.MANUFACTURER+" "+android.os.Build.MODEL).put("androidVersion",android.os.Build.VERSION.RELEASE).put("appVersion",BuildConfig.VERSION_NAME);return call(Prefs.normalize(server),"POST","/api/v1/mobile/activate",b,"");}
   JSONObject login()throws Exception{return call(p.server(),"POST","/api/v1/mobile/login",new JSONObject().put("username",p.user()).put("deviceUuid",Util.uuid(c)).put("appVersion",BuildConfig.VERSION_NAME),"");}
+  JSONObject version()throws Exception{return call(p.server(),"GET","/api/v1/mobile/app-version",null,"");}
   JSONObject sync()throws Exception{return auth("GET","/api/v1/mobile/sync",null);} JSONObject start(long id,double lat,double lon,double acc)throws Exception{return auth("POST","/api/v1/mobile/tasks/"+id+"/start",new JSONObject().put("latitude",lat).put("longitude",lon).put("accuracyM",acc));}
   JSONObject tracks(long id,JSONArray a)throws Exception{return auth("POST","/api/v1/mobile/journeys/"+id+"/track",new JSONObject().put("points",a));} JSONObject live(long id,JSONObject b)throws Exception{return auth("POST","/api/v1/mobile/tasks/"+id+"/live",b);} JSONObject record(long id,JSONObject b)throws Exception{return auth("POST","/api/v1/mobile/tasks/"+id+"/record",b);} JSONObject complete(long id)throws Exception{return auth("POST","/api/v1/mobile/journeys/"+id+"/complete",new JSONObject());} JSONObject interrupted(long id)throws Exception{return auth("POST","/api/v1/mobile/journeys/"+id+"/interrupted",new JSONObject());} JSONObject logs(JSONArray a)throws Exception{return auth("POST","/api/v1/mobile/logs",new JSONObject().put("logs",a));}
   String weather(double lat,double lon,String at)throws Exception{String day=at.substring(0,10);String u="https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+"&hourly=temperature_2m,precipitation,weather_code&start_date="+day+"&end_date="+day+"&timezone=auto";try(Response r=h.newCall(new Request.Builder().url(u).build()).execute()){if(!r.isSuccessful()||r.body()==null)return"待补充";JSONObject j=new JSONObject(r.body().string()).optJSONObject("hourly");if(j==null)return"待补充";JSONArray times=j.optJSONArray("time"),temp=j.optJSONArray("temperature_2m"),rain=j.optJSONArray("precipitation"),codes=j.optJSONArray("weather_code");if(times==null||temp==null)return"待补充";long target;try{target=OffsetDateTime.parse(at).toInstant().toEpochMilli();}catch(Exception e){target=System.currentTimeMillis();}int n=0;long best=Long.MAX_VALUE;for(int i=0;i<times.length();i++){try{long x=LocalDateTime.parse(times.optString(i)).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();if(Math.abs(x-target)<best){best=Math.abs(x-target);n=i;}}catch(Exception ignored){}}double t=temp.optDouble(n,Double.NaN);if(Double.isNaN(t))return"待补充";return weatherName(codes==null?-1:codes.optInt(n))+" "+t+"℃，降水 "+(rain==null?0:rain.optDouble(n))+"mm";}}
@@ -136,7 +157,7 @@ package online.gpsgps.bscsampling;import android.content.*;public final class Bo
 
 #### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/MainActivity.java`
 
-SHA-256: `32dabfd38884a243e1d7c59659c3ab6e35f37cb362e43d17386ac1a12804367a`
+SHA-256: `4a0d868a49e90adaa0f4d691fd6be3ed5114163d5faaa9c1529a05a3ed401a4a`
 
 ~~~~java
 package online.gpsgps.bscsampling;
@@ -144,17 +165,18 @@ package online.gpsgps.bscsampling;
 import android.Manifest;import android.app.AlertDialog;import android.content.*;import android.content.pm.PackageManager;import android.database.Cursor;import android.graphics.*;import android.location.*;import android.net.*;import android.os.*;import android.provider.OpenableColumns;import android.view.*;import android.widget.*;import androidx.activity.result.*;import androidx.activity.result.contract.ActivityResultContracts;import androidx.annotation.NonNull;import androidx.appcompat.app.AppCompatActivity;import androidx.core.app.ActivityCompat;import androidx.core.content.ContextCompat;import com.google.android.material.button.MaterialButton;import org.json.JSONObject;import org.maplibre.android.MapLibre;import org.maplibre.android.annotations.*;import org.maplibre.android.camera.CameraPosition;import org.maplibre.android.geometry.LatLng;import org.maplibre.android.maps.*;import java.io.*;import java.nio.charset.StandardCharsets;import java.util.*;import java.util.concurrent.*;
 
 public final class MainActivity extends AppCompatActivity implements LocationListener{
- private FrameLayout content;private View tabs,header;private TextView title,status;private Prefs prefs;private Store db;private LocationManager lm;private Location here;private MapView mapView;private MapLibreMap map;private final Map<Long,Task> markerTasks=new HashMap<>();private final ExecutorService work=Executors.newSingleThreadExecutor();private QrData activation;private boolean unlocked;private ConnectivityManager.NetworkCallback netCallback;
+ private FrameLayout content;private View tabs,header;private TextView title,status;private Prefs prefs;private Store db;private LocationManager lm;private Location here;private MapView mapView;private MapLibreMap map;private final Map<Long,Task> markerTasks=new HashMap<>();private final ExecutorService work=Executors.newSingleThreadExecutor();private QrData activation;private boolean unlocked;private ConnectivityManager.NetworkCallback netCallback;private int currentTab=1;private int taskFilter=0;
  private final ActivityResultLauncher<Intent> scan=registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),r->{if(r.getResultCode()!=RESULT_OK||r.getData()==null)return;try{activation=QrData.parse(r.getData().getStringExtra(ScanActivity.RESULT));if(!activation.activation)throw new IllegalArgumentException("请扫描设备激活二维码");showLogin();}catch(Exception e){Toast.makeText(this,e.getMessage(),Toast.LENGTH_LONG).show();}});
  private final ActivityResultLauncher<String[]> permissions=registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(),r->locations());
  private final ActivityResultLauncher<String> mapFile=registerForActivityResult(new ActivityResultContracts.GetContent(),this::importMap);
  protected void onCreate(Bundle b){super.onCreate(b);MapLibre.getInstance(this);setContentView(R.layout.activity_main);prefs=new Prefs(this);db=new Store(this);lm=getSystemService(LocationManager.class);content=findViewById(R.id.content);tabs=findViewById(R.id.tabs);header=findViewById(R.id.header);title=findViewById(R.id.title);status=findViewById(R.id.status);unlocked=prefs.activated();findViewById(R.id.tabMap).setOnClickListener(v->showMap());findViewById(R.id.tabTasks).setOnClickListener(v->showTasks());findViewById(R.id.tabUpload).setOnClickListener(v->showUpload());findViewById(R.id.tabMine).setOnClickListener(v->showMine());findViewById(R.id.sync).setOnClickListener(v->sync());netCallback=new ConnectivityManager.NetworkCallback(){public void onAvailable(@NonNull Network n){if(prefs.activated())runOnUiThread(()->{if(unlocked)sync();});}};try{getSystemService(ConnectivityManager.class).registerDefaultNetworkCallback(netCallback);}catch(Exception e){db.log("warning","NETCALLBACK "+e.getMessage());}showLogin();}
  private void showLogin(){destroyMap();tabs.setVisibility(View.GONE);findViewById(R.id.sync).setVisibility(View.GONE);content.removeAllViews();View v=getLayoutInflater().inflate(R.layout.view_login,content,false);content.addView(v);MaterialButton scanButton=v.findViewById(R.id.scanActivation);TextView hint=v.findViewById(R.id.loginHint);v.findViewById(R.id.copyLog).setOnClickListener(x->copyLog());if(prefs.activated()){unlocked=true;enter();return;}unlocked=false;scanButton.setOnClickListener(x->scan.launch(new Intent(this,ScanActivity.class)));if(activation!=null){hint.setText("已扫码：正在激活设备并自动登录…");scanButton.setEnabled(false);work.execute(()->{try{JSONObject r=new Api(this).activate(activation.server,activation.user,activation.token),u=r.getJSONObject("villager");prefs.save(activation.server,r.getString("token"),u.getString("username"),u.getString("displayName"),r.getLong("deviceId"));unlocked=true;runOnUiThread(this::enter);}catch(Exception e){db.log("error","ACTIVATE "+e.getMessage());runOnUiThread(()->{scanButton.setEnabled(true);hint.setText("激活失败："+e.getMessage()+"\n请让管理员重新生成激活二维码");});}});}else hint.setText("首次使用：扫描管理员生成的设备激活二维码\n扫码后自动激活并登录，之后打开无需再登录");}
- private void enter(){tabs.setVisibility(View.VISIBLE);findViewById(R.id.sync).setVisibility(View.VISIBLE);askPermissions();showMap();sync();String details="{}";try{details=new JSONObject().put("network",Util.networkType(this)).put("online",Util.online(this)).put("fineLocation",ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED).put("backgroundLocation",ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_BACKGROUND_LOCATION)==PackageManager.PERMISSION_GRANTED).put("camera",ContextCompat.checkSelfPermission(this,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED).put("notifications",android.os.Build.VERSION.SDK_INT<33||ContextCompat.checkSelfPermission(this,Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED).put("pendingRecords",db.count("status!='uploaded'")).put("activeJourney",prefs.activeJourney()).toString();}catch(Exception ignored){}db.log("info","APP_READY",details);}
+ private void enter(){tabs.setVisibility(View.VISIBLE);findViewById(R.id.sync).setVisibility(View.VISIBLE);askPermissions();showMap();sync();String details="{}";try{details=new JSONObject().put("network",Util.networkType(this)).put("online",Util.online(this)).put("fineLocation",ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED).put("backgroundLocation",ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_BACKGROUND_LOCATION)==PackageManager.PERMISSION_GRANTED).put("camera",ContextCompat.checkSelfPermission(this,Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED).put("notifications",android.os.Build.VERSION.SDK_INT<33||ContextCompat.checkSelfPermission(this,Manifest.permission.POST_NOTIFICATIONS)==PackageManager.PERMISSION_GRANTED).put("pendingRecords",db.count("status!='uploaded'")).put("activeJourney",prefs.activeJourney()).toString();}catch(Exception ignored){}db.log("info","APP_READY",details);checkUpdate();}
+ private void checkUpdate(){work.execute(()->{try{JSONObject v=new Api(MainActivity.this).version();String latest=v.optString("versionName","");if(!latest.isEmpty()&&!BuildConfig.VERSION_NAME.equals(latest))runOnUiThread(()->new AlertDialog.Builder(MainActivity.this).setTitle("发现新版本 "+latest).setMessage("当前版本 "+BuildConfig.VERSION_NAME+"。请让管理员安装新版本 APP，以获得最新功能与修复。").setPositiveButton("知道了",null).setCancelable(false).show());}catch(Exception ignored){}});}
  private void askPermissions(){List<String> x=new ArrayList<>();if(ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED)x.add(Manifest.permission.ACCESS_FINE_LOCATION);if(Build.VERSION.SDK_INT>=33&&ContextCompat.checkSelfPermission(this,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)x.add(Manifest.permission.POST_NOTIFICATIONS);if(x.isEmpty())locations();else permissions.launch(x.toArray(new String[0]));}
  private void locations(){if(ActivityCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED)return;try{lm.requestLocationUpdates(LocationManager.GPS_PROVIDER,5000,0,this);if(lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER))lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,5000,0,this);Location x=lm.getLastKnownLocation(LocationManager.GPS_PROVIDER);if(x!=null)onLocationChanged(x);}catch(Exception e){db.log("error","LOCATION "+e.getMessage());}}
- private void sync(){if(!unlocked)return;status.setText(Util.online(this)?"正在同步服务器…":"当前离线，使用手机缓存");work.execute(()->{if(Util.online(this))try{prefs.token(new Api(this).login().getString("token"));}catch(Exception e){db.log("warning","LOGIN_REFRESH "+e.getMessage());}SyncEngine.Result r=new SyncEngine(this).run();runOnUiThread(()->{status.setText(r.message+" · 待上传"+db.count("status!='uploaded'")+"条");if(map!=null)markers();});});}
- private void showMap(){if(!unlocked)return;destroyMap();title.setText("地图");content.removeAllViews();View v=getLayoutInflater().inflate(R.layout.view_map,content,false);content.addView(v);mapView=v.findViewById(R.id.map);mapView.onCreate(null);v.findViewById(R.id.locate).setOnClickListener(x->locate());mapView.getMapAsync(m->{map=m;map.setStyle(new Style.Builder().fromJson(style()),s->{markers();center();});map.setOnMarkerClickListener(marker->{Task t=markerTasks.get(marker.getId());if(t!=null)startActivity(new Intent(this,TaskActivity.class).putExtra("task",t.id));return t!=null;});map.addOnMapClickListener(p->{copyCoords(p.getLatitude(),p.getLongitude());return true;});map.addOnMapLongClickListener(p->{new AlertDialog.Builder(this).setTitle("复制该位置坐标？").setMessage(String.format(Locale.CHINA,"【WGS84】%.8f°N，%.8f°E",p.getLatitude(),p.getLongitude())).setPositiveButton("复制",(d,w)->copyCoords(p.getLatitude(),p.getLongitude())).setNegativeButton("取消",null).show();return true;});});locationText();}
+ private void sync(){if(!unlocked)return;status.setText(Util.online(this)?"正在同步服务器…":"当前离线，使用手机缓存");work.execute(()->{if(Util.online(this))try{prefs.token(new Api(this).login().getString("token"));}catch(Exception e){db.log("warning","LOGIN_REFRESH "+e.getMessage());}SyncEngine.Result r=new SyncEngine(this).run();runOnUiThread(()->{status.setText(r.message+" · 待上传"+db.count("status!='uploaded'")+"条");if(map!=null)markers();if(currentTab==2)showUpload();});});}
+ private void showMap(){if(!unlocked)return;destroyMap();currentTab=0;title.setText("地图");content.removeAllViews();View v=getLayoutInflater().inflate(R.layout.view_map,content,false);content.addView(v);mapView=v.findViewById(R.id.map);mapView.onCreate(null);v.findViewById(R.id.locate).setOnClickListener(x->locate());mapView.getMapAsync(m->{map=m;map.setStyle(new Style.Builder().fromJson(style()),s->{markers();center();});map.setOnMarkerClickListener(marker->{Task t=markerTasks.get(marker.getId());if(t!=null)startActivity(new Intent(this,TaskActivity.class).putExtra("task",t.id));return t!=null;});map.addOnMapClickListener(p->{copyCoords(p.getLatitude(),p.getLongitude());return true;});map.addOnMapLongClickListener(p->{new AlertDialog.Builder(this).setTitle("复制该位置坐标？").setMessage(String.format(Locale.CHINA,"【WGS84】%.8f°N，%.8f°E",p.getLatitude(),p.getLongitude())).setPositiveButton("复制",(d,w)->copyCoords(p.getLatitude(),p.getLongitude())).setNegativeButton("取消",null).show();return true;});});locationText();}
  private void locate(){if(map!=null&&here!=null)map.setCameraPosition(new CameraPosition.Builder().target(new LatLng(here.getLatitude(),here.getLongitude())).zoom(14).build());if(here==null){Toast.makeText(this,"正在获取WGS84位置…",Toast.LENGTH_SHORT).show();return;}new AlertDialog.Builder(this).setTitle("我的位置（WGS84）").setMessage(String.format(Locale.CHINA,"【WGS84】%.8f°N，%.8f°E\n精度 ±%.0fm",here.getLatitude(),here.getLongitude(),here.getAccuracy())).setPositiveButton("复制",(d,w)->copyCoords(here.getLatitude(),here.getLongitude())).setNegativeButton("关闭",null).show();}
  private void copyCoords(double lat,double lon){String s=String.format(Locale.CHINA,"【WGS84】%.8f°N，%.8f°E",lat,lon);getSystemService(android.content.ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("WGS84坐标",s));Toast.makeText(this,"已复制 "+s,Toast.LENGTH_LONG).show();}
  // 采样点标记：水滴轮廓 + 历史序号文字，自动常显编号（绿=已采样 灰=已取消 蓝=进行中 橙=待采样）。
@@ -163,9 +185,12 @@ public final class MainActivity extends AppCompatActivity implements LocationLis
  private void markers(){if(map==null||map.getStyle()==null)return;map.clear();markerTasks.clear();for(Task t:db.tasks()){String j=db.active(t.j.optLong("site_id"));boolean active=j!=null&&!j.isEmpty();int color=t.submitted()?0xFF16A27A:t.canceled()?0xFF7F8D8C:active?0xFF3A84C6:0xFFEF9C2F;String prefix=t.submitted()?"✓ ":t.canceled()?"已取消 ":active?"进行中 ":"待采样 ";Marker m=map.addMarker(new MarkerOptions().position(new LatLng(t.lat(),t.lon())).icon(markerIcon(t.siteCode(),color)).title(prefix+t.title()).snippet(t.code()));markerTasks.put(m.getId(),t);}if(here!=null)map.addMarker(new MarkerOptions().position(new LatLng(here.getLatitude(),here.getLongitude())).title("我的位置（WGS84）"));}
  protected void onNewIntent(Intent i){super.onNewIntent(i);if(prefs.activated()&&unlocked)showMap();}
  private void center(){if(map!=null&&here!=null)map.setCameraPosition(new CameraPosition.Builder().target(new LatLng(here.getLatitude(),here.getLongitude())).zoom(14).build());}
- private void showTasks(){if(!unlocked)return;destroyMap();title.setText("我的任务");content.removeAllViews();View v=getLayoutInflater().inflate(R.layout.view_list,content,false);content.addView(v);List<Task> a=new ArrayList<>(db.tasks());java.util.Map<String,List<Task>> groups=new java.util.TreeMap<>();for(Task t:a)groups.computeIfAbsent(t.j.optString("planned_date","未定日期"),k->new ArrayList<>()).add(t);java.util.Comparator<Task> byDist=(x,y)->Double.compare(here==null?x.id:Util.distance(here.getLatitude(),here.getLongitude(),x.lat(),x.lon()),here==null?y.id:Util.distance(here.getLatitude(),here.getLongitude(),y.lat(),y.lon()));List<String> dates=new ArrayList<>(groups.keySet());Collections.sort(dates);List<List<Task>> data=new ArrayList<>();for(String d:dates){List<Task> l=groups.get(d);l.sort(byDist);data.add(l);}((TextView)v.findViewById(R.id.listHint)).setText("按日期归档 · 共"+a.size()+"个任务 · 点击日期展开/收缩");ExpandableListView list=v.findViewById(R.id.list);list.setAdapter(new DateAdapter(dates,data));list.setOnChildClickListener((p,x,g,c,id)->{startActivity(new Intent(this,TaskActivity.class).putExtra("task",data.get(g).get(c).id));return true;});}
- private void showUpload(){if(!unlocked)return;destroyMap();title.setText("上传");LinearLayout p=panel();int pending=db.count("status!='uploaded'"),done=db.count("status='uploaded'");text(p,"待同步 "+pending+" 条 · 已同步 "+done+" 条",22);text(p,"有网络时自动同步；未同步的数据会一直保存在手机，不会丢失。",15);for(JSONObject r:db.recordsAll()){Task t=db.task(r.optLong("taskId"));String code=t==null?("任务"+r.optLong("taskId")):t.code();if(r.optString("status").equals("uploaded")){String at=r.optString("uploadedAt").replace('T',' ');if(at.length()>16)at=at.substring(0,16);text(p,"✅ 已同步 "+code+"　"+at,15);}else{String err=r.optString("error");if(err.length()>90)err=err.substring(0,90)+"…";text(p,"⏳ 未同步 "+code+(err.isEmpty()?"　等待上传":"　上次失败："+err),15);}}MaterialButton b=button("立即重试同步");b.setOnClickListener(v->{sync();showUpload();});p.addView(b);content.removeAllViews();content.addView(p);}
- private void showMine(){if(!unlocked)return;destroyMap();title.setText("我的");LinearLayout p=panel();text(p,prefs.name()+"（"+prefs.user()+"）",22);text(p,"服务器："+prefs.server()+"\n设备："+Util.uuid(this)+"\n坐标：WGS84\n版本："+BuildConfig.VERSION_NAME,16);MaterialButton map=button(prefs.map().isEmpty()?"导入离线卫星地图包（MBTiles）":"更换离线地图包");map.setOnClickListener(v->mapFile.launch("*/*"));p.addView(map);MaterialButton log=button("复制诊断日志");log.setOnClickListener(v->copyLog());p.addView(log);content.removeAllViews();content.addView(p);}
+ private void showTasks(){if(!unlocked)return;destroyMap();currentTab=1;title.setText("我的任务");content.removeAllViews();View v=getLayoutInflater().inflate(R.layout.view_list,content,false);content.addView(v);List<Task> all=new ArrayList<>(db.tasks());List<Task> a=new ArrayList<>();for(Task t:all){boolean sub=t.submitted(),can=t.canceled();if(taskFilter==1&&sub)continue;if(taskFilter==2&&!sub)continue;if(taskFilter==3&&!can)continue;a.add(t);}
+  // 筛选条：全部/待采样/已采样/已取消
+  LinearLayout chips=new LinearLayout(this);chips.setOrientation(LinearLayout.HORIZONTAL);chips.setPadding(0,10,0,0);String[] names={"全部","待采样","已采样","已取消"};for(int i=0;i<4;i++){final int fi=i;MaterialButton b=new MaterialButton(this);b.setText(names[i]);b.setMinWidth(0);b.setPadding(24,0,24,0);b.setTextSize(14);b.setBackgroundColor(taskFilter==fi?0xFF16A27A:0xFFE3EDEB);b.setTextColor(taskFilter==fi?0xFFFFFFFF:0xFF17343A);b.setOnClickListener(x->{taskFilter=fi;showTasks();});chips.addView(b);}((LinearLayout)v).addView(chips,1);
+  java.util.Map<String,List<Task>> groups=new java.util.TreeMap<>();for(Task t:a)groups.computeIfAbsent(t.j.optString("planned_date","未定日期"),k->new ArrayList<>()).add(t);java.util.Comparator<Task> byDist=(x,y)->Double.compare(here==null?x.id:Util.distance(here.getLatitude(),here.getLongitude(),x.lat(),x.lon()),here==null?y.id:Util.distance(here.getLatitude(),here.getLongitude(),y.lat(),y.lon()));List<String> dates=new ArrayList<>(groups.keySet());Collections.sort(dates);List<List<Task>> data=new ArrayList<>();for(String d:dates){List<Task> l=groups.get(d);l.sort(byDist);data.add(l);}((TextView)v.findViewById(R.id.listHint)).setText("按日期归档 · 共"+a.size()+"个任务 · 点击日期展开/收缩");ExpandableListView list=v.findViewById(R.id.list);list.setAdapter(new DateAdapter(dates,data));list.setOnChildClickListener((p,x,g,c,id)->{startActivity(new Intent(this,TaskActivity.class).putExtra("task",data.get(g).get(c).id));return true;});}
+ private void showUpload(){if(!unlocked)return;destroyMap();currentTab=2;title.setText("上传");LinearLayout p=panel();int pending=db.count("status!='uploaded'"),done=db.count("status='uploaded'");text(p,"待同步 "+pending+" 条 · 已同步 "+done+" 条",22);text(p,"有网络时自动同步；未同步的数据会一直保存在手机，不会丢失。",15);for(JSONObject r:db.recordsAll()){Task t=db.task(r.optLong("taskId"));String code=t==null?("任务"+r.optLong("taskId")):t.code();if(r.optString("status").equals("uploaded")){String at=r.optString("uploadedAt").replace('T',' ');if(at.length()>16)at=at.substring(0,16);text(p,"✅ 已同步 "+code+"　"+at,15);}else{String err=r.optString("error");if(err.length()>90)err=err.substring(0,90)+"…";text(p,"⏳ 未同步 "+code+(err.isEmpty()?"　等待上传":"　上次失败："+err),15);}}MaterialButton b=button("立即重试同步");b.setOnClickListener(v->{sync();showUpload();});p.addView(b);content.removeAllViews();content.addView(p);}
+ private void showMine(){if(!unlocked)return;destroyMap();currentTab=3;title.setText("我的");LinearLayout p=panel();text(p,prefs.name()+"（"+prefs.user()+"）",22);text(p,"服务器："+prefs.server()+"\n设备："+Util.uuid(this)+"\n坐标：WGS84\n版本："+BuildConfig.VERSION_NAME,16);MaterialButton map=button(prefs.map().isEmpty()?"导入离线卫星地图包（MBTiles）":"更换离线地图包");map.setOnClickListener(v->mapFile.launch("*/*"));p.addView(map);MaterialButton log=button("复制诊断日志");log.setOnClickListener(v->copyLog());p.addView(log);content.removeAllViews();content.addView(p);}
  private LinearLayout panel(){LinearLayout p=new LinearLayout(this);p.setOrientation(LinearLayout.VERTICAL);p.setPadding(24,24,24,24);return p;}private void text(LinearLayout p,String s,int size){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(Color.DKGRAY);v.setPadding(10,16,10,16);p.addView(v);}private MaterialButton button(String s){MaterialButton b=new MaterialButton(this);b.setText(s);b.setTextSize(18);b.setMinHeight(64);return b;}
  private void importMap(Uri u){if(u==null)return;work.execute(()->{try{long declared=-1;try(Cursor c=getContentResolver().query(u,new String[]{OpenableColumns.SIZE},null,null,null)){if(c!=null&&c.moveToFirst())declared=c.getLong(0);}if(declared>2_000_000_000L)throw new IOException("地图包超过2GB");File out=new File(getFilesDir(),"basongcuo.mbtiles");try(InputStream in=getContentResolver().openInputStream(u);FileOutputStream o=new FileOutputStream(out)){byte[] b=new byte[1024*1024];int n;long total=0;while((n=in.read(b))>=0){total+=n;if(total>2_000_000_000L)throw new IOException("地图包超过2GB");o.write(b,0,n);}}byte[] h=new byte[16];try(FileInputStream in=new FileInputStream(out)){if(in.read(h)!=16||!new String(h,StandardCharsets.US_ASCII).startsWith("SQLite format 3"))throw new IOException("不是有效MBTiles地图包");}prefs.map(out.getPath());runOnUiThread(()->Toast.makeText(this,"离线地图导入成功",Toast.LENGTH_LONG).show());}catch(Exception e){db.log("error","MAP_IMPORT "+e.getMessage());runOnUiThread(()->Toast.makeText(this,e.getMessage(),Toast.LENGTH_LONG).show());}});}
  private void copyLog(){getSystemService(android.content.ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("巴松措采样日志",db.diagnostics()));Toast.makeText(this,"日志已复制，可以发给管理员",Toast.LENGTH_LONG).show();}
@@ -239,12 +264,17 @@ final class QrData {
 
 #### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/SamplingApp.java`
 
-SHA-256: `bcebda9dddfcbe6b55112d7796c7b4d2068a3fc31e2f1edda04442f8a3e12d45`
+SHA-256: `a07dadfdf99d9673f1eb39a31625283ed61d6b6381a82756cffcd6e2103f724d`
 
 ~~~~java
 package online.gpsgps.bscsampling;
 import android.Manifest;import android.app.Application;import android.app.NotificationChannel;import android.app.NotificationManager;import android.content.pm.PackageManager;import androidx.core.content.ContextCompat;import androidx.work.*;import org.json.JSONObject;import java.util.concurrent.TimeUnit;
-public final class SamplingApp extends Application{static final String TRACK="tracking";public void onCreate(){super.onCreate();getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel(TRACK,"采样轨迹记录",NotificationManager.IMPORTANCE_LOW));String details="{}";try{details=new JSONObject().put("fineLocation",granted(Manifest.permission.ACCESS_FINE_LOCATION)).put("backgroundLocation",granted(Manifest.permission.ACCESS_BACKGROUND_LOCATION)).put("camera",granted(Manifest.permission.CAMERA)).put("network",Util.networkType(this)).put("sdk",android.os.Build.VERSION.SDK_INT).toString();}catch(Exception ignored){}new Store(this).log("info","APP_START "+BuildConfig.VERSION_NAME+" "+android.os.Build.MANUFACTURER+"/"+android.os.Build.MODEL+" Android "+android.os.Build.VERSION.RELEASE,details);Constraints c=new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build();WorkManager.getInstance(this).enqueueUniquePeriodicWork("sync",ExistingPeriodicWorkPolicy.UPDATE,new PeriodicWorkRequest.Builder(SyncWorker.class,15,TimeUnit.MINUTES).setConstraints(c).build());}
+public final class SamplingApp extends Application{static final String TRACK="tracking";public void onCreate(){super.onCreate();
+  // 全局崩溃捕获：把崩溃堆栈写入本地日志表（随诊断日志上传），便于远程定位闪退；
+  // 只记录异常摘要与堆栈，不含任何敏感数据。
+  final Thread.UncaughtExceptionHandler prev=Thread.getDefaultUncaughtExceptionHandler();
+  Thread.setDefaultUncaughtExceptionHandler((t,e)->{try{StringBuilder s=new StringBuilder("CRASH ").append(t.getName()).append(' ').append(e.getClass().getSimpleName());if(e.getMessage()!=null)s.append(": ").append(e.getMessage());StackTraceElement[] st=e.getStackTrace();for(int i=0;i<Math.min(st.length,12);i++)s.append("\n  at ").append(st[i].toString());new Store(this).log("error",s.toString());}catch(Exception ignored){}if(prev!=null)prev.uncaughtException(t,e);else{android.os.Process.killProcess(android.os.Process.myPid());System.exit(10);}});
+  getSystemService(NotificationManager.class).createNotificationChannel(new NotificationChannel(TRACK,"采样轨迹记录",NotificationManager.IMPORTANCE_LOW));String details="{}";try{details=new JSONObject().put("fineLocation",granted(Manifest.permission.ACCESS_FINE_LOCATION)).put("backgroundLocation",granted(Manifest.permission.ACCESS_BACKGROUND_LOCATION)).put("camera",granted(Manifest.permission.CAMERA)).put("network",Util.networkType(this)).put("sdk",android.os.Build.VERSION.SDK_INT).toString();}catch(Exception ignored){}new Store(this).log("info","APP_START "+BuildConfig.VERSION_NAME+" "+android.os.Build.MANUFACTURER+"/"+android.os.Build.MODEL+" Android "+android.os.Build.VERSION.RELEASE,details);Constraints c=new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build();WorkManager.getInstance(this).enqueueUniquePeriodicWork("sync",ExistingPeriodicWorkPolicy.UPDATE,new PeriodicWorkRequest.Builder(SyncWorker.class,15,TimeUnit.MINUTES).setConstraints(c).build());}
 private boolean granted(String p){return ContextCompat.checkSelfPermission(this,p)==PackageManager.PERMISSION_GRANTED;}}
 ~~~~
 
@@ -403,7 +433,7 @@ final class Task { final JSONObject j; final long id; Task(JSONObject j){this.j=
 
 #### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/TaskActivity.java`
 
-SHA-256: `777e3cf817f53238b1fe4cc1693d261780fe6b3291e03db47bbcef97739db549`
+SHA-256: `8525e94b57445ddb60b64b67c79dd0bd41ccf88d96a26084001defb3a5f0615f`
 
 ~~~~java
 package online.gpsgps.bscsampling;
@@ -433,7 +463,10 @@ public final class TaskActivity extends AppCompatActivity implements LocationLis
  private void photoResult(int code,Intent data){if(code!=RESULT_OK||data==null)return;photo=data.getStringExtra(PhotoActivity.PATH);captured=data.getStringExtra(PhotoActivity.AT);weather=data.getStringExtra(PhotoActivity.WEATHER);if(photo==null||!new File(photo).isFile()){message.setText("照片保存失败，请重拍");return;}preview.setImageBitmap(BitmapFactory.decodeFile(photo));preview.setVisibility(View.VISIBLE);save.setVisibility(View.VISIBLE);photoButton.setText("重新拍照");message.setText("照片已加时间、天气、WGS84水印。确认瓶子/标签和后方环境都能辨认。");}
  private void save(){if(here==null||photo.isEmpty())return;try{JSONObject p=new JSONObject().put("capturedAt",captured).put("latitude",here.getLatitude()).put("longitude",here.getLongitude()).put("accuracyM",here.getAccuracy()).put("weatherText",weather==null?"待补充":weather).put("noWater",noWater).put("manualCode",manual).put("submittedCode",manual?task.code():"").put("qrToken",qr).put("exceptionCategory",reason).put("exceptionDetail",detail).put("mockLocation",Util.mock(here));db.record(task.id,journey,photo,p);db.taskQueued(task.id);String saveDetail="{}";try{saveDetail=new JSONObject().put("taskId",task.id).put("distance",Math.round(distance())).put("noWater",noWater).put("manual",manual).put("queue",db.count("status!='uploaded'")).put("network",Util.networkType(this)).toString();}catch(Exception ignored){}db.log("info","SAVE_QUEUED",saveDetail);boolean sibling=db.sibling(task.j.optLong("site_id"),task.id);if(!sibling){db.finish(journey);TrackingService.stop(this);prefs.journey("");}WorkManager.getInstance(this).enqueue(new OneTimeWorkRequest.Builder(SyncWorker.class).setConstraints(new Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()).build());new AlertDialog.Builder(this).setTitle("采样已安全保存").setMessage(Util.online(this)?"正在后台上传；失败也不会删除。":"当前离线，联网后自动上传。"+(sibling?"\n同点还有任务，轨迹继续记录。":"")).setPositiveButton("返回",(d,w)->finish()).setCancelable(false).show();}catch(Exception e){message.setText("本地保存失败，请不要退出："+e.getMessage());db.log("error","SAVE "+e.getMessage());}}
  private double distance(){return here==null?Double.MAX_VALUE:Util.distance(here.getLatitude(),here.getLongitude(),task.lat(),task.lon());}public void onLocationChanged(@NonNull Location l){here=l;double d=distance();String level=d<=30?"30米内：正常":d<=80?"30～80米：需写原因":d<=300?"80～300米：严重可疑":"超过300米：禁止";loc.setText(String.format(Locale.CHINA,"WGS84 %.6f, %.6f\n距点 %.0f米 · 精度±%.0f米\n%s%s",l.getLatitude(),l.getLongitude(),d,l.getAccuracy(),level,Util.mock(l)?"\n⚠检测到模拟位置":""));}
- private void reference(){String path=task.j.optString("reference_image");ImageView ref=findViewById(R.id.reference);if(path==null||path.isEmpty()){ref.setVisibility(View.GONE);return;}work.execute(()->{try(Response r=new OkHttpClient().newCall(new Request.Builder().url(path.startsWith("http")?path:prefs.server()+path).build()).execute()){if(!r.isSuccessful()||r.body()==null){runOnUiThread(()->ref.setVisibility(View.GONE));return;}byte[] b=r.body().bytes();android.graphics.Bitmap bm=BitmapFactory.decodeByteArray(b,0,b.length);runOnUiThread(()->{if(bm==null)ref.setVisibility(View.GONE);else{ref.setImageBitmap(bm);ref.setVisibility(View.VISIBLE);}});}catch(Exception e){db.log("warning","REFERENCE "+e.getMessage());runOnUiThread(()->ref.setVisibility(View.GONE));}});}
+ private void reference(){String path=task.j.optString("reference_image");ImageView ref=findViewById(R.id.reference);if(path==null||path.isEmpty()){ref.setVisibility(View.GONE);return;}
+  // 点击参考图全屏放大查看（村民在山里要对照细节），再点一下关闭。
+  ref.setOnClickListener(x->{android.graphics.Bitmap bm=(android.graphics.Bitmap)ref.getTag();if(bm==null)return;android.app.Dialog d=new android.app.Dialog(this);ImageView iv=new ImageView(this);iv.setImageBitmap(bm);iv.setScaleType(ImageView.ScaleType.FIT_CENTER);iv.setBackgroundColor(0xFF000000);d.setContentView(iv);iv.setOnClickListener(y->d.dismiss());d.show();});
+  work.execute(()->{try(Response r=new OkHttpClient().newCall(new Request.Builder().url(path.startsWith("http")?path:prefs.server()+path).build()).execute()){if(!r.isSuccessful()||r.body()==null){runOnUiThread(()->ref.setVisibility(View.GONE));return;}byte[] b=r.body().bytes();android.graphics.Bitmap bm=BitmapFactory.decodeByteArray(b,0,b.length);runOnUiThread(()->{if(bm==null)ref.setVisibility(View.GONE);else{ref.setTag(bm);ref.setImageBitmap(bm);ref.setVisibility(View.VISIBLE);}});}catch(Exception e){db.log("warning","REFERENCE "+e.getMessage());runOnUiThread(()->ref.setVisibility(View.GONE));}});}
  protected void onDestroy(){try{lm.removeUpdates(this);}catch(Exception ignored){}work.shutdown();super.onDestroy();}
 }
 ~~~~
@@ -493,12 +526,12 @@ final class Util {
 
 #### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/Watermark.java`
 
-SHA-256: `96d379d909c48446e436f97d45f22f9e0eaaf748ec1819dcaeeb18b0209b4b2f`
+SHA-256: `80c8eb191cf62c9d155db6912da60fa850936b24dc40c5b36e9bce400c33b86c`
 
 ~~~~java
 package online.gpsgps.bscsampling;
 import android.graphics.*;import androidx.exifinterface.media.ExifInterface;import org.json.JSONArray;import java.io.*;
-final class Watermark{static void render(File input,File output,JSONArray lines)throws Exception{Bitmap src=BitmapFactory.decodeFile(input.getPath());if(src==null)throw new IOException("照片无法读取");int o=new ExifInterface(input).getAttributeInt(ExifInterface.TAG_ORIENTATION,1);Matrix m=new Matrix();if(o==6)m.postRotate(90);if(o==3)m.postRotate(180);if(o==8)m.postRotate(270);Bitmap rotated=Bitmap.createBitmap(src,0,0,src.getWidth(),src.getHeight(),m,true);if(rotated!=src)src.recycle();int max=Math.max(rotated.getWidth(),rotated.getHeight());float scale=max>2560?2560f/max:1;Bitmap photo=scale<1?Bitmap.createScaledBitmap(rotated,Math.round(rotated.getWidth()*scale),Math.round(rotated.getHeight()*scale),true):rotated;if(photo!=rotated)rotated.recycle();Bitmap result=photo.copy(Bitmap.Config.ARGB_8888,true);if(result!=photo)photo.recycle();Canvas c=new Canvas(result);float bar=Math.max(190,result.getHeight()*.22f);Paint bg=new Paint();bg.setColor(0xD2071B20);c.drawRect(0,result.getHeight()-bar,result.getWidth(),result.getHeight(),bg);Paint t=new Paint(1);t.setColor(Color.WHITE);t.setTypeface(Typeface.DEFAULT_BOLD);t.setTextSize(Math.max(22,result.getWidth()/45f));float x=result.getWidth()*.035f,y=result.getHeight()-bar+t.getTextSize()*1.25f;for(int i=0;i<lines.length();i++)c.drawText(lines.optString(i),x,y+i*t.getTextSize()*1.35f,t);try(FileOutputStream out=new FileOutputStream(output)){result.compress(Bitmap.CompressFormat.JPEG,90,out);}result.recycle();}}
+final class Watermark{static void render(File input,File output,JSONArray lines)throws Exception{Bitmap src=BitmapFactory.decodeFile(input.getPath());if(src==null)throw new IOException("照片无法读取");int o=new ExifInterface(input).getAttributeInt(ExifInterface.TAG_ORIENTATION,1);Matrix m=new Matrix();if(o==6)m.postRotate(90);if(o==3)m.postRotate(180);if(o==8)m.postRotate(270);Bitmap rotated=Bitmap.createBitmap(src,0,0,src.getWidth(),src.getHeight(),m,true);if(rotated!=src)src.recycle();int max=Math.max(rotated.getWidth(),rotated.getHeight());float scale=max>1600?1600f/max:1;Bitmap photo=scale<1?Bitmap.createScaledBitmap(rotated,Math.round(rotated.getWidth()*scale),Math.round(rotated.getHeight()*scale),true):rotated;if(photo!=rotated)rotated.recycle();Bitmap result=photo.copy(Bitmap.Config.ARGB_8888,true);if(result!=photo)photo.recycle();Canvas c=new Canvas(result);float bar=Math.max(150,result.getHeight()*.22f);Paint bg=new Paint();bg.setColor(0xD2071B20);c.drawRect(0,result.getHeight()-bar,result.getWidth(),result.getHeight(),bg);Paint t=new Paint(1);t.setColor(Color.WHITE);t.setTypeface(Typeface.DEFAULT_BOLD);t.setTextSize(Math.max(20,result.getWidth()/40f));float x=result.getWidth()*.035f,y=result.getHeight()-bar+t.getTextSize()*1.25f;for(int i=0;i<lines.length();i++)c.drawText(lines.optString(i),x,y+i*t.getTextSize()*1.35f,t);try(FileOutputStream out=new FileOutputStream(output)){result.compress(Bitmap.CompressFormat.JPEG,82,out);}result.recycle();try{ExifInterface se=new ExifInterface(input),de=new ExifInterface(output);String dt=se.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL);if(dt==null)dt=se.getAttribute(ExifInterface.TAG_DATETIME);if(dt!=null)de.setAttribute(ExifInterface.TAG_DATETIME_ORIGINAL,dt);double[] ll=se.getLatLong();if(ll!=null)de.setLatLong(ll[0],ll[1]);String lr=se.getAttribute(ExifInterface.TAG_GPS_LATITUDE_REF),nr=se.getAttribute(ExifInterface.TAG_GPS_LONGITUDE_REF);if(lr!=null)de.setAttribute(ExifInterface.TAG_GPS_LATITUDE_REF,lr);if(nr!=null)de.setAttribute(ExifInterface.TAG_GPS_LONGITUDE_REF,nr);de.saveAttributes();}catch(Exception ignored){}}}
 ~~~~
 
 #### `bsc-android-native/app/src/main/res/drawable/card.xml`
@@ -1344,10 +1377,10 @@ auto.gpsgps.online 站点，这些站点绝不允许改动。
 
 #### `bsc-sampling-v1/deploy/schedule-backup.ps1`
 
-SHA-256: `32a72c94f0fcf7a4f8bb8b84f8a9252622010aadf6d05358f327bdb01dfe02b3`
+SHA-256: `56b7f3bff8a4b6c452e6948f2d775fdde100a94dd37c318ef9852869748308ac`
 
 ~~~~powershell
-﻿# 巴松措采样系统 V1 - 每日备份计划任务注册脚本
+# 巴松措采样系统 V1 - 每日备份计划任务注册脚本
 # 用法（管理员 PowerShell）：
 #   powershell -ExecutionPolicy Bypass -File schedule-backup.ps1
 # 每天 02:30 执行：数据库一致快照 + 照片增量拷贝，保留 14 天，
@@ -1358,17 +1391,18 @@ $app = Join-Path (Split-Path $PSScriptRoot -Parent) 'bsc-server'
 $node = (Get-Command node -ErrorAction Stop).Source
 
 $action = New-ScheduledTaskAction -Execute $node `
-  -Argument 'tools\backup.js --photos' `
+  -Argument 'tools\backup.js --photos --mirror D:\bsc-offsite' `
   -WorkingDirectory $app
 $trigger = New-ScheduledTaskTrigger -Daily -At '02:30'
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
 
 Register-ScheduledTask -TaskName 'BscSamplingBackup' -Action $action -Trigger $trigger `
-  -Settings $settings -Description '巴松措采样系统每日备份（数据库快照+照片增量，保留14天）' -Force | Out-Null
+  -Settings $settings -Description '巴松措采样系统每日备份（数据库快照+照片增量+异机镜像，保留14天）' -Force | Out-Null
 
 Write-Host '[完成] 已注册每日备份计划任务 BscSamplingBackup（每天 02:30）。'
+Write-Host '注意：--mirror D:\bsc-offsite 请改成你的异机/云盘同步目录；不需要异机备份则删除该参数。'
 Write-Host '手动验证一次：'
-Write-Host "  cd $app && node tools\backup.js --photos"
+Write-Host "  cd $app && node tools\backup.js --photos --mirror D:\bsc-offsite"
 Write-Host '恢复演练（每月一次）：'
 Write-Host "  node tools\restore.js <backup目录>"
 ~~~~
@@ -1433,7 +1467,7 @@ SHA-256: `993a539bcb81926555f283a0b763e207c022a0f0c4b2757a54c4d260cd876e71`
 
 #### `bsc-sampling-v1/public/app.js`
 
-SHA-256: `18d335e911521b1a1daccb6fc02e29b97cca8843f75dd47485b6c3f120143ec8`
+SHA-256: `5abd513c8b693a9b8629712123020e9fa6c7f09e376fcf5ba4410848f1c7b866`
 
 ~~~~javascript
 'use strict';
@@ -1457,14 +1491,16 @@ const RISK_NAMES = {
   missing_track: '提交时无轨迹点',
   late_sampling: '拍摄日期与计划日期不一致',
   task_canceled: '任务已取消后提交',
-  weather_pending: '天气待补充'
+  weather_pending: '天气待补充',
+  captured_time_in_future: '拍摄时间晚于服务器时间',
+  exif_time_mismatch: '照片EXIF时间与提交时间不一致'
 };
 const SEVERE_RISKS = new Set(['distance_80_300m', 'manual_bottle_code', 'mock_location', 'duplicate_photo', 'task_canceled']);
 
 const state = {
   projects: [], villagers: [], projectId: null, selectedDate: 'pending',
-  tasks: [], sites: [], map: null, markers: [], siteMode: false,
-  editingSiteId: null, editingProjectId: null, pickMarker: null, lastCreatedTaskIds: [], trackPolylines: []
+  tasks: [], sites: [], map: null, markers: [], siteMode: false, tableMode: false,
+  editingSiteId: null, editingProjectId: null, pickMarker: null, pickPending: false, lastCreatedTaskIds: [], trackPolylines: []
 };
 
 function token() { return localStorage.getItem(TOKEN_KEY); }
@@ -1708,7 +1744,58 @@ function render() {
   $('#statApproved').textContent = tasks.filter(t => t.review_status === 'approved').length;
   $('#statPending').textContent = tasks.filter(t => t.record_id && t.review_status !== 'approved').length;
   $('#statUnfinished').textContent = tasks.filter(t => !t.record_id).length;
-  renderMap(tasks);
+  const tableWrap = $('#taskTableWrap');
+  const mapPanel = document.querySelector('.map-panel');
+  if (state.tableMode) {
+    tableWrap.classList.remove('hidden');
+    mapPanel.classList.add('hidden');
+    $('#tableViewButton').textContent = '⌖ 地图';
+    renderTable(tasks);
+  } else {
+    tableWrap.classList.add('hidden');
+    mapPanel.classList.remove('hidden');
+    $('#tableViewButton').textContent = '▦ 表格';
+    renderMap(tasks);
+  }
+}
+
+// ---------- 表格视图（筛选 + 批量审核 + 批量天气） ----------
+function renderTable(tasks) {
+  const vill = $('#tableVillager');
+  const names = [...new Set(state.tasks.map(t => t.villager_name).filter(Boolean))].sort();
+  vill.innerHTML = '<option value="">全部采样员</option>' + names.map(n => `<option${vill.value === n ? ' selected' : ''}>${esc(n)}</option>`).join('');
+  const q = $('#tableSearch').value.trim().toLowerCase();
+  const status = $('#tableStatus').value;
+  const vf = vill.value;
+  const rows = tasks.filter(t => {
+    if (vf && t.villager_name !== vf) return false;
+    if (q && !(String(t.sample_code).toLowerCase().includes(q) || String(t.site_name).toLowerCase().includes(q))) return false;
+    if (status === 'pending') return !t.record_id && !t.canceled_at;
+    if (status === 'review') return t.record_id && t.review_status !== 'approved' && t.review_status !== 'rejected';
+    if (status === 'approved') return t.review_status === 'approved';
+    if (status === 'rejected') return t.review_status === 'rejected';
+    if (status === 'canceled') return Boolean(t.canceled_at);
+    return true;
+  });
+  $('#taskTableBody').innerHTML = rows.map(t => {
+    const reviewable = t.record_id && t.review_status !== 'approved' && t.review_status !== 'rejected';
+    return `<tr data-id="${t.id}">
+      <td>${reviewable ? `<input type="checkbox" class="row-check" data-record="${t.record_id}">` : ''}</td>
+      <td>${esc(t.sample_code)}</td>
+      <td>${esc(t.site_name)}${t.canceled_at ? '<br><span class="cancel-note">已取消</span>' : ''}</td>
+      <td>${esc(TYPE_NAMES[t.sample_type] || t.sample_type)}</td>
+      <td>${esc(t.planned_date)}</td>
+      <td>${esc(t.villager_name || '')}</td>
+      <td>${t.distance_m != null ? Math.round(Number(t.distance_m)) + ' 米' : '-'}</td>
+      <td>${t.record_id ? reviewName(t.review_status) : (t.canceled_at ? '已取消' : '待采样')}</td>
+      <td><button class="ghost row-open">查看</button></td>
+    </tr>`;
+  }).join('');
+  document.querySelectorAll('#taskTableBody .row-open').forEach(b => b.addEventListener('click', () => {
+    const t = state.tasks.find(x => x.id === Number(b.closest('tr').dataset.id));
+    if (t) showDetail(t);
+  }));
+  $('#tableCheckAll').checked = false;
 }
 
 // ---------- 地图 ----------
@@ -1843,6 +1930,28 @@ async function renderMap(tasks) {
 }
 
 $('#fitMap').addEventListener('click', () => renderMap(state.siteMode ? state.sites : currentTasks()));
+// 表格视图：切换、筛选、批量审核通过、批量补齐天气
+$('#tableViewButton').addEventListener('click', () => { state.tableMode = !state.tableMode; render(); });
+$('#tableVillager').addEventListener('change', () => renderTable(currentTasks()));
+$('#tableStatus').addEventListener('change', () => renderTable(currentTasks()));
+$('#tableSearch').addEventListener('input', () => renderTable(currentTasks()));
+$('#tableCheckAll').addEventListener('change', e => document.querySelectorAll('#taskTableBody .row-check').forEach(c => { c.checked = e.target.checked; }));
+$('#batchApprove').addEventListener('click', async () => {
+  const ids = [...document.querySelectorAll('#taskTableBody .row-check:checked')].map(c => Number(c.dataset.record));
+  if (!ids.length) return alert('请先勾选要审核的记录');
+  if (!confirm(`批量审核通过 ${ids.length} 条记录？`)) return;
+  let ok = 0, failed = 0;
+  for (const id of ids) {
+    try { await post(`/api/v1/admin/records/${id}/review`, { status: 'approved' }); ok++; } catch { failed++; }
+  }
+  alert(`完成：通过 ${ok} 条${failed ? `，失败 ${failed} 条` : ''}`);
+  await loadAll(); render();
+});
+$('#batchWeather').addEventListener('click', async () => {
+  const ids = currentTasks().filter(t => t.record_id && t.server_weather_status !== 'complete').map(t => t.record_id);
+  if (!ids.length) return alert('本页没有需要补齐天气的记录');
+  try { const res = await post('/api/v1/admin/records/backfill-weather', { recordIds: ids }); alert(`已排队补齐 ${res.queued} 条记录，稍后刷新查看。`); } catch (e) { alert(e.message); }
+});
 $('#refresh').addEventListener('click', async () => { await loadAll(); checkHealth(); });
 
 // ---------- 审核详情 ----------
@@ -1938,7 +2047,7 @@ async function showDetail(task) {
     ? `<div class="record-grid"><div><small>开始时距目标</small><strong>${Number(task.start_distance_m).toFixed(1)} 米${Number(task.start_distance_m) < 300 ? '（弱证据）' : ''}</strong></div><div><small>轨迹状态</small><strong>${task.interrupted ? '⚠ 中断后恢复' : '连续记录'}</strong></div></div>`
     : '';
   body.innerHTML = `
-    <img class="record-photo" src="${esc(task.photo_path)}" alt="现场采样照片">
+    ${task.reference_image ? `<div class="compare-grid"><figure><img src="${esc(task.photo_path)}" alt="现场采样照片"><figcaption>现场照片</figcaption></figure><figure><img src="${esc(task.reference_image)}" alt="管理员参考图"><figcaption>管理员参考图</figcaption></figure></div>` : `<img class="record-photo" src="${esc(task.photo_path)}" alt="现场采样照片">`}
     ${riskBadges(task)}
     <div class="record-grid">
       <div><small>历史序号</small><strong>${esc(task.site_code)}</strong></div>
@@ -1958,7 +2067,8 @@ async function showDetail(task) {
     </div>
     ${task.journey_id ? trackInfo : ''}
     ${journeyMeta}
-    ${task.reference_image ? `<div class="reference"><img src="${esc(task.reference_image)}"><div><strong>管理员参考照片</strong><small>${esc(task.instructions || '对照现场地形和水体位置。')}</small></div></div>` : ''}
+    ${task.reference_image ? `<div class="reference"><strong>管理员参考照片</strong><small>${esc(task.instructions || '对照现场地形和水体位置。')}</small></div>` : ''}
+    ${task.printed_count ? `<p class="dialog-tip">标签已打印 ${task.printed_count} 次${task.printed_last ? `（最近 ${formatTime(task.printed_last)}）` : ''}；改期后旧标签作废，需重新打印。</p>` : ''}
     <div class="review-block">
       <textarea id="reviewNote" rows="2" placeholder="追加审核意见（不修改原始记录，只追加）">${esc(task.review_note || '')}</textarea>
       <div class="review-actions"><button class="approve" data-status="approved">✓ 审核通过</button><button class="suspicious" data-status="suspicious">! 标记可疑</button><button class="reject" data-status="rejected">↩ 退回重采</button><button data-status="pending">稍后审核</button></div>
@@ -2082,21 +2192,21 @@ $('#siteCoords').addEventListener('input', () => {
   if (state.pickMarker && parsed) state.pickMarker.setLatLng([parsed.latitude, parsed.longitude]);
 });
 $('#siteDialog').addEventListener('close', () => {
+  // 由"在地图上选点"触发的关闭不清除选点模式（用 pickPending 标记区分），
+  // 彻底消除 close 事件异步派发与 setTimeout 之间的竞态。
+  if (state.pickPending) { state.pickPending = false; return; }
   state.pickMode = false;
   if (state.pickMarker) { state.pickMarker.remove(); state.pickMarker = null; }
 });
 
 $('#pickMap').addEventListener('click', () => {
-  // 注意：<dialog>.close() 的 close 事件是异步派发的，会在此处之后执行并复位
-  // pickMode，所以用 setTimeout 延后开启选点模式，保证 close 监听器先跑完。
+  state.pickPending = true;
+  state.pickMode = true;
   $('#siteDialog').close();
-  setTimeout(() => {
-    state.pickMode = true;
-    const c = currentCoords();
-    const lat = c ? c.latitude : 30.04;
-    const lng = c ? c.longitude : 94.05;
-    state.map.setView([lat, lng], Math.max(state.map.getZoom(), 13));
-  }, 0);
+  const c = currentCoords();
+  const lat = c ? c.latitude : 30.04;
+  const lng = c ? c.longitude : 94.05;
+  state.map.setView([lat, lng], Math.max(state.map.getZoom(), 13));
 });
 
 function finishPick(lat, lng) {
@@ -2445,7 +2555,7 @@ SHA-256: `56ea901d1568162180fb0187726da544ff446b0ccc6fba614cd913e472cbe7a1`
 
 #### `bsc-sampling-v1/public/index.html`
 
-SHA-256: `501eb7762bcd5a4409c13645258a5bb2b187157fd707fd45dd7c01ffe980e84d`
+SHA-256: `37d4af2bc53fa85da7923c5d1de15cf8243f59badc160c7a37428d0f613f7005`
 
 ~~~~html
 <!doctype html>
@@ -2496,6 +2606,7 @@ SHA-256: `501eb7762bcd5a4409c13645258a5bb2b187157fd707fd45dd7c01ffe980e84d`
       <header class="topbar">
         <div class="topbar-title"><button id="menuButton" class="menu-button" title="菜单">☰</button><div><p id="crumb" class="crumb">项目</p><h2 id="pageTitle">待采样任务</h2></div></div>
         <div class="top-actions">
+          <button id="tableViewButton" class="secondary">▦ 表格</button>
           <span class="top-action-wrap"><button id="exportCsv" class="secondary">导出CSV</button><i class="info-badge">!</i><span class="info-tip">导出当前项目的全部采样记录为 CSV 表格（编号、历史序号、WGS84 坐标、距离、精度、风险标志中文解释、审核意见、照片 SHA-256），可用 Excel 打开。</span></span>
           <span class="top-action-wrap"><button id="exportGeo" class="secondary">GeoJSON</button><i class="info-badge">!</i><span class="info-tip">导出采样记录为 GeoJSON（WGS84 点要素），可在 QGIS、ArcGIS 等地图软件中打开。</span></span>
           <span class="top-action-wrap"><button id="exportPhotos" class="secondary">照片包</button><i class="info-badge">!</i><span class="info-tip">把全部现场水印照片打包为 ZIP 下载，文件名含样品编号，可作原始证据归档。</span></span>
@@ -2511,6 +2622,30 @@ SHA-256: `501eb7762bcd5a4409c13645258a5bb2b187157fd707fd45dd7c01ffe980e84d`
         <article><span class="stat-icon green">✓</span><div><small>审核通过</small><strong id="statApproved">0</strong></div></article>
         <article><span class="stat-icon amber">!</span><div><small>待审核/可疑</small><strong id="statPending">0</strong></div></article>
         <article><span class="stat-icon gray">○</span><div><small>尚未采样</small><strong id="statUnfinished">0</strong></div></article>
+      </section>
+
+      <section id="taskTableWrap" class="task-table-wrap hidden">
+        <div class="task-table-tools">
+          <select id="tableVillager"><option value="">全部采样员</option></select>
+          <select id="tableStatus">
+            <option value="">全部状态</option>
+            <option value="pending">待采样</option>
+            <option value="review">待审核/可疑</option>
+            <option value="approved">已通过</option>
+            <option value="rejected">已退回</option>
+            <option value="canceled">已取消</option>
+          </select>
+          <input id="tableSearch" placeholder="搜索编号/点位名称">
+          <label class="checkbox-line"><input type="checkbox" id="tableCheckAll"> 全选本页待审核</label>
+          <button id="batchApprove" class="secondary">批量审核通过</button>
+          <button id="batchWeather" class="secondary">补齐本页天气</button>
+        </div>
+        <div class="task-table-scroll">
+          <table class="task-table">
+            <thead><tr><th></th><th>编号</th><th>点位</th><th>类型</th><th>日期</th><th>采样员</th><th>距离</th><th>审核状态</th><th>操作</th></tr></thead>
+            <tbody id="taskTableBody"></tbody>
+          </table>
+        </div>
       </section>
 
       <section class="map-panel">
@@ -2689,7 +2824,7 @@ SHA-256: `15c86461400dd919267ef3ce2d9838a553d252d0f47efcd6484a230c5e30c9ea`
 
 #### `bsc-sampling-v1/public/styles.css`
 
-SHA-256: `9ee30c00f632ba9b9c65526f6527ab1694222b1b40aa87e6188f98558a891cc9`
+SHA-256: `6cc6fb0d4ad65ec9cba0abb8b0da4808c97dd34c5d723a6924d2943e9493be5b`
 
 ~~~~css
 :root{--ink:#17343a;--muted:#708187;--line:#dbe5e4;--soft:#f3f7f6;--green:#16a27a;--green-dark:#087557;--aqua:#dff6ef;--amber:#ef9c2f;--red:#d95d58;--blue:#3a84c6;--shadow:0 16px 48px rgba(25,54,58,.13)}
@@ -2786,11 +2921,28 @@ dialog{width:min(680px,calc(100% - 28px));border:0;border-radius:18px;padding:0;
 /* 采样点标记改为水滴外形轮廓（SVG 填充，覆盖旧的旋转大头针样式） */
 .sample-marker{width:26px;height:34px;background:transparent;border:0;border-radius:0;transform:none;box-shadow:none;display:block}
 .sample-marker svg{display:block;filter:drop-shadow(0 2px 4px rgba(0,0,0,.25))}
+/* --- 表格视图 + 审核照片对比 --- */
+.task-table-wrap{background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 9px 30px rgba(34,61,62,.06)}
+.task-table-tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 15px;border-bottom:1px solid var(--line)}
+.task-table-tools select,.task-table-tools input[type=text],.task-table-tools input:not([type]){border:1px solid var(--line);border-radius:10px;padding:8px 10px;font:inherit;background:#fbfdfc}
+.task-table-tools input#tableSearch{flex:1;min-width:140px}
+.task-table-scroll{max-height:calc(100vh - 300px);overflow:auto}
+.task-table{width:100%;border-collapse:collapse;font-size:13px}
+.task-table th{position:sticky;top:0;background:#f3f7f6;text-align:left;padding:10px 12px;font-size:11px;color:var(--muted);white-space:nowrap}
+.task-table td{padding:9px 12px;border-top:1px solid var(--line);vertical-align:top}
+.task-table tr:hover{background:#f6faf9}
+.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px}
+.compare-grid figure{margin:0;display:grid;gap:4px}
+.compare-grid img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:14px;background:#edf2f0}
+.compare-grid figcaption{font-size:11px;color:var(--muted);text-align:center;font-weight:700}
+.reference{display:block;padding:10px 12px;border:1px solid var(--line);border-radius:12px;margin:12px 0}
+.reference small{color:var(--muted);font-size:11px;line-height:1.45}
+@media(max-width:650px){.compare-grid{grid-template-columns:1fr}}
 ~~~~
 
 #### `bsc-sampling-v1/README.md`
 
-SHA-256: `274d7713f767cc0d800dfa7cb20564044d0a4888ffd52d0ee2b1752ed5d1f479`
+SHA-256: `90760ece6209ce339e6c2a3e63a81e9ac11affe67d9d8103ba64a22b71630889`
 
 ~~~~markdown
 # 巴松措采样系统 V1 服务器与管理站
@@ -2821,7 +2973,7 @@ HTTP 语义：422 业务拒绝（超 300 m、二维码不匹配、异常原因�
 
 ```powershell
 npm run check      # 全部 JS 语法检查
-npm test           # 39 项自动化测试（安全单元、数据库迁移、API 集成、备份回归）
+npm test           # 52 项自动化测试（安全单元、数据库迁移、API 集成、备份回归、轨迹平滑）
 npm run smoke      # 30 项端到端冒烟（需要本机已启动服务器）
 npm run test:e2e   # 无头浏览器端到端（Playwright，断言数随数据量动态变化，需要 npm start 运行中）
 npm run backup     # 日常备份：node tools/backup.js --photos --keep 14
@@ -2846,7 +2998,7 @@ node tools/restore.js data/v1/backups/backup-<时间戳>   # 恢复演练
 
 #### `bsc-sampling-v1/src/exports.js`
 
-SHA-256: `4585d225581d2b6950b4f6f641f3f2cf8fe3c228d4d651022ba389f3525db1ab`
+SHA-256: `2fcf27442d95bbc432ee633503b55007b121b8699a51f54431b04630ec869ed9`
 
 ~~~~javascript
 'use strict';
@@ -2867,7 +3019,9 @@ const RISK_NAMES = {
   missing_track: '提交时无轨迹点',
   late_sampling: '拍摄日期与计划日期不一致',
   task_canceled: '任务已取消后提交',
-  weather_pending: '天气待补充'
+  weather_pending: '天气待补充',
+  captured_time_in_future: '拍摄时间晚于服务器时间',
+  exif_time_mismatch: '照片EXIF时间与提交时间不一致'
 };
 
 function csvCell(value) {
@@ -3140,7 +3294,7 @@ module.exports = { check, recordFailure, recordSuccess, prune };
 
 #### `bsc-sampling-v1/src/schema.js`
 
-SHA-256: `33e7ad03476a0d1f970c542df86d52cb934d03468a1dfd89106a72d89f2a7d0d`
+SHA-256: `cbb0d04d3fa3fd8292ef959da3e3afd46b4055a09e09c8acf01f5985be32ac3d`
 
 ~~~~javascript
 'use strict';
@@ -3334,6 +3488,12 @@ function initialize(db) {
     notes TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS label_prints (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL,
+    sample_code TEXT NOT NULL,
+    printed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
   `);
   migrate(db);
   seed(db);
@@ -3352,6 +3512,9 @@ function migrate(db) {
   // 旧库种子点位曾写入 /sample-reference.svg 占位参考图（SVG，安卓端无法解码，
   // 造成"参考图传不到手机"的假象）。清空后由管理员在管理站上传真实照片。
   db.prepare("UPDATE sites SET reference_image='' WHERE reference_image='/sample-reference.svg'").run();
+  // 旧库补建标签打印记录表；并登记当前 APP 版本供手机端检查更新。
+  db.exec('CREATE TABLE IF NOT EXISTS label_prints (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, sample_code TEXT NOT NULL, printed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
+  db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(101, '1.1.0', '崩溃日志、照片压缩+EXIF、任务筛选、参考图放大、同步进度、更新提示');
 }
 
 function seed(db) {
@@ -3476,7 +3639,7 @@ module.exports = { hashPin, verifyPin, safeEqual, signToken, verifyToken, totp, 
 
 #### `bsc-sampling-v1/src/server.js`
 
-SHA-256: `50d76eb621c2b7990182b8ce4f7be3c35ba01bfc0aaab3f1df973f6ddfb7374d`
+SHA-256: `ae824ce52f007872ef2ae30f9177546ba4472166471aca911c283672ee027e97`
 
 ~~~~javascript
 'use strict';
@@ -3490,6 +3653,7 @@ const QRCode = require('qrcode');
 const sharp = require('sharp');
 const { initialize, audit } = require('./schema');
 const { smoothTrack } = require('./track');
+const { exifDateTime, parseExifDate } = require('./exif');
 const { verifyPin, safeEqual, signToken, verifyToken, verifyTotp, randomToken } = require('./security');
 const { backfillWeather } = require('./weather');
 const rateLimit = require('./ratelimit');
@@ -3517,7 +3681,7 @@ const config = {
 if (!fs.existsSync(CONFIG)) fs.writeFileSync(CONFIG, JSON.stringify(config, null, 2));
 const db = new DatabaseSync(path.join(DATA, 'bsc-v1.sqlite')); initialize(db);
 
-function output(res, status, value, headers = {}) { const body = Buffer.from(JSON.stringify(value)); res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': body.length, 'Cache-Control': 'no-store', ...headers }); res.end(body); }
+function output(res, status, value, headers = {}) { const body = Buffer.from(JSON.stringify(value)); res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': body.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer', ...headers }); res.end(body); }
 function error(status, message) { const e = new Error(message); e.status = status; return e; }
 async function body(req, max = 12_000_000) { const chunks = []; let size = 0; for await (const chunk of req) { size += chunk.length; if (size > max) throw error(413, '请求过大'); chunks.push(chunk); } try { return chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}; } catch { throw error(400, 'JSON格式错误'); } }
 function bearer(req) { return String(req.headers.authorization || '').replace(/^Bearer\s+/i, ''); }
@@ -3531,8 +3695,10 @@ function parse(value, fallback = []) { try { return JSON.parse(value); } catch {
 function expire() { db.prepare(`UPDATE tasks SET locked_device_id=NULL,locked_at=NULL,journey_id=NULL,status='assigned' WHERE status='in_progress' AND datetime(locked_at)<datetime('now','-12 hours')`).run(); }
 function sampleCode(date, type, site) { const base = `${date.replaceAll('-', '').slice(2)}-${type}-${site.code}`; const count = db.prepare('SELECT COUNT(*) count FROM tasks WHERE planned_date=? AND sample_type=? AND site_id=?').get(date, type, site.id).count + 1; return { base, count, code: `${base}-${String(count).padStart(2, '0')}` }; }
 function ipOf(req) { return String(req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket.remoteAddress || ''; }
-function serveFile(req, res, url) { let p = url.pathname === '/' ? '/index.html' : url.pathname; if (!p.startsWith('/')) p = `/${p}`; const file = path.resolve(PUBLIC, `.${p}`); if (!file.startsWith(PUBLIC + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) throw error(404, '页面不存在'); res.writeHead(200, { 'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream', 'Content-Length': fs.statSync(file).size }); fs.createReadStream(file).pipe(res); }
-function serveImageDir(req, res, url, dir) { const file = path.resolve(DATA, url.pathname.slice(1)); if (!file.startsWith(dir + path.sep) && file !== dir) throw error(404, '文件不存在'); if (!fs.existsSync(file) || !fs.statSync(file).isFile()) throw error(404, '文件不存在'); res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': fs.statSync(file).size, 'Cache-Control': 'public, max-age=86400' }); fs.createReadStream(file).pipe(res); }
+function serveFile(req, res, url) { let p = url.pathname === '/' ? '/index.html' : url.pathname; if (!p.startsWith('/')) p = `/${p}`; const file = path.resolve(PUBLIC, `.${p}`); if (!file.startsWith(PUBLIC + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) throw error(404, '页面不存在'); const headers = { 'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream', 'Content-Length': fs.statSync(file).size, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer' }; if (path.extname(file).toLowerCase() === '.html') headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'"; res.writeHead(200, headers); fs.createReadStream(file).pipe(res); }
+function signImage(pathname, ttlSeconds = 7 * 86400) { const exp = Math.floor(Date.now() / 1000) + ttlSeconds; const sig = crypto.createHmac('sha256', config.sessionSecret).update(`${pathname}:${exp}`).digest('base64url'); return `${pathname}?exp=${exp}&sig=${sig}`; }
+function signedImage(pathname) { return pathname && String(pathname).startsWith('/') ? signImage(String(pathname)) : pathname; }
+function serveImageDir(req, res, url, dir) { const exp = Number(url.searchParams.get('exp') || 0), sig = String(url.searchParams.get('sig') || ''); const expected = crypto.createHmac('sha256', config.sessionSecret).update(`${url.pathname}:${exp}`).digest('base64url'); if (!exp || exp < Date.now() / 1000 || !safeEqual(sig, expected)) throw error(403, '图片链接无效或已过期'); const file = path.resolve(DATA, url.pathname.slice(1)); if (!file.startsWith(dir + path.sep) && file !== dir) throw error(404, '文件不存在'); if (!fs.existsSync(file) || !fs.statSync(file).isFile()) throw error(404, '文件不存在'); res.writeHead(200, { 'Content-Type': 'image/jpeg', 'Content-Length': fs.statSync(file).size, 'Cache-Control': 'public, max-age=86400', 'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' }); fs.createReadStream(file).pipe(res); }
 // Fire-and-forget weather backfill: never blocks the upload response and
 // never modifies the client's weather_text (stored separately).
 function backfillRecordWeather(recordId) { const record = db.prepare('SELECT id, latitude, longitude, captured_at, weather_text FROM records WHERE id=?').get(recordId); if (!record) return; backfillWeather(record).then(r => { db.prepare("UPDATE records SET server_weather_text=?, server_weather_status='complete' WHERE id=?").run(r.text, record.id); }).catch(() => { db.prepare("UPDATE records SET server_weather_status='unavailable' WHERE id=?").run(record.id); }); }
@@ -3578,7 +3744,7 @@ async function adminApi(req, res, url) {
   let m = /^\/api\/v1\/admin\/projects\/(\d+)$/.exec(url.pathname);
   if (m && req.method === 'PUT') { const id = Number(m[1]), p = await body(req); if (!db.prepare('SELECT id FROM projects WHERE id=?').get(id)) throw error(404, '项目不存在'); try { db.prepare('UPDATE projects SET code=?,name=?,description=?,is_test=?,enabled=? WHERE id=?').run(required(p.code, '项目编码'), required(p.name, '项目名称'), String(p.description ?? ''), p.isTest ? 1 : 0, p.enabled == null ? 1 : (p.enabled ? 1 : 0), id); } catch (e) { if (String(e.message).includes('UNIQUE')) throw error(422, '项目编码已存在'); throw e; } audit(db, 'admin', 'admin', 'update_project', 'project', id, p, ipOf(req)); return output(res, 200, { ok: true }); }
   if (m && req.method === 'DELETE') { const id = Number(m[1]); if (!db.prepare('SELECT id FROM projects WHERE id=?').get(id)) throw error(404, '项目不存在'); if (db.prepare('SELECT id FROM tasks WHERE project_id=? LIMIT 1').get(id)) throw error(422, '项目已有任务数据，不能删除；可在编辑中停用'); transaction(() => { db.prepare('UPDATE sites SET deleted_at=CURRENT_TIMESTAMP WHERE project_id=?').run(id); db.prepare('DELETE FROM projects WHERE id=?').run(id); }); audit(db, 'admin', 'admin', 'delete_project', 'project', id, {}, ipOf(req)); return output(res, 200, { ok: true }); }
-  if (url.pathname === '/api/v1/admin/sites' && req.method === 'GET') return output(res, 200, { sites: db.prepare('SELECT * FROM sites WHERE project_id=? AND deleted_at IS NULL ORDER BY sort_order').all(Number(url.searchParams.get('projectId') || 1)).map(s => ({ ...s, sample_types: parse(s.sample_types) })) });
+  if (url.pathname === '/api/v1/admin/sites' && req.method === 'GET') return output(res, 200, { sites: db.prepare('SELECT * FROM sites WHERE project_id=? AND deleted_at IS NULL ORDER BY sort_order').all(Number(url.searchParams.get('projectId') || 1)).map(s => ({ ...s, sample_types: parse(s.sample_types), reference_image: signedImage(s.reference_image) })) });
   if (url.pathname === '/api/v1/admin/sites' && req.method === 'POST') { const p = await body(req); const id = db.prepare(`INSERT INTO sites(project_id,sort_order,code,name,latitude,longitude,altitude_m,sample_types,remarks,normal_radius_m,exception_radius_m,severe_radius_m,reference_image,instructions,risk_note,enabled) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(number(p.projectId, '项目'), Number(p.sortOrder || 0), required(p.code, '历史序号'), required(p.name, '点位名称'), number(p.latitude, '纬度'), number(p.longitude, '经度'), p.altitudeM == null ? null : Number(p.altitudeM), JSON.stringify(p.sampleTypes || []), String(p.remarks || ''), 30, 80, 300, String(p.referenceImage || ''), String(p.instructions || ''), String(p.riskNote || ''), p.enabled == null ? 1 : (p.enabled ? 1 : 0)).lastInsertRowid; audit(db, 'admin', 'admin', 'create_site', 'site', id, { code: p.code, projectId: p.projectId }, ipOf(req)); return output(res, 201, { id }); }
   m = /^\/api\/v1\/admin\/sites\/(\d+)$/.exec(url.pathname);
   if (m && req.method === 'PUT') { const id = Number(m[1]), p = await body(req), site = db.prepare('SELECT * FROM sites WHERE id=? AND deleted_at IS NULL').get(id); if (!site) throw error(404, '点位不存在'); try { db.prepare(`UPDATE sites SET sort_order=?,code=?,name=?,latitude=?,longitude=?,altitude_m=?,sample_types=?,remarks=?,normal_radius_m=?,exception_radius_m=?,severe_radius_m=?,reference_image=?,instructions=?,risk_note=?,enabled=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(Number(p.sortOrder ?? site.sort_order ?? 0), required(p.code, '历史序号'), required(p.name, '点位名称'), number(p.latitude, '纬度'), number(p.longitude, '经度'), p.altitudeM == null ? null : Number(p.altitudeM), JSON.stringify(p.sampleTypes || parse(site.sample_types)), String(p.remarks ?? ''), Number(p.normalRadiusM ?? site.normal_radius_m), Number(p.exceptionRadiusM ?? site.exception_radius_m), Number(p.severeRadiusM ?? site.severe_radius_m), String(p.referenceImage ?? site.reference_image ?? ''), String(p.instructions ?? ''), String(p.riskNote ?? ''), p.enabled == null ? site.enabled : (p.enabled ? 1 : 0), id); } catch (e) { if (String(e.message).includes('UNIQUE')) throw error(422, '该项目下历史序号已存在'); throw e; } audit(db, 'admin', 'admin', 'update_site', 'site', id, { before: site.code, after: p.code }, ipOf(req)); return output(res, 200, { ok: true }); }
@@ -3590,18 +3756,19 @@ async function adminApi(req, res, url) {
   m = /^\/api\/v1\/admin\/villagers\/(\d+)\/activation$/.exec(url.pathname);
   if (m && req.method === 'POST') { const user = db.prepare('SELECT * FROM villagers WHERE id=?').get(Number(m[1])); if (!user) throw error(404, '采样员不存在'); const raw = randomToken(24), hash = crypto.createHash('sha256').update(raw).digest('hex'), expires = new Date(Date.now() + 24 * 3600_000).toISOString(); db.prepare('INSERT INTO activation_codes(villager_id,token_hash,expires_at) VALUES(?,?,?)').run(user.id, hash, expires); const value = `BSC-ACT|${config.publicBaseUrl}|${user.username}|${raw}`; audit(db, 'admin', 'admin', 'create_activation', 'villager', user.id, { expiresAt: expires }, ipOf(req)); return output(res, 201, { value, qrDataUrl: await QRCode.toDataURL(value, { width: 480, margin: 1 }), expiresAt: expires }); }
   if (url.pathname === '/api/v1/admin/tasks' && req.method === 'POST') { const p = await body(req); const site = db.prepare('SELECT * FROM sites WHERE id=? AND enabled=1').get(number(p.siteId, '点位')); if (!site) throw error(422, '点位未启用'); const types = Array.isArray(p.sampleTypes) ? p.sampleTypes : [p.sampleType]; const created = transaction(() => types.map(type => { if (!['R','T','S','P','Y','L'].includes(type)) throw error(422, '样品类型无效'); const code = sampleCode(required(p.plannedDate, '日期'), type, site); return { id: Number(db.prepare(`INSERT INTO tasks(project_id,site_id,villager_id,planned_date,base_sample_code,sample_code,sample_type,sequence,qr_token) VALUES(?,?,?,?,?,?,?,?,?)`).run(site.project_id, site.id, number(p.villagerId, '采样员'), p.plannedDate, code.base, code.code, type, code.count, randomToken(24)).lastInsertRowid), sampleCode: code.code }; })); audit(db, 'admin', 'admin', 'create_tasks', 'site', site.id, { count: created.length, plannedDate: p.plannedDate, villagerId: p.villagerId }, ipOf(req)); return output(res, 201, { ids: created.map(c => c.id), codes: created.map(c => c.sampleCode) }); }
-  if (url.pathname === '/api/v1/admin/tasks' && req.method === 'GET') { const project = Number(url.searchParams.get('projectId') || 1); const date = url.searchParams.get('date') || ''; const sql = `SELECT t.*,s.code site_code,s.name site_name,s.latitude target_latitude,s.longitude target_longitude,s.reference_image,s.instructions,s.risk_note,p.name project_name,p.code project_code,v.display_name villager_name,r.id record_id,r.captured_at,r.received_at,r.latitude,r.longitude,r.accuracy_m,r.distance_m,r.weather_text,r.server_weather_text,r.server_weather_status,r.manual_code,r.exception_category,r.exception_detail,r.mock_location,r.no_water,r.photo_path,r.photo_sha256,r.review_status,r.review_note,r.risk_flags,j.start_distance_m,j.interrupted,j.started_at FROM tasks t JOIN sites s ON s.id=t.site_id JOIN projects p ON p.id=t.project_id JOIN villagers v ON v.id=t.villager_id LEFT JOIN records r ON r.task_id=t.id AND r.is_primary=1 LEFT JOIN journeys j ON j.id=t.journey_id WHERE t.project_id=?${date === 'pending' ? " AND r.id IS NULL" : date ? " AND r.id IS NOT NULL AND substr(r.captured_at,1,10)=?" : ''} ORDER BY t.planned_date DESC,t.id`; const rows = date && date !== 'pending' ? db.prepare(sql).all(project, date) : db.prepare(sql).all(project); return output(res, 200, { tasks: rows.map(t => ({ ...t, risk_flags: parse(t.risk_flags), canceled_at: t.canceled_at || null, canceled_reason: t.canceled_reason || null })) }); }
+  if (url.pathname === '/api/v1/admin/tasks' && req.method === 'GET') { const project = Number(url.searchParams.get('projectId') || 1); const date = url.searchParams.get('date') || ''; const sql = `SELECT t.*,s.code site_code,s.name site_name,s.latitude target_latitude,s.longitude target_longitude,s.reference_image,s.instructions,s.risk_note,p.name project_name,p.code project_code,v.display_name villager_name,r.id record_id,r.captured_at,r.received_at,r.latitude,r.longitude,r.accuracy_m,r.distance_m,r.weather_text,r.server_weather_text,r.server_weather_status,r.manual_code,r.exception_category,r.exception_detail,r.mock_location,r.no_water,r.photo_path,r.photo_sha256,r.review_status,r.review_note,r.risk_flags,j.start_distance_m,j.interrupted,j.started_at,(SELECT COUNT(*) FROM label_prints lp WHERE lp.task_id=t.id) printed_count,(SELECT MAX(lp.printed_at) FROM label_prints lp WHERE lp.task_id=t.id) printed_last FROM tasks t JOIN sites s ON s.id=t.site_id JOIN projects p ON p.id=t.project_id JOIN villagers v ON v.id=t.villager_id LEFT JOIN records r ON r.task_id=t.id AND r.is_primary=1 LEFT JOIN journeys j ON j.id=t.journey_id WHERE t.project_id=?${date === 'pending' ? " AND r.id IS NULL" : date ? " AND r.id IS NOT NULL AND substr(r.captured_at,1,10)=?" : ''} ORDER BY t.planned_date DESC,t.id`; const rows = date && date !== 'pending' ? db.prepare(sql).all(project, date) : db.prepare(sql).all(project); return output(res, 200, { tasks: rows.map(t => ({ ...t, risk_flags: parse(t.risk_flags), canceled_at: t.canceled_at || null, canceled_reason: t.canceled_reason || null, photo_path: signedImage(t.photo_path), reference_image: signedImage(t.reference_image) })) }); }
   m = /^\/api\/v1\/admin\/tasks\/(\d+)\/cancel$/.exec(url.pathname);
   if (m && req.method === 'POST') { const id = Number(m[1]), p = await body(req), task = db.prepare('SELECT * FROM tasks WHERE id=?').get(id); if (!task) throw error(404, '任务不存在'); if (db.prepare('SELECT id FROM records WHERE task_id=? AND is_primary=1').get(id)) throw error(422, '已提交记录，不能取消；请使用退回重采'); if (task.canceled_at) throw error(422, '任务已取消'); db.prepare('UPDATE tasks SET canceled_at=CURRENT_TIMESTAMP,canceled_reason=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(String(p.reason || '管理员取消'), id); audit(db, 'admin', 'admin', 'cancel_task', 'task', id, { reason: p.reason }, ipOf(req)); return output(res, 200, { ok: true }); }
   m = /^\/api\/v1\/admin\/tasks\/(\d+)\/reschedule$/.exec(url.pathname);
   if (m && req.method === 'POST') { const id = Number(m[1]), p = await body(req), task = db.prepare('SELECT t.*,s.code site_code FROM tasks t JOIN sites s ON s.id=t.site_id WHERE t.id=?').get(id); if (!task) throw error(404, '任务不存在'); if (task.canceled_at) throw error(422, '任务已取消'); if (db.prepare('SELECT id FROM records WHERE task_id=? AND is_primary=1').get(id)) throw error(422, '已提交记录，不能改期'); const date = required(p.plannedDate, '日期'); const code = sampleCode(date, task.sample_type, { code: task.site_code, id: task.site_id }); transaction(() => { db.prepare('UPDATE tasks SET planned_date=?,base_sample_code=?,sample_code=?,sequence=?,qr_token=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(date, code.base, code.code, code.count, randomToken(24), id); }); audit(db, 'admin', 'admin', 'reschedule_task', 'task', id, { before: task.planned_date, after: date }, ipOf(req)); return output(res, 200, { sampleCode: code.code }); }
   m = /^\/api\/v1\/admin\/tasks\/(\d+)\/unlock$/.exec(url.pathname);
   if (m && req.method === 'POST') { const id = Number(m[1]); if (!db.prepare('SELECT id FROM tasks WHERE id=?').get(id)) throw error(404, '任务不存在'); db.prepare("UPDATE tasks SET locked_device_id=NULL,locked_at=NULL,journey_id=NULL,status='assigned',updated_at=CURRENT_TIMESTAMP WHERE id=?").run(id); audit(db, 'admin', 'admin', 'unlock_task', 'task', id, {}, ipOf(req)); return output(res, 200, { ok: true }); }
-  if (url.pathname === '/api/v1/admin/labels' && req.method === 'GET') { const ids = String(url.searchParams.get('taskIds') || '').split(',').map(Number).filter(Number.isFinite); if (!ids.length) throw error(400, '请选择任务'); const tasks = ids.map(id => db.prepare(`SELECT t.sample_code,t.qr_token,t.sample_type,t.planned_date,s.code site_code,p.code project_code FROM tasks t JOIN sites s ON s.id=t.site_id JOIN projects p ON p.id=t.project_id WHERE t.id=?`).get(id)).filter(Boolean); const withQr = []; for (const t of tasks) withQr.push({ ...t, qr_value: `BSC-SAMPLE|${t.sample_code}|${t.qr_token}`, qr_data_url: await QRCode.toDataURL(`BSC-SAMPLE|${t.sample_code}|${t.qr_token}`, { width: 240, margin: 1 }) }); const html = renderLabelPage(withQr); res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': Buffer.byteLength(html), 'Cache-Control': 'no-store' }); return res.end(html); }
+  if (url.pathname === '/api/v1/admin/labels' && req.method === 'GET') { const ids = String(url.searchParams.get('taskIds') || '').split(',').map(Number).filter(Number.isFinite); if (!ids.length) throw error(400, '请选择任务'); const tasks = ids.map(id => db.prepare(`SELECT t.id,t.sample_code,t.qr_token,t.sample_type,t.planned_date,s.code site_code,p.code project_code FROM tasks t JOIN sites s ON s.id=t.site_id JOIN projects p ON p.id=t.project_id WHERE t.id=?`).get(id)).filter(Boolean); const withQr = []; for (const t of tasks) withQr.push({ ...t, qr_value: `BSC-SAMPLE|${t.sample_code}|${t.qr_token}`, qr_data_url: await QRCode.toDataURL(`BSC-SAMPLE|${t.sample_code}|${t.qr_token}`, { width: 240, margin: 1 }) }); const print = db.prepare('INSERT INTO label_prints(task_id,sample_code) VALUES(?,?)'); transaction(() => tasks.forEach(t => print.run(t.id, t.sample_code))); audit(db, 'admin', 'admin', 'print_labels', 'task', ids.join(','), { count: tasks.length }, ipOf(req)); const html = renderLabelPage(withQr); res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': Buffer.byteLength(html), 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY' }); return res.end(html); }
   m = /^\/api\/v1\/admin\/records\/(\d+)\/review$/.exec(url.pathname);
   if (m && req.method === 'POST') { const p = await body(req); if (!['approved','rejected','suspicious','pending'].includes(p.status)) throw error(422, '审核状态无效'); db.prepare('UPDATE records SET review_status=?,review_note=? WHERE id=?').run(p.status, String(p.note || ''), Number(m[1])); audit(db, 'admin', 'admin', 'review', 'record', m[1], p, ipOf(req)); return output(res, 200, { ok: true }); }
   m = /^\/api\/v1\/admin\/records\/(\d+)\/backfill-weather$/.exec(url.pathname);
   if (m && req.method === 'POST') { const id = Number(m[1]), record = db.prepare('SELECT id,latitude,longitude,captured_at FROM records WHERE id=?').get(id); if (!record) throw error(404, '记录不存在'); const r = await backfillWeather(record); db.prepare('UPDATE records SET server_weather_text=?,server_weather_status=? WHERE id=?').run(r.text, r.status, id); audit(db, 'admin', 'admin', 'backfill_weather', 'record', id, { status: r.status }, ipOf(req)); return output(res, 200, { text: r.text, status: r.status }); }
+  if (url.pathname === '/api/v1/admin/records/backfill-weather' && req.method === 'POST') { const p = await body(req); const ids = (Array.isArray(p.recordIds) ? p.recordIds : []).map(Number).filter(Number.isFinite); if (!ids.length) throw error(400, '请选择记录'); for (const id of ids) backfillRecordWeather(id); audit(db, 'admin', 'admin', 'backfill_weather_batch', 'record', ids.join(','), { count: ids.length }, ipOf(req)); return output(res, 200, { queued: ids.length }); }
   m = /^\/api\/v1\/admin\/journeys\/(\d+)\/track$/.exec(url.pathname);
   if (m && req.method === 'GET') { const journey = db.prepare('SELECT * FROM journeys WHERE id=?').get(Number(m[1])); if (!journey) throw error(404, '行程不存在'); const points = db.prepare('SELECT sequence,recorded_at,latitude,longitude,accuracy_m,speed_mps,mock_location FROM track_points WHERE journey_id=? ORDER BY sequence').all(journey.id); return output(res, 200, { points, display: smoothTrack(points) }); }
   if (url.pathname === '/api/v1/admin/logs' && req.method === 'GET') return output(res, 200, { logs: queryAppLogs(url) });
@@ -3617,11 +3784,12 @@ async function adminApi(req, res, url) {
   throw error(404, '管理员接口不存在');
 }
 
-function syncData(session) { expire(); const tasks = db.prepare(`SELECT t.*,p.name project_name,p.code project_code,s.code site_code,s.name site_name,s.latitude target_latitude,s.longitude target_longitude,s.normal_radius_m,s.exception_radius_m,s.severe_radius_m,s.reference_image,s.instructions,s.risk_note,s.remarks,r.id record_id,r.review_status,r.photo_path FROM tasks t JOIN projects p ON p.id=t.project_id JOIN sites s ON s.id=t.site_id LEFT JOIN records r ON r.task_id=t.id AND r.is_primary=1 WHERE t.villager_id=? AND p.enabled=1 AND s.deleted_at IS NULL AND t.canceled_at IS NULL ORDER BY CASE WHEN t.status IN('assigned','in_progress') THEN 0 ELSE 1 END,t.planned_date DESC,t.id`).all(session.villagerId).map(t => ({ ...t, canceled_at: t.canceled_at || null, canceled_reason: t.canceled_reason || null })); return { serverTime: new Date().toISOString(), tasks, rules: { normalRadiusM: 30, exceptionRadiusM: 80, severeRadiusM: 300, poorAccuracyM: 40, trackIntervalSeconds: 10, liveIntervalSeconds: 30 } }; }
+function syncData(session) { expire(); const tasks = db.prepare(`SELECT t.*,p.name project_name,p.code project_code,s.code site_code,s.name site_name,s.latitude target_latitude,s.longitude target_longitude,s.normal_radius_m,s.exception_radius_m,s.severe_radius_m,s.reference_image,s.instructions,s.risk_note,s.remarks,r.id record_id,r.review_status,r.photo_path FROM tasks t JOIN projects p ON p.id=t.project_id JOIN sites s ON s.id=t.site_id LEFT JOIN records r ON r.task_id=t.id AND r.is_primary=1 WHERE t.villager_id=? AND p.enabled=1 AND s.deleted_at IS NULL AND t.canceled_at IS NULL ORDER BY CASE WHEN t.status IN('assigned','in_progress') THEN 0 ELSE 1 END,t.planned_date DESC,t.id`).all(session.villagerId).map(t => ({ ...t, canceled_at: t.canceled_at || null, canceled_reason: t.canceled_reason || null, reference_image: t.reference_image ? `${config.publicBaseUrl}${signImage(t.reference_image, 30 * 86400)}` : '' })); return { serverTime: new Date().toISOString(), tasks, rules: { normalRadiusM: 30, exceptionRadiusM: 80, severeRadiusM: 300, poorAccuracyM: 40, trackIntervalSeconds: 10, liveIntervalSeconds: 30 } }; }
 
 async function mobileApi(req, res, url) {
-  if (url.pathname === '/api/v1/mobile/activate' && req.method === 'POST') { const p = await body(req, 50_000), key = `mobile:${ipOf(req)}:${String(p.username || '').toLowerCase()}`; const lim = rateLimit.check(key); if (lim.limited) throw error(429, '尝试过多，请稍后再试'); const user = db.prepare('SELECT * FROM villagers WHERE username=? AND enabled=1').get(required(p.username, '账号').toLowerCase()); if (!user) { rateLimit.recordFailure(key); throw error(401, '账号不存在或已停用'); } const hash = crypto.createHash('sha256').update(required(p.activationToken, '激活码')).digest('hex'), act = db.prepare("SELECT * FROM activation_codes WHERE villager_id=? AND token_hash=? AND used_at IS NULL AND datetime(expires_at)>datetime('now')").get(user.id, hash); if (!act) { rateLimit.recordFailure(key); throw error(403, '激活二维码无效或已过期'); } rateLimit.recordSuccess(key); const device = transaction(() => { let d = db.prepare('SELECT id FROM devices WHERE villager_id=? AND device_uuid=?').get(user.id, required(p.deviceUuid, '设备编号')); let id; if (d) { id = d.id; db.prepare('UPDATE devices SET enabled=1,device_name=?,android_version=?,app_version=?,last_seen_at=CURRENT_TIMESTAMP WHERE id=?').run(String(p.deviceName || ''), String(p.androidVersion || ''), String(p.appVersion || ''), id); } else id = Number(db.prepare('INSERT INTO devices(villager_id,device_uuid,device_name,android_version,app_version,last_seen_at) VALUES(?,?,?,?,?,CURRENT_TIMESTAMP)').run(user.id, p.deviceUuid, String(p.deviceName || ''), String(p.androidVersion || ''), String(p.appVersion || '')).lastInsertRowid); db.prepare('UPDATE activation_codes SET used_at=CURRENT_TIMESTAMP WHERE id=?').run(act.id); return id; }); audit(db, 'mobile', user.id, 'activate', 'device', device, { username: user.username }, ipOf(req)); return output(res, 200, { token: signToken(config.sessionSecret, 'villager', user.id, { deviceId: device }, 3650 * 86400), villager: { id: user.id, username: user.username, displayName: user.display_name }, deviceId: device }); }
+  if (url.pathname === '/api/v1/mobile/activate' && req.method === 'POST') { const p = await body(req, 50_000), key = `mobile:${ipOf(req)}:${String(p.username || '').toLowerCase()}`; const lim = rateLimit.check(key); if (lim.limited) throw error(429, '尝试过多，请稍后再试'); const user = db.prepare('SELECT * FROM villagers WHERE username=? AND enabled=1').get(required(p.username, '账号').toLowerCase()); if (!user) { rateLimit.recordFailure(key); throw error(401, '账号不存在或已停用'); } const hash = crypto.createHash('sha256').update(required(p.activationToken, '激活码')).digest('hex'), act = db.prepare("SELECT * FROM activation_codes WHERE villager_id=? AND token_hash=? AND used_at IS NULL AND datetime(expires_at)>datetime('now')").get(user.id, hash); if (!act) { rateLimit.recordFailure(key); const any = db.prepare('SELECT * FROM activation_codes WHERE villager_id=? AND token_hash=?').get(user.id, hash); if (any && any.used_at) throw error(403, '激活二维码已被使用，请让管理员重新生成'); if (any && new Date(any.expires_at) <= new Date()) throw error(403, '激活二维码已过期（24小时有效），请让管理员重新生成'); throw error(403, '激活二维码无效，请扫描正确的二维码'); } rateLimit.recordSuccess(key); const device = transaction(() => { let d = db.prepare('SELECT id FROM devices WHERE villager_id=? AND device_uuid=?').get(user.id, required(p.deviceUuid, '设备编号')); let id; if (d) { id = d.id; db.prepare('UPDATE devices SET enabled=1,device_name=?,android_version=?,app_version=?,last_seen_at=CURRENT_TIMESTAMP WHERE id=?').run(String(p.deviceName || ''), String(p.androidVersion || ''), String(p.appVersion || ''), id); } else id = Number(db.prepare('INSERT INTO devices(villager_id,device_uuid,device_name,android_version,app_version,last_seen_at) VALUES(?,?,?,?,?,CURRENT_TIMESTAMP)').run(user.id, p.deviceUuid, String(p.deviceName || ''), String(p.androidVersion || ''), String(p.appVersion || '')).lastInsertRowid); db.prepare('UPDATE activation_codes SET used_at=CURRENT_TIMESTAMP WHERE id=?').run(act.id); return id; }); audit(db, 'mobile', user.id, 'activate', 'device', device, { username: user.username }, ipOf(req)); return output(res, 200, { token: signToken(config.sessionSecret, 'villager', user.id, { deviceId: device }, 3650 * 86400), villager: { id: user.id, username: user.username, displayName: user.display_name }, deviceId: device }); }
   if (url.pathname === '/api/v1/mobile/login' && req.method === 'POST') { const p = await body(req, 30_000), key = `mobile:${ipOf(req)}:${String(p.username || '').toLowerCase()}`; const lim = rateLimit.check(key); if (lim.limited) throw error(429, '尝试过多，请稍后再试'); const user = db.prepare('SELECT * FROM villagers WHERE username=? AND enabled=1').get(String(p.username || '').toLowerCase()); if (!user) { rateLimit.recordFailure(key); throw error(401, '账号不存在或已停用'); } const d = db.prepare('SELECT * FROM devices WHERE villager_id=? AND device_uuid=? AND enabled=1').get(user.id, String(p.deviceUuid || '')); if (!d) throw error(403, '手机尚未激活'); rateLimit.recordSuccess(key); return output(res, 200, { token: signToken(config.sessionSecret, 'villager', user.id, { deviceId: d.id }, 3650 * 86400), villager: { id: user.id, username: user.username, displayName: user.display_name }, deviceId: d.id }); }
+  if (url.pathname === '/api/v1/mobile/app-version' && req.method === 'GET') { const v = db.prepare('SELECT version_code,version_name,notes FROM app_versions ORDER BY version_code DESC LIMIT 1').get(); return output(res, 200, { versionCode: v ? v.version_code : 100, versionName: v ? v.version_name : '1.0.0', notes: v ? v.notes : '' }); }
   const session = mobile(req); if (url.pathname === '/api/v1/mobile/sync' && req.method === 'GET') return output(res, 200, syncData(session));
   let m = /^\/api\/v1\/mobile\/tasks\/(\d+)\/start$/.exec(url.pathname);
   if (m && req.method === 'POST') { const id = Number(m[1]), p = await body(req); expire(); const task = db.prepare('SELECT t.*,s.latitude lat,s.longitude lon FROM tasks t JOIN sites s ON s.id=t.site_id WHERE t.id=? AND t.villager_id=?').get(id, session.villagerId); if (!task) throw error(404, '任务不存在'); if (task.locked_device_id && task.locked_device_id !== session.device.id) throw error(423, '任务已被另一台手机锁定'); const lat = number(p.latitude, '纬度'), lon = number(p.longitude, '经度'), acc = number(p.accuracyM ?? 9999, '精度'), startDistance = distance(lat, lon, task.lat, task.lon); const journey = transaction(() => { let j = db.prepare("SELECT * FROM journeys WHERE villager_id=? AND device_id=? AND site_id=? AND status='active' ORDER BY id DESC LIMIT 1").get(session.villagerId, session.device.id, task.site_id); if (!j) { const rid = db.prepare('INSERT INTO journeys(villager_id,device_id,site_id,started_at,start_latitude,start_longitude,start_accuracy_m,start_distance_m,weak_evidence) VALUES(?,?,?,CURRENT_TIMESTAMP,?,?,?,?,?)').run(session.villagerId, session.device.id, task.site_id, lat, lon, acc, startDistance, startDistance < 300 ? 1 : 0).lastInsertRowid; j = db.prepare('SELECT * FROM journeys WHERE id=?').get(rid); } db.prepare("UPDATE tasks SET locked_device_id=?,locked_at=CURRENT_TIMESTAMP,journey_id=?,status='in_progress' WHERE id=?").run(session.device.id, j.id, id); return j; }); return output(res, 200, { journey, startDistanceM: startDistance, weakEvidence: startDistance < 300 }); }
@@ -3644,7 +3812,19 @@ async function saveRecord(req, res, session, taskId) {
   const task = db.prepare(`SELECT t.*,s.code site_code,s.name site_name,s.latitude target_lat,s.longitude target_lon,s.normal_radius_m,s.exception_radius_m,s.severe_radius_m,pj.name project_name,j.weak_evidence,j.interrupted FROM tasks t JOIN sites s ON s.id=t.site_id JOIN projects pj ON pj.id=t.project_id LEFT JOIN journeys j ON j.id=t.journey_id WHERE t.id=? AND t.villager_id=?`).get(taskId, session.villagerId); if (!task) throw error(404, '任务不存在'); if (task.locked_device_id && task.locked_device_id !== session.device.id) throw error(423, '任务被另一台手机锁定');
   const lat = number(p.latitude, '纬度'), lon = number(p.longitude, '经度'), acc = number(p.accuracyM ?? 9999, '精度'), dist = distance(lat, lon, task.target_lat, task.target_lon); if (dist > task.severe_radius_m) throw error(422, `距离${Math.round(dist)}米，超过300米`); const noWater = Boolean(p.noWater), manual = Boolean(p.manualCode); if (noWater && !String(p.exceptionCategory || '').trim()) throw error(422, '必须选择异常原因'); if (!noWater && !manual && !safeEqual(p.qrToken, task.qr_token)) throw error(422, '二维码不匹配'); if (manual && p.submittedCode !== task.sample_code) throw error(422, '手动编号不一致');
   const match = /^data:image\/(?:jpeg|jpg);base64,([A-Za-z0-9+/=]+)$/.exec(String(p.photoDataUrl || '')); if (!match) throw error(422, '必须上传现场相机JPEG'); const image = Buffer.from(match[1], 'base64'); if (image.length < 100 || image.length > 8_000_000) throw error(413, '照片大小无效');
-  const risks = []; if (dist > task.exception_radius_m) risks.push('distance_80_300m'); else if (dist > task.normal_radius_m) risks.push('distance_30_80m'); if (acc > 40) risks.push('gps_accuracy_over_40m'); if (manual) risks.push('manual_bottle_code'); if (p.mockLocation) risks.push('mock_location'); if (p.offlineStart) risks.push('offline_start_lock_unverified'); if (task.weak_evidence) risks.push('weak_start_track'); if (task.interrupted) risks.push('track_interrupted'); if (String(p.capturedAt).slice(0, 10) !== task.planned_date) risks.push('late_sampling'); if (task.canceled_at) risks.push('task_canceled'); if (!p.weatherText || p.weatherText === '待补充') risks.push('weather_pending'); if (!db.prepare('SELECT COUNT(*) count FROM track_points WHERE journey_id=?').get(task.journey_id || -1).count) risks.push('missing_track'); const hash = crypto.createHash('sha256').update(image).digest('hex'); if (db.prepare('SELECT id FROM records WHERE photo_sha256=?').get(hash)) risks.push('duplicate_photo');
+  const risks = []; if (dist > task.exception_radius_m) risks.push('distance_80_300m'); else if (dist > task.normal_radius_m) risks.push('distance_30_80m'); if (acc > 40) risks.push('gps_accuracy_over_40m'); if (manual) risks.push('manual_bottle_code'); if (p.mockLocation) risks.push('mock_location'); if (p.offlineStart) risks.push('offline_start_lock_unverified'); if (task.weak_evidence) risks.push('weak_start_track'); if (task.interrupted) risks.push('track_interrupted'); if (String(p.capturedAt).slice(0, 10) !== task.planned_date) risks.push('late_sampling'); if (task.canceled_at) risks.push('task_canceled'); if (!p.weatherText || p.weatherText === '待补充') risks.push('weather_pending'); if (!db.prepare('SELECT COUNT(*) count FROM track_points WHERE journey_id=?').get(task.journey_id || -1).count) risks.push('missing_track');
+  // 时间防篡改：拍摄时间明显晚于服务器时间（手机时钟被改）→ 可疑。
+  const capturedMs = new Date(String(p.capturedAt)).getTime();
+  if (Number.isFinite(capturedMs) && capturedMs - Date.now() > 5 * 60_000) risks.push('captured_time_in_future');
+  // EXIF 交叉核对：照片 EXIF 拍摄时间与提交时间相差超过 5 分钟 → 可疑（无 EXIF 不判）。
+  try {
+    const meta = await sharp(image).metadata();
+    if (meta && meta.exif) {
+      const dt = parseExifDate(exifDateTime(meta.exif));
+      if (dt && Number.isFinite(capturedMs) && Math.abs(dt.getTime() - capturedMs) > 5 * 60_000) risks.push('exif_time_mismatch');
+    }
+  } catch {}
+  const hash = crypto.createHash('sha256').update(image).digest('hex'); if (db.prepare('SELECT id FROM records WHERE photo_sha256=?').get(hash)) risks.push('duplicate_photo');
   const dir = path.join(UPLOADS, String(task.project_id)); fs.mkdirSync(dir, { recursive: true }); const file = `${task.sample_code}-${client.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40)}.jpg`, target = path.join(dir, file); await sharp(image).rotate().resize({ width: 2560, height: 2560, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 90 }).toFile(target);
   const existing = db.prepare('SELECT id FROM records WHERE task_id=? AND is_primary=1').get(taskId), primary = !existing; const id = transaction(() => { const rid = db.prepare(`INSERT INTO records(client_record_id,task_id,device_id,journey_id,is_primary,conflict_status,no_water,captured_at,latitude,longitude,accuracy_m,distance_m,weather_text,weather_status,exception_category,exception_detail,manual_code,mock_location,photo_path,photo_sha256,review_status,risk_flags) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(client, taskId, session.device.id, task.journey_id, primary ? 1 : 0, primary ? 'none' : 'needs_review', noWater ? 1 : 0, required(p.capturedAt, '拍照时间'), lat, lon, acc, dist, String(p.weatherText || '待补充'), p.weatherText && p.weatherText !== '待补充' ? 'complete' : 'pending', String(p.exceptionCategory || ''), String(p.exceptionDetail || ''), manual ? 1 : 0, p.mockLocation ? 1 : 0, `/uploads/${task.project_id}/${file}`, hash, risks.length ? 'suspicious' : 'pending', JSON.stringify([...new Set(risks)])).lastInsertRowid; if (primary) db.prepare("UPDATE tasks SET status='submitted',updated_at=CURRENT_TIMESTAMP WHERE id=?").run(taskId); return Number(rid); });
   backfillRecordWeather(id);
@@ -3724,7 +3904,7 @@ module.exports = { backfillWeather };
 
 #### `bsc-sampling-v1/test/api.test.js`
 
-SHA-256: `567073414dec604a0f23d56ec30b5a9bcbedefe5cf8f478fc2efd425374db51e`
+SHA-256: `2ac447913c31211dfac3f4916ed3d0999b33a0ee2b316a57a36b6d6fa3bb7bd7`
 
 ~~~~javascript
 'use strict';
@@ -4299,6 +4479,145 @@ test('admin login rate limiting (last: locks admin key)', async () => {
   const limited = await call('POST', '/api/v1/admin/login', { password: 'wrong-password' });
   assert.equal(limited.status, 429);
 });
+
+// ---------- v1.1.0 新增能力 ----------
+
+test('signed image URLs: 无签名 403，签名 URL 200', async () => {
+  // 上传一张真实参考图并挂到点位，通过 sites 接口拿到签名 URL。
+  const up = await call('POST', '/api/v1/admin/reference-images', { imageData: await jpegDataUrl(200) }, adminToken);
+  assert.equal(up.status, 201, `upload: ${JSON.stringify(up.json)}`);
+  const rawPath = up.json.path;
+  const beforeSites = await call('GET', '/api/v1/admin/sites?projectId=1', null, adminToken);
+  const site5 = beforeSites.json.sites.find(s => s.id === site5Id);
+  const setRef = await call('PUT', `/api/v1/admin/sites/${site5Id}`, {
+    code: site5.code, name: site5.name, latitude: site5.latitude, longitude: site5.longitude, referenceImage: rawPath
+  }, adminToken);
+  assert.equal(setRef.status, 200, JSON.stringify(setRef.json));
+  const sites = await call('GET', '/api/v1/admin/sites?projectId=1', null, adminToken);
+  const signed = sites.json.sites.find(s => s.id === site5Id).reference_image;
+  assert.ok(signed.includes('sig='), `signed url: ${signed}`);
+  const denied = await fetch(`${BASE}${rawPath}`);
+  assert.equal(denied.status, 403, '裸路径必须拒绝');
+  const ok = await fetch(`${BASE}${signed}`);
+  assert.equal(ok.status, 200, '签名 URL 可访问');
+  assert.match(ok.headers.get('content-type'), /image/);
+  // 清空参考图，避免影响其他用例。
+  await call('PUT', `/api/v1/admin/sites/${site5Id}`, {
+    code: site5.code, name: site5.name, latitude: site5.latitude, longitude: site5.longitude, referenceImage: ''
+  }, adminToken);
+});
+
+test('activation code messages distinguish used vs invalid', async () => {
+  const act = await call('POST', `/api/v1/admin/villagers/${villagerId}/activation`, {}, adminToken);
+  const [, , user, raw] = act.json.value.split('|');
+  const first = await call('POST', '/api/v1/mobile/activate', {
+    username: user, activationToken: raw, deviceUuid: `used-${Date.now()}`, appVersion: '1.0.0'
+  });
+  assert.equal(first.status, 200);
+  const second = await call('POST', '/api/v1/mobile/activate', {
+    username: user, activationToken: raw, deviceUuid: `used2-${Date.now()}`, appVersion: '1.0.0'
+  });
+  assert.equal(second.status, 403);
+  assert.match(second.json.message, /已被使用/);
+  const wrong = await call('POST', '/api/v1/mobile/activate', {
+    username: user, activationToken: 'BSC-ACT|not-a-real-token', deviceUuid: `w-${Date.now()}`, appVersion: '1.0.0'
+  });
+  assert.equal(wrong.status, 403);
+  assert.match(wrong.json.message, /无效/);
+});
+
+test('app-version endpoint returns latest version', async () => {
+  const res = await call('GET', '/api/v1/mobile/app-version', null, null);
+  assert.equal(res.status, 200);
+  assert.ok(res.json.versionCode >= 101, `versionCode=${res.json.versionCode}`);
+  assert.equal(res.json.versionName, '1.1.0');
+});
+
+test('captured time in the future adds risk flag', async () => {
+  const taskId = await adminCreateTask({ plannedDate: tomorrow });
+  await syncTask(mobileA, taskId);
+  const res = await call('POST', `/api/v1/mobile/tasks/${taskId}/record`, {
+    clientRecordId: `future-${Date.now()}`, capturedAt: `${tomorrow}T08:00:00+08:00`,
+    latitude: 30.07534404, longitude: 94.14583272, accuracyM: 5, weatherText: '晴',
+    noWater: false, manualCode: false, qrToken: (await syncTask(mobileA, taskId)).qr_token,
+    exceptionCategory: '', exceptionDetail: '', mockLocation: false, offlineStart: false,
+    photoDataUrl: await jpegDataUrl()
+  }, mobileA);
+  assert.equal(res.status, 201);
+  assert.ok(res.json.riskFlags.includes('captured_time_in_future'), JSON.stringify(res.json.riskFlags));
+});
+
+// 构造带 EXIF DateTimeOriginal 的真实 JPEG：sharp 生成底图，再把
+// 'Exif\0\0' + 小端 TIFF + IFD 条目 0x9003 的 APP1 段插到 FFD8 之后。
+async function jpegWithExif(dateTime) {
+  const base = await sharp({ create: { width: 64, height: 48, channels: 3, background: '#2e8b57' } }).jpeg().toBuffer();
+  const str = Buffer.from(`${dateTime}\0`, 'ascii'); // 20 字节
+  const tiff = Buffer.alloc(26 + str.length);
+  tiff.write('II', 0, 'ascii');
+  tiff.writeUInt16LE(42, 2);
+  tiff.writeUInt32LE(8, 4);
+  tiff.writeUInt16LE(1, 8);           // IFD 条目数
+  tiff.writeUInt16LE(0x9003, 10);     // DateTimeOriginal
+  tiff.writeUInt16LE(2, 12);          // ASCII
+  tiff.writeUInt32LE(20, 14);         // count
+  tiff.writeUInt32LE(26, 18);         // 值偏移
+  tiff.writeUInt32LE(0, 22);          // 下一个 IFD = 0
+  str.copy(tiff, 26);
+  const app1 = Buffer.concat([Buffer.from('Exif\0\0', 'binary'), tiff]);
+  const seg = Buffer.alloc(4 + app1.length);
+  seg.writeUInt16BE(0xFFE1, 0);
+  seg.writeUInt16BE(app1.length + 2, 2);
+  app1.copy(seg, 4);
+  return Buffer.concat([base.subarray(0, 2), seg, base.subarray(2)]);
+}
+
+test('exif time mismatch adds risk flag (matches submitted time: no flag)', async () => {
+  const taskId = await adminCreateTask();
+  await syncTask(mobileA, taskId);
+  const task = await syncTask(mobileA, taskId);
+  const bad = await call('POST', `/api/v1/mobile/tasks/${taskId}/record`, {
+    clientRecordId: `exif-bad-${Date.now()}`, capturedAt: `${today}T09:00:00+08:00`,
+    latitude: 30.07534404, longitude: 94.14583272, accuracyM: 5, weatherText: '晴',
+    noWater: false, manualCode: false, qrToken: task.qr_token, exceptionCategory: '', exceptionDetail: '',
+    mockLocation: false, offlineStart: false,
+    photoDataUrl: `data:image/jpeg;base64,${(await jpegWithExif('2026:01:01 00:00:00')).toString('base64')}`
+  }, mobileA);
+  assert.equal(bad.status, 201);
+  assert.ok(bad.json.riskFlags.includes('exif_time_mismatch'), JSON.stringify(bad.json.riskFlags));
+  const good = await call('POST', `/api/v1/mobile/tasks/${taskId}/record`, {
+    clientRecordId: `exif-ok-${Date.now()}`, capturedAt: `${today}T09:00:00+08:00`,
+    latitude: 30.07534404, longitude: 94.14583272, accuracyM: 5, weatherText: '晴',
+    noWater: false, manualCode: false, qrToken: task.qr_token, exceptionCategory: '', exceptionDetail: '',
+    mockLocation: false, offlineStart: false,
+    photoDataUrl: `data:image/jpeg;base64,${(await jpegWithExif(`${today.replaceAll('-', ':')} 09:00:00`)).toString('base64')}`
+  }, mobileA);
+  assert.equal(good.status, 201);
+  assert.ok(!good.json.riskFlags.includes('exif_time_mismatch'), '时间一致不应打标');
+});
+
+test('label print is recorded and reported on tasks', async () => {
+  const taskId = await adminCreateTask();
+  const labels = await call('GET', `/api/v1/admin/labels?taskIds=${taskId}`, null, adminToken);
+  assert.equal(labels.status, 200);
+  const tasks = await call('GET', '/api/v1/admin/tasks?projectId=1', null, adminToken);
+  const row = tasks.json.tasks.find(t => t.id === taskId);
+  assert.ok(row.printed_count >= 1, `printed_count=${row.printed_count}`);
+});
+
+test('batch weather backfill endpoint', async () => {
+  const res = await call('POST', '/api/v1/admin/records/backfill-weather', { recordIds: [1, 2, 3] }, adminToken);
+  assert.equal(res.status, 200);
+  assert.equal(res.json.queued, 3);
+  const empty = await call('POST', '/api/v1/admin/records/backfill-weather', { recordIds: [] }, adminToken);
+  assert.equal(empty.status, 400);
+});
+
+test('security headers present', async () => {
+  const res = await fetch(`${BASE}/`);
+  assert.match(res.headers.get('content-security-policy') || '', /default-src/);
+  assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(res.headers.get('x-frame-options'), 'DENY');
+});
 ~~~~
 
 #### `bsc-sampling-v1/test/backup.test.js`
@@ -4351,7 +4670,7 @@ test('backup --photos copies top-level reference files and survives same-second 
 
 #### `bsc-sampling-v1/test/frontend.e2e.js`
 
-SHA-256: `05321c007fa2927efa15c6b7abc5c331e4a86670ab8da7c316a76bb850b2f356`
+SHA-256: `918c9ff0b006edf53de20a669fa2f043d583c418fce7818ce50f99eaf4e629f7`
 
 ~~~~javascript
 'use strict';
@@ -4545,6 +4864,23 @@ async function main() {
   check('找到并完成一次审核', reviewed);
   await page.click('#closeDetail');
   await page.waitForSelector('#detail.hidden', { state: 'attached' });
+
+  // 4c. 表格视图：切换、筛选、批量审核、批量天气按钮
+  await page.click('#tableViewButton');
+  await page.waitForSelector('#taskTableWrap:not(.hidden)', { timeout: 5000 });
+  check('表格视图渲染行', (await page.locator('#taskTableBody tr').count()) >= 1);
+  const reviewableCount = await page.locator('#taskTableBody .row-check').count();
+  check('表格批量审核功能就绪', await page.locator('#batchApprove').isVisible());
+  if (reviewableCount) {
+    await page.click('#tableCheckAll');
+    await page.click('#batchApprove');
+    await page.waitForTimeout(1500);
+    check('批量审核后表格刷新', (await page.locator('#taskTableBody tr').count()) >= 1);
+  }
+  check('批量天气按钮存在', await page.locator('#batchWeather').isVisible());
+  await page.click('#tableViewButton');
+  await page.waitForSelector('#taskTableWrap.hidden', { state: 'attached', timeout: 5000 });
+  check('切回地图视图', await page.locator('.map-panel').isVisible());
 
   // 4b. 今天日期视图：同一点位的多个任务必须展开为多个标记，且标签显示数量。
   const todayLabel = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(`${today}T00:00:00`));
@@ -5032,17 +5368,19 @@ test('空/单点输入安全', () => {
 
 #### `bsc-sampling-v1/tools/backup.js`
 
-SHA-256: `57b18e81d83ab53505fa00e42211040f5de3a32142987b53dfce97209f8c14bb`
+SHA-256: `cb50c7ef01ea1fa07de10ad2fa90ea5e3ebcc708ba59bb653e1cc83bd4751593`
 
 ~~~~javascript
 'use strict';
 
 // Daily backup for the V1 server (spec section 24):
-//   node tools/backup.js [--photos] [--keep N] [--dir BACKUP_DIR]
+//   node tools/backup.js [--photos] [--keep N] [--dir BACKUP_DIR] [--mirror OFFSITE_DIR]
 // - DB snapshot uses VACUUM INTO, which is consistent under WAL and does not
 //   rely on copying the live .sqlite file.
 // - --photos also copies uploads/reference; identical files (size + mtime)
 //   are skipped so repeated runs behave incrementally.
+// - --mirror copies the finished backup into an offsite folder (network drive,
+//   second disk, synced cloud folder) so the backups survive a disk failure.
 // - Old backup folders beyond --keep days are removed.
 // ASCII filename per spec section 30; run with `npm run backup`.
 
@@ -5058,12 +5396,32 @@ const backupRoot = path.resolve(process.argv.includes('--dir')
 const withPhotos = process.argv.includes('--photos');
 const keepIdx = process.argv.indexOf('--keep');
 const keepDays = keepIdx >= 0 ? Number(process.argv[keepIdx + 1]) : 14;
+const mirrorIdx = process.argv.indexOf('--mirror');
+const mirrorRoot = mirrorIdx >= 0 ? path.resolve(process.argv[mirrorIdx + 1]) : null;
 const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 let backupDir = path.join(backupRoot, `backup-${stamp}`);
 // 同一秒内重复执行（手动重试）会撞名导致 VACUUM INTO 失败；追加序号避免。
 for (let n = 2; fs.existsSync(backupDir); n++) backupDir = path.join(backupRoot, `backup-${stamp}-${n}`);
 
 fs.mkdirSync(backupDir, { recursive: true });
+
+// 增量拷贝整棵目录（尺寸+mtime 相同的文件跳过），返回新增文件数。
+// 先建目标目录再拷贝：reference/ 等目录可能顶层直接放文件，
+// 旧实现只在遇到子目录时建目录，顶层文件会导致 ENOENT 备份失败。
+let copied = 0;
+function copyTree(from, to) {
+  if (!fs.existsSync(from)) return;
+  fs.mkdirSync(to, { recursive: true });
+  for (const entry of fs.readdirSync(from, { withFileTypes: true })) {
+    const src = path.join(from, entry.name);
+    const dst = path.join(to, entry.name);
+    if (entry.isDirectory()) { copyTree(src, dst); continue; }
+    const st = fs.statSync(src);
+    if (fs.existsSync(dst) && fs.statSync(dst).size === st.size && Math.abs(fs.statSync(dst).mtimeMs - st.mtimeMs) < 2000) continue;
+    fs.copyFileSync(src, dst);
+    copied++;
+  }
+}
 
 // 1. Consistent database snapshot.
 const dbFile = path.join(dataDir, 'bsc-v1.sqlite');
@@ -5075,28 +5433,11 @@ db.close();
 console.log(`database snapshot: ${snapshot} (${fs.statSync(snapshot).size} bytes)`);
 
 // 2. Photos (optional, incremental by size+mtime).
-let photoCount = 0;
 if (withPhotos) {
   const target = path.join(backupDir, 'photos');
-  fs.mkdirSync(target, { recursive: true });
-  const copyDir = (from, to) => {
-    if (!fs.existsSync(from)) return;
-    // 先建目标目录再拷贝：reference/ 等目录可能顶层直接放文件，
-    // 旧实现只在遇到子目录时建目录，顶层文件会导致 ENOENT 备份失败。
-    fs.mkdirSync(to, { recursive: true });
-    for (const entry of fs.readdirSync(from, { withFileTypes: true })) {
-      const src = path.join(from, entry.name);
-      const dst = path.join(to, entry.name);
-      if (entry.isDirectory()) { fs.mkdirSync(dst, { recursive: true }); copyDir(src, dst); continue; }
-      const st = fs.statSync(src);
-      if (fs.existsSync(dst) && fs.statSync(dst).size === st.size && Math.abs(fs.statSync(dst).mtimeMs - st.mtimeMs) < 2000) continue;
-      fs.copyFileSync(src, dst);
-      photoCount++;
-    }
-  };
-  copyDir(path.join(dataDir, 'uploads'), path.join(target, 'uploads'));
-  copyDir(path.join(dataDir, 'reference'), path.join(target, 'reference'));
-  console.log(`photos copied: ${photoCount}`);
+  copyTree(path.join(dataDir, 'uploads'), path.join(target, 'uploads'));
+  copyTree(path.join(dataDir, 'reference'), path.join(target, 'reference'));
+  console.log(`photos copied: ${copied}`);
 }
 
 // 3. Retention.
@@ -5106,6 +5447,19 @@ for (const entry of fs.readdirSync(backupRoot, { withFileTypes: true })) {
   if (age > keepDays * 86400_000) {
     fs.rmSync(path.join(backupRoot, entry.name), { recursive: true, force: true });
     console.log(`removed old backup: ${entry.name}`);
+  }
+}
+
+// 4. Offsite mirror (optional): 把刚完成的备份增量同步到异机/云盘目录。
+if (mirrorRoot) {
+  try {
+    const mirrorDir = path.join(mirrorRoot, 'backups', path.basename(backupDir));
+    const before = copied;
+    copyTree(backupDir, mirrorDir);
+    console.log(`mirrored to: ${mirrorDir} (${copied - before} files)`);
+  } catch (e) {
+    console.error(`MIRROR FAILED: ${e.message}`);
+    process.exitCode = 1;
   }
 }
 console.log(`backup complete: ${backupDir}`);

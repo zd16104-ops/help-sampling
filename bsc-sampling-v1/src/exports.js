@@ -16,7 +16,9 @@ const RISK_NAMES = {
   missing_track: '提交时无轨迹点',
   late_sampling: '拍摄日期与计划日期不一致',
   task_canceled: '任务已取消后提交',
-  weather_pending: '天气待补充'
+  weather_pending: '天气待补充',
+  captured_time_in_future: '拍摄时间晚于服务器时间',
+  exif_time_mismatch: '照片EXIF时间与提交时间不一致'
 };
 
 function csvCell(value) {

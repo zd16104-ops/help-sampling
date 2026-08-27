@@ -189,6 +189,12 @@ function initialize(db) {
     notes TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS label_prints (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL,
+    sample_code TEXT NOT NULL,
+    printed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
   `);
   migrate(db);
   seed(db);
@@ -207,6 +213,9 @@ function migrate(db) {
   // 旧库种子点位曾写入 /sample-reference.svg 占位参考图（SVG，安卓端无法解码，
   // 造成"参考图传不到手机"的假象）。清空后由管理员在管理站上传真实照片。
   db.prepare("UPDATE sites SET reference_image='' WHERE reference_image='/sample-reference.svg'").run();
+  // 旧库补建标签打印记录表；并登记当前 APP 版本供手机端检查更新。
+  db.exec('CREATE TABLE IF NOT EXISTS label_prints (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, sample_code TEXT NOT NULL, printed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
+  db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(101, '1.1.0', '崩溃日志、照片压缩+EXIF、任务筛选、参考图放大、同步进度、更新提示');
 }
 
 function seed(db) {

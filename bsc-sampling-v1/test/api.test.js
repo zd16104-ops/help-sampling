@@ -570,3 +570,142 @@ test('admin login rate limiting (last: locks admin key)', async () => {
   const limited = await call('POST', '/api/v1/admin/login', { password: 'wrong-password' });
   assert.equal(limited.status, 429);
 });
+
+// ---------- v1.1.0 新增能力 ----------
+
+test('signed image URLs: 无签名 403，签名 URL 200', async () => {
+  // 上传一张真实参考图并挂到点位，通过 sites 接口拿到签名 URL。
+  const up = await call('POST', '/api/v1/admin/reference-images', { imageData: await jpegDataUrl(200) }, adminToken);
+  assert.equal(up.status, 201, `upload: ${JSON.stringify(up.json)}`);
+  const rawPath = up.json.path;
+  const beforeSites = await call('GET', '/api/v1/admin/sites?projectId=1', null, adminToken);
+  const site5 = beforeSites.json.sites.find(s => s.id === site5Id);
+  const setRef = await call('PUT', `/api/v1/admin/sites/${site5Id}`, {
+    code: site5.code, name: site5.name, latitude: site5.latitude, longitude: site5.longitude, referenceImage: rawPath
+  }, adminToken);
+  assert.equal(setRef.status, 200, JSON.stringify(setRef.json));
+  const sites = await call('GET', '/api/v1/admin/sites?projectId=1', null, adminToken);
+  const signed = sites.json.sites.find(s => s.id === site5Id).reference_image;
+  assert.ok(signed.includes('sig='), `signed url: ${signed}`);
+  const denied = await fetch(`${BASE}${rawPath}`);
+  assert.equal(denied.status, 403, '裸路径必须拒绝');
+  const ok = await fetch(`${BASE}${signed}`);
+  assert.equal(ok.status, 200, '签名 URL 可访问');
+  assert.match(ok.headers.get('content-type'), /image/);
+  // 清空参考图，避免影响其他用例。
+  await call('PUT', `/api/v1/admin/sites/${site5Id}`, {
+    code: site5.code, name: site5.name, latitude: site5.latitude, longitude: site5.longitude, referenceImage: ''
+  }, adminToken);
+});
+
+test('activation code messages distinguish used vs invalid', async () => {
+  const act = await call('POST', `/api/v1/admin/villagers/${villagerId}/activation`, {}, adminToken);
+  const [, , user, raw] = act.json.value.split('|');
+  const first = await call('POST', '/api/v1/mobile/activate', {
+    username: user, activationToken: raw, deviceUuid: `used-${Date.now()}`, appVersion: '1.0.0'
+  });
+  assert.equal(first.status, 200);
+  const second = await call('POST', '/api/v1/mobile/activate', {
+    username: user, activationToken: raw, deviceUuid: `used2-${Date.now()}`, appVersion: '1.0.0'
+  });
+  assert.equal(second.status, 403);
+  assert.match(second.json.message, /已被使用/);
+  const wrong = await call('POST', '/api/v1/mobile/activate', {
+    username: user, activationToken: 'BSC-ACT|not-a-real-token', deviceUuid: `w-${Date.now()}`, appVersion: '1.0.0'
+  });
+  assert.equal(wrong.status, 403);
+  assert.match(wrong.json.message, /无效/);
+});
+
+test('app-version endpoint returns latest version', async () => {
+  const res = await call('GET', '/api/v1/mobile/app-version', null, null);
+  assert.equal(res.status, 200);
+  assert.ok(res.json.versionCode >= 101, `versionCode=${res.json.versionCode}`);
+  assert.equal(res.json.versionName, '1.1.0');
+});
+
+test('captured time in the future adds risk flag', async () => {
+  const taskId = await adminCreateTask({ plannedDate: tomorrow });
+  await syncTask(mobileA, taskId);
+  const res = await call('POST', `/api/v1/mobile/tasks/${taskId}/record`, {
+    clientRecordId: `future-${Date.now()}`, capturedAt: `${tomorrow}T08:00:00+08:00`,
+    latitude: 30.07534404, longitude: 94.14583272, accuracyM: 5, weatherText: '晴',
+    noWater: false, manualCode: false, qrToken: (await syncTask(mobileA, taskId)).qr_token,
+    exceptionCategory: '', exceptionDetail: '', mockLocation: false, offlineStart: false,
+    photoDataUrl: await jpegDataUrl()
+  }, mobileA);
+  assert.equal(res.status, 201);
+  assert.ok(res.json.riskFlags.includes('captured_time_in_future'), JSON.stringify(res.json.riskFlags));
+});
+
+// 构造带 EXIF DateTimeOriginal 的真实 JPEG：sharp 生成底图，再把
+// 'Exif\0\0' + 小端 TIFF + IFD 条目 0x9003 的 APP1 段插到 FFD8 之后。
+async function jpegWithExif(dateTime) {
+  const base = await sharp({ create: { width: 64, height: 48, channels: 3, background: '#2e8b57' } }).jpeg().toBuffer();
+  const str = Buffer.from(`${dateTime}\0`, 'ascii'); // 20 字节
+  const tiff = Buffer.alloc(26 + str.length);
+  tiff.write('II', 0, 'ascii');
+  tiff.writeUInt16LE(42, 2);
+  tiff.writeUInt32LE(8, 4);
+  tiff.writeUInt16LE(1, 8);           // IFD 条目数
+  tiff.writeUInt16LE(0x9003, 10);     // DateTimeOriginal
+  tiff.writeUInt16LE(2, 12);          // ASCII
+  tiff.writeUInt32LE(20, 14);         // count
+  tiff.writeUInt32LE(26, 18);         // 值偏移
+  tiff.writeUInt32LE(0, 22);          // 下一个 IFD = 0
+  str.copy(tiff, 26);
+  const app1 = Buffer.concat([Buffer.from('Exif\0\0', 'binary'), tiff]);
+  const seg = Buffer.alloc(4 + app1.length);
+  seg.writeUInt16BE(0xFFE1, 0);
+  seg.writeUInt16BE(app1.length + 2, 2);
+  app1.copy(seg, 4);
+  return Buffer.concat([base.subarray(0, 2), seg, base.subarray(2)]);
+}
+
+test('exif time mismatch adds risk flag (matches submitted time: no flag)', async () => {
+  const taskId = await adminCreateTask();
+  await syncTask(mobileA, taskId);
+  const task = await syncTask(mobileA, taskId);
+  const bad = await call('POST', `/api/v1/mobile/tasks/${taskId}/record`, {
+    clientRecordId: `exif-bad-${Date.now()}`, capturedAt: `${today}T09:00:00+08:00`,
+    latitude: 30.07534404, longitude: 94.14583272, accuracyM: 5, weatherText: '晴',
+    noWater: false, manualCode: false, qrToken: task.qr_token, exceptionCategory: '', exceptionDetail: '',
+    mockLocation: false, offlineStart: false,
+    photoDataUrl: `data:image/jpeg;base64,${(await jpegWithExif('2026:01:01 00:00:00')).toString('base64')}`
+  }, mobileA);
+  assert.equal(bad.status, 201);
+  assert.ok(bad.json.riskFlags.includes('exif_time_mismatch'), JSON.stringify(bad.json.riskFlags));
+  const good = await call('POST', `/api/v1/mobile/tasks/${taskId}/record`, {
+    clientRecordId: `exif-ok-${Date.now()}`, capturedAt: `${today}T09:00:00+08:00`,
+    latitude: 30.07534404, longitude: 94.14583272, accuracyM: 5, weatherText: '晴',
+    noWater: false, manualCode: false, qrToken: task.qr_token, exceptionCategory: '', exceptionDetail: '',
+    mockLocation: false, offlineStart: false,
+    photoDataUrl: `data:image/jpeg;base64,${(await jpegWithExif(`${today.replaceAll('-', ':')} 09:00:00`)).toString('base64')}`
+  }, mobileA);
+  assert.equal(good.status, 201);
+  assert.ok(!good.json.riskFlags.includes('exif_time_mismatch'), '时间一致不应打标');
+});
+
+test('label print is recorded and reported on tasks', async () => {
+  const taskId = await adminCreateTask();
+  const labels = await call('GET', `/api/v1/admin/labels?taskIds=${taskId}`, null, adminToken);
+  assert.equal(labels.status, 200);
+  const tasks = await call('GET', '/api/v1/admin/tasks?projectId=1', null, adminToken);
+  const row = tasks.json.tasks.find(t => t.id === taskId);
+  assert.ok(row.printed_count >= 1, `printed_count=${row.printed_count}`);
+});
+
+test('batch weather backfill endpoint', async () => {
+  const res = await call('POST', '/api/v1/admin/records/backfill-weather', { recordIds: [1, 2, 3] }, adminToken);
+  assert.equal(res.status, 200);
+  assert.equal(res.json.queued, 3);
+  const empty = await call('POST', '/api/v1/admin/records/backfill-weather', { recordIds: [] }, adminToken);
+  assert.equal(empty.status, 400);
+});
+
+test('security headers present', async () => {
+  const res = await fetch(`${BASE}/`);
+  assert.match(res.headers.get('content-security-policy') || '', /default-src/);
+  assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(res.headers.get('x-frame-options'), 'DENY');
+});

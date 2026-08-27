@@ -8,13 +8,33 @@ android {
         applicationId 'online.gpsgps.bscsampling'
         minSdk 29
         targetSdk 35
-        versionCode 100
-        versionName '1.0.0'
+        versionCode 101
+        versionName '1.1.0'
         buildConfigField 'String', 'DEFAULT_SERVER', '"https://bsc.gpsgps.online"'
     }
     buildFeatures { buildConfig true }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
     packaging { resources.excludes += ['META-INF/DEPENDENCIES','META-INF/LICENSE*','META-INF/NOTICE*'] }
+    // 正式签名：keystore 与密码放在 app/keystore.properties（不入库、不提交）。
+    // 没有该文件时 release 不签名（仅本地 debug 构建用）。
+    signingConfigs {
+        release {
+            if (file('keystore.properties').exists()) {
+                def kp = new Properties()
+                kp.load(new FileInputStream(file('keystore.properties')))
+                storeFile file(kp['storeFile'])
+                storePassword kp['storePassword']
+                keyAlias kp['keyAlias']
+                keyPassword kp['keyPassword']
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (file('keystore.properties').exists()) signingConfig signingConfigs.release
+        }
+    }
 }
 
 dependencies {

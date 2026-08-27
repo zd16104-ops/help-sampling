@@ -74,7 +74,7 @@ node tools\gradle-with-proxy.js assembleDebug --no-daemon
 ```
 
 - 默认服务器地址 `https://bsc.gpsgps.online`（见 `app/build.gradle` 的 `buildConfigField DEFAULT_SERVER`）。
-- 正式发布需用自己的 keystore 签名，并记录 APK SHA-256。
+- **正式签名**：`app/keystore.properties` + `app/keystore/`（不入库）配置好后 `gradle assembleRelease` 产出正式签名 APK；keystore 与密码请离线妥善保管。
 - `tools/gradle-with-proxy.js` 是开发沙箱专用的本地 Maven 代理，不会打包进 APK；普通联网环境可直接 `gradle assembleDebug`。
 
 ### 3. 测试
@@ -82,7 +82,7 @@ node tools\gradle-with-proxy.js assembleDebug --no-daemon
 ```powershell
 cd bsc-sampling-v1
 npm run check      # 全部 JS 语法检查
-npm test           # 39 项自动化测试（安全单元 / 数据库迁移 / API 集成 / 备份回归）
+npm test           # 52 项自动化测试（安全单元 / 数据库迁移 / API 集成 / 备份回归 / 轨迹平滑）
 npm run smoke      # 30 项端到端冒烟（需先 npm start）
 npm run test:e2e   # 无头浏览器端到端（Playwright，断言数随数据量动态变化，需 npm start）
 ```
@@ -97,8 +97,8 @@ Android 单元测试：`cd bsc-android-native && node tools\gradle-with-proxy.js
 - **防作弊证据链**：现场拍照（CameraX，暗色时间/天气/坐标水印）+ 每 10 秒轨迹 + 30 秒实时位置 + 服务器天气补齐（独立字段，不覆盖手机原文）。
 - **距离规则**：0–30 m 正常；30–80 m 必须选择原因；80–300 m 严重可疑；>300 m 禁止提交。
 - **离线可用**：SQLite 本地队列 + WorkManager 联网补传；记录上传以 `client_record_id` 幂等。
-- **管理站**：点位管理（地图选点/右键加点/CSV 导入）、任务下发（多点位 × 多类型批量 + 全选）、40 枚/页 A4 标签打印、审核详情（照片/轨迹/风险标志）、取消/改期、导出（CSV/GeoJSON/GPX/照片 ZIP/审计 CSV）、设备激活二维码、诊断日志与磁盘健康。
-- **运维**：`VACUUM INTO` 一致快照备份 + 照片增量拷贝 + 恢复演练；登录/PIN 限速与短时锁定；磁盘 <10 GB 告警。
+- **管理站**：点位管理（地图选点/右键加点/CSV 导入）、任务下发（多点位 × 多类型批量 + 全选）、40 枚/页 A4 标签打印（含打印次数记录）、审核详情（现场/参考图并排对比、照片、轨迹、风险标志，含 EXIF 时间核对与时间防篡改标志）、**表格视图（筛选/搜索/批量审核通过/批量补齐天气）**、取消/改期、导出（CSV/GeoJSON/GPX/照片 ZIP/审计 CSV）、设备激活二维码、诊断日志与磁盘健康；`/uploads/`、`/reference/` 图片签名鉴权 + 全站安全响应头（CSP 等）。
+- **运维**：`VACUUM INTO` 一致快照备份 + 照片增量拷贝 + 恢复演练，支持 `--mirror` 异机镜像；每小时健康告警脚本（服务/磁盘/证书/备份新鲜度）；登录/PIN 限速与短时锁定；磁盘 <10 GB 告警。
 
 ---
 

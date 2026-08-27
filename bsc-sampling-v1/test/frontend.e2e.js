@@ -190,6 +190,23 @@ async function main() {
   await page.click('#closeDetail');
   await page.waitForSelector('#detail.hidden', { state: 'attached' });
 
+  // 4c. 表格视图：切换、筛选、批量审核、批量天气按钮
+  await page.click('#tableViewButton');
+  await page.waitForSelector('#taskTableWrap:not(.hidden)', { timeout: 5000 });
+  check('表格视图渲染行', (await page.locator('#taskTableBody tr').count()) >= 1);
+  const reviewableCount = await page.locator('#taskTableBody .row-check').count();
+  check('表格批量审核功能就绪', await page.locator('#batchApprove').isVisible());
+  if (reviewableCount) {
+    await page.click('#tableCheckAll');
+    await page.click('#batchApprove');
+    await page.waitForTimeout(1500);
+    check('批量审核后表格刷新', (await page.locator('#taskTableBody tr').count()) >= 1);
+  }
+  check('批量天气按钮存在', await page.locator('#batchWeather').isVisible());
+  await page.click('#tableViewButton');
+  await page.waitForSelector('#taskTableWrap.hidden', { state: 'attached', timeout: 5000 });
+  check('切回地图视图', await page.locator('.map-panel').isVisible());
+
   // 4b. 今天日期视图：同一点位的多个任务必须展开为多个标记，且标签显示数量。
   const todayLabel = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' }).format(new Date(`${today}T00:00:00`));
   if (await page.locator('#dateList button').filter({ hasText: todayLabel }).count()) {
