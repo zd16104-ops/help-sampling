@@ -1,0 +1,40 @@
+# ==== 服务器 / 管理站（bsc-sampling-v1）====
+# 依赖与运行产物
+bsc-sampling-v1/node_modules/
+bsc-sampling-v1/*.log
+bsc-sampling-v1/logs/
+
+# 数据目录（数据库、上传照片、参考图、config.json 含密钥 —— 均不入库）
+bsc-sampling-v1/data/
+
+# ==== Android（bsc-android-native）====
+# Gradle 构建缓存
+bsc-android-native/.gradle/
+bsc-android-native/.android-user-home/
+bsc-android-native/.gradle-user-home/
+bsc-android-native/.maven-proxy-cache/
+bsc-android-native/build/
+bsc-android-native/app/build/
+bsc-android-native/.idea/
+bsc-android-native/*.iml
+bsc-android-native/captures/
+bsc-android-native/.externalNativeBuild/
+bsc-android-native/.cxx/
+
+# 机器相关（SDK 路径）
+bsc-android-native/local.properties
+
+# ==== 本机专用，不入库 ====
+# Android 构建工具链（SDK，约 500 MB）
+android-toolchain/
+
+# 部署打包中间产物与 zip（用 release 附件分发，不进代码库）
+deploy-staging/
+bsc-deploy-v1.zip
+
+# 旧 WebView 原型（已废弃，不纳入本仓库）
+water-sampling-system/
+
+# ==== 通用 ====
+.DS_Store
+Thumbs.db

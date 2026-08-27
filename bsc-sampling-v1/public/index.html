@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>水样采集管理系统</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <section id="login" class="login-shell">
+    <div class="login-card">
+      <div class="brand-mark">水</div>
+      <p class="eyebrow">WGS84 · 离线采集 · 真实性审核</p>
+      <h1>水样采集管理系统</h1>
+      <p class="muted">管理员登录后可以设置采样点、下发任务并审核现场记录。</p>
+      <form id="loginForm">
+        <label>管理员密码<input id="password" type="password" autocomplete="current-password"></label>
+        <label>TOTP 动态验证码（可选）<input id="totp" inputmode="numeric" maxlength="6" placeholder="未启用请留空"></label>
+        <button class="primary" type="submit">进入管理平台</button>
+        <p id="loginError" class="error"></p>
+      </form>
+    </div>
+  </section>
+
+  <div id="app" class="app hidden">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark small">水</span><div><strong>水样采集</strong><small>管理平台</small></div></div>
+      <p class="section-label">项目</p>
+      <div id="projectList" class="project-list"></div>
+      <button id="newProjectButton" class="side-action">＋ 新建项目</button>
+      <div class="side-heading"><span>采样日期</span><button id="refresh" title="刷新">↻</button></div>
+      <nav id="dateList" class="date-list"></nav>
+      <div class="sidebar-bottom">
+        <button id="siteManageButton" class="side-action">⌖ 点位管理</button>
+        <button id="villagerButton" class="side-action">📱 设备激活</button>
+        <button id="logsButton" class="side-action">📋 诊断日志</button>
+        <div class="server-dot"><i></i><span id="healthText">正在检查服务器…</span></div>
+        <button id="logoutButton" class="side-action ghost">退出登录</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div><p id="crumb" class="crumb">项目</p><h2 id="pageTitle">待采样任务</h2></div>
+        <div class="top-actions">
+          <span class="top-action-wrap"><button id="exportCsv" class="secondary">导出CSV</button><i class="info-badge">!</i><span class="info-tip">导出当前项目的全部采样记录为 CSV 表格（编号、历史序号、WGS84 坐标、距离、精度、风险标志中文解释、审核意见、照片 SHA-256），可用 Excel 打开。</span></span>
+          <span class="top-action-wrap"><button id="exportGeo" class="secondary">GeoJSON</button><i class="info-badge">!</i><span class="info-tip">导出采样记录为 GeoJSON（WGS84 点要素），可在 QGIS、ArcGIS 等地图软件中打开。</span></span>
+          <span class="top-action-wrap"><button id="exportPhotos" class="secondary">照片包</button><i class="info-badge">!</i><span class="info-tip">把全部现场水印照片打包为 ZIP 下载，文件名含样品编号，可作原始证据归档。</span></span>
+          <span class="top-action-wrap"><button id="exportAudit" class="secondary">审计记录</button><i class="info-badge">!</i><span class="info-tip">导出全部管理员操作审计日志 CSV（登录、点位/项目修改、任务下发/取消/改期、审核等），只追加不可删除。</span></span>
+          <span class="top-action-wrap"><button id="importButton" class="secondary">导入Excel/CSV</button><i class="info-badge">!</i><span class="info-tip">把现有点位表格另存为 CSV（UTF-8）后批量导入，列名：编号,序号,经纬度,海拔,备注（可选点位名称/采样说明/风险提醒/样品类型）。"编号"是排序号，"序号"是历史序号（5.1 等小数保留）；坐标必须是 WGS84。导入点位默认启用，可再补传参考图。</span></span>
+          <span class="top-action-wrap"><button id="newTaskButton" class="secondary">＋ 下发采样任务</button><i class="info-badge">!</i><span class="info-tip">选择计划采样日期、采样员和一个或多个点位、样品类型，系统为每个"点位×类型"生成独立任务、瓶子编号与二维码，并可打印 40 枚/页 A4 不干胶标签。</span></span>
+          <span class="top-action-wrap"><button id="addSiteButton" class="primary">＋ 设置采样点</button><i class="info-badge">!</i><span class="info-tip">新建/编辑固定采样点：历史序号（5.1 等格式保留）、WGS84 坐标（可在地图上点选并拖动微调）、样品类型多选、可选现场参考图、采样说明与风险提醒。</span></span>
+        </div>
+      </header>
+
+      <section class="stats">
+        <article><span class="stat-icon blue">●</span><div><small>本页任务</small><strong id="statAll">0</strong></div></article>
+        <article><span class="stat-icon green">✓</span><div><small>审核通过</small><strong id="statApproved">0</strong></div></article>
+        <article><span class="stat-icon amber">!</span><div><small>待审核/可疑</small><strong id="statPending">0</strong></div></article>
+        <article><span class="stat-icon gray">○</span><div><small>尚未采样</small><strong id="statUnfinished">0</strong></div></article>
+      </section>
+
+      <section class="map-panel">
+        <div class="map-toolbar">
+          <div class="legend"><span><i class="pin gray"></i>待采样</span><span><i class="pin amber"></i>待审核</span><span><i class="pin green"></i>已通过</span><span><i class="pin red"></i>异常/退回</span><span id="tileZoomNote" class="tile-note hidden"></span></div>
+          <button id="fitMap" class="map-action">◎ 显示全部</button>
+        </div>
+        <div id="map"></div>
+        <div id="mapFallback" class="map-fallback hidden">
+          <strong>在线底图未加载</strong>
+          <span>点位与任务仍可查看；请检查网络后刷新。</span>
+        </div>
+      </section>
+    </main>
+
+    <aside id="detail" class="detail hidden">
+      <div class="detail-head"><div><small id="detailCode">样品编号</small><h3 id="detailTitle">采样记录</h3></div><button id="closeDetail">×</button></div>
+      <div id="detailBody"></div>
+    </aside>
+  </div>
+
+  <dialog id="projectDialog">
+    <form id="projectForm" method="dialog">
+      <div class="dialog-head"><div><small>项目</small><h3 id="projectDialogTitle">新建项目</h3></div><button value="cancel" formnovalidate>×</button></div>
+      <div class="form-grid">
+        <label>项目编码<input id="projectCode" required placeholder="例如：BSC2"></label>
+        <label>项目名称<input id="projectName" required placeholder="例如：巴松措正式采样"></label>
+        <label class="wide">描述<input id="projectDescription" placeholder="可选"></label>
+        <label class="wide checkbox-line"><input type="checkbox" id="projectIsTest"> 测试项目（不参与正式统计）</label>
+        <label class="wide checkbox-line" id="projectEnabledLine"><input type="checkbox" id="projectEnabled" checked> 启用（停用后不再显示新任务）</label>
+      </div>
+      <div class="dialog-actions"><span></span><button value="cancel" formnovalidate class="ghost">取消</button><button id="saveProject" type="button" class="primary">保存项目</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="siteDialog">
+    <form id="siteForm" method="dialog">
+      <div class="dialog-head"><div><small>WGS84坐标</small><h3 id="siteDialogTitle">设置采样点</h3></div><button value="cancel" formnovalidate>×</button></div>
+      <div class="form-grid">
+        <label>排序编号<input name="sort_order" id="siteSortOrder" type="number" placeholder="例如：6"></label>
+        <label>历史序号<input name="code" id="siteCode" required placeholder="例如：5.1（保持原格式）"></label>
+        <label>点位名称<input name="name" id="siteName" required placeholder="例如：河流采样点12"></label>
+        <label>海拔（米）<input name="altitude_m" id="siteAltitude" type="number" step="1"></label>
+        <label class="wide">经纬度(WGS84)
+          <input id="siteCoords" placeholder="【WGS84】29.66579301°N，94.34286257°E（也可直接粘贴 29.66579301, 94.34286257）">
+          <small>支持"度分秒"以外的十进制格式：带 °N/°E 的 WGS84 文本，或"纬度, 经度"两个数字；也可点击"在地图上选点"或直接在地图上点右键。</small>
+        </label>
+        <input id="latitude" type="hidden">
+        <input id="longitude" type="hidden">
+        <label class="wide">样品类型（可多选）
+          <div class="type-checkboxes" id="siteTypes"></div>
+        </label>
+        <label class="wide">现场示例图片（可选，建议上传）
+          <input id="referenceImageFile" type="file" accept="image/jpeg,image/png,image/webp">
+          <small>供村民在现场对照找点；不上传也可以保存并使用该点位。</small>
+        </label>
+        <div id="referenceImagePreviewBox" class="wide reference-upload hidden">
+          <img id="referenceImagePreview" alt="现场示例图片预览"><span>示例图片预览</span>
+        </div>
+        <label class="wide">采样说明<textarea name="instructions" id="siteInstructions" rows="3" placeholder="告诉村民如何到达、如何拍照"></textarea></label>
+        <label class="wide">风险提醒<textarea name="risk_note" id="siteRiskNote" rows="2" placeholder="例如：雨季河岸湿滑"></textarea></label>
+        <label class="wide">备注<input name="remarks" id="siteRemarks" placeholder="例如：土，植无水"></label>
+        <label class="wide checkbox-line"><input type="checkbox" id="siteEnabled" checked> 启用该点位（停用后不再下发新任务，历史数据保留）</label>
+      </div>
+      <p class="dialog-tip">点击“在地图上选点”，再点击地图中的实际位置；保存前可以拖动地图上的标记微调坐标。坐标支持 8 位小数（约 1 厘米精度）。</p>
+      <div class="dialog-actions"><button id="pickMap" type="button" class="secondary">⌖ 在地图上选点</button><span></span><button value="cancel" formnovalidate class="ghost">取消</button><button id="saveSite" type="button" class="primary">保存采样点</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="importDialog">
+    <form method="dialog">
+      <div class="dialog-head"><div><small>批量设置</small><h3>从Excel导入采样点</h3></div><button value="cancel" formnovalidate>×</button></div>
+      <p>把现有表格另存为 CSV（UTF-8）后导入，列名：</p>
+      <code>编号,序号,经纬度,海拔,备注（可选：点位名称,采样说明,风险提醒,样品类型）</code>
+      <p class="dialog-tip">“编号”是排序编号，“序号”是历史序号（可用 5.1、5.2 等小数形式，原样保留）。经纬度必须是 WGS84。导入后即可使用，可再补传参考图。</p>
+      <input id="csvFile" class="file-input" type="file" accept=".csv,text/csv">
+      <div id="importResult" class="import-result"></div>
+      <div class="dialog-actions"><span></span><button value="cancel" formnovalidate class="ghost">关闭</button><button id="runImport" type="button" class="primary">开始导入</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="taskDialog">
+    <form id="taskForm" method="dialog">
+      <div class="dialog-head"><div><small>临时下发</small><h3>创建采样任务和瓶子标签</h3></div><button value="cancel" formnovalidate>×</button></div>
+      <div id="taskFields" class="form-grid">
+        <label class="wide">计划采样日期<input id="plannedDate" type="date" required></label>
+        <label class="wide">采样人员<select id="taskVillager" required></select></label>
+        <label class="wide">选择固定采样点（可多选，每个点位按其样品类型生成任务）
+          <div id="taskSiteList" class="site-pick-list"><label class="site-pick select-all"><input type="checkbox" id="taskSiteAll"> <strong>全选 / 全不选</strong></label></div>
+        </label>
+        <label class="wide">本次样品类型（对每个选中点位生效）
+          <div class="type-checkboxes" id="taskTypes"></div>
+        </label>
+      </div>
+      <section id="labelResult" class="label-result hidden">
+        <div id="labelCodes" class="label-codes"></div>
+        <p>已生成任务与二维码。使用 A4 不干胶打印，二维码与文字编号必须同时贴在瓶身。</p>
+      </section>
+      <div class="dialog-actions"><span></span><button value="cancel" formnovalidate class="ghost">关闭</button><button id="printLabel" type="button" class="secondary hidden">打印标签（40枚/页）</button><button id="createTask" type="button" class="primary">生成任务和二维码</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="villagerDialog">
+    <form method="dialog">
+      <div class="dialog-head"><div><small>设备激活</small><h3>生成设备激活二维码</h3></div><button value="cancel" formnovalidate>×</button></div>
+      <p class="dialog-tip">扫码即激活并自动登录（无 PIN）。激活码一次性使用，24 小时过期。村民首次打开 APP 扫码完成设备绑定，之后打开无需再登录。</p>
+      <div class="vill-new">
+        <input id="newVillagerUser" placeholder="账号（字母数字，如 cmy02）">
+        <input id="newVillagerName" placeholder="姓名">
+        <button type="button" id="addVillager" class="primary">＋ 新建采样员</button>
+      </div>
+      <div id="villagerList" class="vill-list"></div>
+      <div id="activationResult" class="activation-result hidden">
+        <div class="activation-qr"><div id="qrcode"></div></div>
+        <div>
+          <small>激活二维码（24 小时有效）</small>
+          <code id="activationValue" class="activation-value"></code>
+          <p id="activationExpires" class="muted"></p>
+          <button type="button" id="copyActivation" class="secondary">复制激活内容</button>
+        </div>
+      </div>
+      <div class="dialog-actions"><span></span><button value="cancel" formnovalidate class="ghost">关闭</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="logsDialog">
+    <form method="dialog">
+      <div class="dialog-head"><div><small>APP 诊断日志</small><h3>最近上传的诊断日志</h3></div><button value="cancel" formnovalidate>×</button></div>
+      <p class="dialog-tip">日志只包含版本、网络、同步阶段与异常类型，不含 PIN、令牌、二维码密钥或照片数据。支持按级别/设备/时间筛选，并可导出 CSV。</p>
+      <div class="logs-filters">
+        <select id="logLevel"><option value="">全部级别</option><option value="info">info</option><option value="warning">warning</option><option value="error">error</option></select>
+        <input id="logDevice" placeholder="设备ID（可选）">
+        <input id="logFrom" type="date"><span class="muted">至</span><input id="logTo" type="date">
+        <button id="exportLogsCsv" type="button" class="secondary">导出日志CSV</button>
+      </div>
+      <div class="logs-table-wrap"><table class="logs-table">
+        <thead><tr><th>时间</th><th>级别</th><th>设备</th><th>消息</th></tr></thead>
+        <tbody id="logsBody"></tbody>
+      </table></div>
+      <div class="dialog-actions"><button id="refreshLogs" type="button" class="secondary">刷新</button><span></span><button value="cancel" formnovalidate class="ghost">关闭</button></div>
+    </form>
+  </dialog>
+
+  <script src="/vendor/leaflet/leaflet.js"></script>
+  <script src="/vendor/qrcodejs/qrcode.min.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

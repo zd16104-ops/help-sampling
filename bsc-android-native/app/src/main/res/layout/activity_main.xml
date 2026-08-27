@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:background="@color/bg">
+  <LinearLayout android:id="@+id/header" android:layout_width="match_parent" android:layout_height="72dp" android:orientation="horizontal" android:gravity="center_vertical" android:paddingHorizontal="16dp" android:background="#FFFFFF">
+    <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:orientation="vertical"><TextView android:id="@+id/title" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="巴松措采样" android:textSize="24sp" android:textStyle="bold" android:textColor="@color/ink"/><TextView android:id="@+id/status" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="正在检查…" android:textSize="12sp"/></LinearLayout>
+    <com.google.android.material.button.MaterialButton android:id="@+id/sync" android:layout_width="wrap_content" android:layout_height="50dp" android:text="同步"/>
+  </LinearLayout>
+  <FrameLayout android:id="@+id/content" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1"/>
+  <LinearLayout android:id="@+id/tabs" android:layout_width="match_parent" android:layout_height="76dp" android:orientation="horizontal" android:background="#FFFFFF">
+    <Button android:id="@+id/tabMap" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="⌖\n地图" android:textAllCaps="false"/>
+    <Button android:id="@+id/tabTasks" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="☑\n任务" android:textAllCaps="false"/>
+    <Button android:id="@+id/tabUpload" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="⇧\n上传" android:textAllCaps="false"/>
+    <Button android:id="@+id/tabMine" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:text="●\n我的" android:textAllCaps="false"/>
+  </LinearLayout>
+</LinearLayout>

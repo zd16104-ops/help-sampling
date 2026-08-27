@@ -1,0 +1,9 @@
+{
+  "host": "127.0.0.1",
+  "port": 3100,
+  "publicBaseUrl": "https://bsc.gpsgps.online",
+  "adminPassword": "ChangeMe-2608!",
+  "adminTotpSecret": "",
+  "sessionSecret": "首次启动自动生成随机值，正式部署请改成随机长字符串",
+  "lockHours": 12
+}

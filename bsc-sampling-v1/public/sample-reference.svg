@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#b8dce9"/><stop offset="1" stop-color="#edf4ef"/></linearGradient>
+    <linearGradient id="water" x2="1" y2="1"><stop stop-color="#4f999d"/><stop offset="1" stop-color="#214c59"/></linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#sky)"/>
+  <path d="M0 245L105 150 185 235 280 100 390 244 512 125 645 240 735 155 800 225V390H0Z" fill="#66816f"/>
+  <path d="M0 330C180 260 290 340 410 300S640 235 800 315V600H0Z" fill="url(#water)"/>
+  <path d="M0 480C175 410 310 445 450 407S690 370 800 408V600H0Z" fill="#847966" opacity=".78"/>
+  <g transform="translate(280 190)">
+    <rect x="68" y="50" width="112" height="260" rx="22" fill="#d9f5ef" opacity=".88" stroke="#214c59" stroke-width="7"/>
+    <rect x="82" y="0" width="84" height="66" rx="11" fill="#173d48"/>
+    <rect x="80" y="137" width="88" height="92" rx="6" fill="#fff" stroke="#d15b52" stroke-width="5"/>
+    <rect x="91" y="151" width="66" height="66" fill="#152f38"/>
+    <path d="M96 156h18v18H96zm38 0h18v18h-18zm-38 38h18v18H96zm20-18h16v16h-16zm18 18h18v18h-18z" fill="#fff"/>
+  </g>
+  <rect x="24" y="518" width="752" height="58" rx="14" fill="#102b32" opacity=".78"/>
+  <text x="50" y="555" font-family="sans-serif" font-size="27" fill="#fff">拍摄示例：瓶子约占画面 1/4，背景保留河流和地形</text>
+</svg>

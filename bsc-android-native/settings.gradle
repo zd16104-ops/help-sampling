@@ -1,0 +1,25 @@
+pluginManagement {
+    repositories {
+        if (System.getenv('LOCAL_MAVEN_PROXY')) {
+            maven {
+                url System.getenv('LOCAL_MAVEN_PROXY') + '/google'
+                content { includeGroupByRegex 'com\\.android.*'; includeGroupByRegex 'androidx\\..*'; includeGroup 'com.google.android.material'; includeGroup 'com.google.testing.platform' }
+            }
+            maven { url System.getenv('LOCAL_MAVEN_PROXY') + '/maven' }
+        } else { google(); mavenCentral(); gradlePluginPortal() }
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        if (System.getenv('LOCAL_MAVEN_PROXY')) {
+            maven {
+                url System.getenv('LOCAL_MAVEN_PROXY') + '/google'
+                content { includeGroupByRegex 'com\\.android.*'; includeGroupByRegex 'androidx\\..*'; includeGroup 'com.google.android.material'; includeGroup 'com.google.testing.platform' }
+            }
+            maven { url System.getenv('LOCAL_MAVEN_PROXY') + '/maven' }
+        } else { google(); mavenCentral() }
+    }
+}
+rootProject.name = 'BscSampling'
+include ':app'
