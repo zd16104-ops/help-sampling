@@ -432,10 +432,21 @@ async function showDetail(task) {
     try {
       const track = await api(`/api/v1/admin/journeys/${task.journey_id}/track`);
       if (track.points && track.points.length) {
-        const line = L.polyline(track.points.map(p => [p.latitude, p.longitude]), { color: '#326fcb', weight: 4, opacity: 0.8 }).addTo(state.map);
-        state.trackPolylines.push(line);
-        state.map.fitBounds(line.getBounds(), { padding: [70, 70], maxZoom: 16, animate: false });
-        trackInfo = `<div class="record-grid"><div><small>轨迹点数</small><strong>${track.points.length}</strong></div><div><small>模拟位置点</small><strong>${track.points.filter(p => p.mock_location).length}</strong></div></div>`;
+        // 优先画平滑分段（漂移点已滤除、时间断点断开、滑动平均去锯齿）；原始点不变。
+        const segs = (track.display && Array.isArray(track.display.segments) ? track.display.segments : [])
+          .filter(s => s.length >= 2)
+          .map(s => s.map(p => [p[0], p[1]]));
+        if (!segs.length) segs.push(track.points.map(p => [p.latitude, p.longitude]));
+        let bounds = null;
+        for (const seg of segs) {
+          const line = L.polyline(seg, { color: '#326fcb', weight: 4, opacity: 0.8 }).addTo(state.map);
+          state.trackPolylines.push(line);
+          bounds = bounds ? bounds.extend(line.getBounds()) : line.getBounds();
+        }
+        if (bounds) state.map.fitBounds(bounds, { padding: [70, 70], maxZoom: 16, animate: false });
+        const dropped = (track.display && track.display.dropped) || 0;
+        const segNote = segs.length > 1 ? `，${segs.length} 段（暂停/信号中断处断开）` : '';
+        trackInfo = `<div class="record-grid"><div><small>轨迹点数</small><strong>${track.points.length}</strong></div><div><small>模拟位置点</small><strong>${track.points.filter(p => p.mock_location).length}</strong></div></div>${(dropped || segNote) ? `<p class="dialog-tip">轨迹已平滑显示${dropped ? `（滤除 ${dropped} 个漂移点）` : ''}${segNote}；原始数据与 GPX 导出未改动。</p>` : ''}`;
       }
     } catch { trackInfo = '<div class="empty-detail">轨迹读取失败。</div>'; }
   }

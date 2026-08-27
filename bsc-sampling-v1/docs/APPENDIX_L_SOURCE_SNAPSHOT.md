@@ -1,7 +1,7 @@
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-27T14:02:12.518Z  
-> 文件数：70  
+> 生成时间：2026-08-27T14:13:23.719Z  
+> 文件数：71  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
 ### L.1 收录范围
@@ -1399,7 +1399,7 @@ echo [完成] 服务已卸载。数据目录 bsc-server\data\v1 已保留，可�
 
 #### `bsc-sampling-v1/package.json`
 
-SHA-256: `79a7eb26bae648baf649cf655c0881c2a8a3103e12ba9e8110843fd737ca8f0d`
+SHA-256: `993a539bcb81926555f283a0b763e207c022a0f0c4b2757a54c4d260cd876e71`
 
 ~~~~json
 {
@@ -1411,7 +1411,7 @@ SHA-256: `79a7eb26bae648baf649cf655c0881c2a8a3103e12ba9e8110843fd737ca8f0d`
     "start": "node src/server.js",
     "start:legacy": "node server.js",
     "check": "node --check src/server.js && node --check src/schema.js && node --check src/security.js && node --check src/weather.js && node --check src/ratelimit.js && node --check src/labels.js && node --check src/exports.js && node --check public/app.js && node --check test/frontend.e2e.js",
-    "test": "node --test test/security.test.js test/schema.test.js test/api.test.js test/backup.test.js",
+    "test": "node --test test/security.test.js test/schema.test.js test/api.test.js test/backup.test.js test/track.test.js",
     "test:unit": "node --test test/security.test.js test/schema.test.js",
     "test:api": "node --test test/api.test.js",
     "test:e2e": "node test/frontend.e2e.js",
@@ -1433,7 +1433,7 @@ SHA-256: `79a7eb26bae648baf649cf655c0881c2a8a3103e12ba9e8110843fd737ca8f0d`
 
 #### `bsc-sampling-v1/public/app.js`
 
-SHA-256: `fa48ac8e0df7cc5373fe3ae636cb46867e2004e114cae0adbaca1a617cb038e5`
+SHA-256: `5812ede9a11692be4aa578742b525d8463c34e3e9c296cbe9d4beacc1b5ead6d`
 
 ~~~~javascript
 'use strict';
@@ -1870,10 +1870,21 @@ async function showDetail(task) {
     try {
       const track = await api(`/api/v1/admin/journeys/${task.journey_id}/track`);
       if (track.points && track.points.length) {
-        const line = L.polyline(track.points.map(p => [p.latitude, p.longitude]), { color: '#326fcb', weight: 4, opacity: 0.8 }).addTo(state.map);
-        state.trackPolylines.push(line);
-        state.map.fitBounds(line.getBounds(), { padding: [70, 70], maxZoom: 16, animate: false });
-        trackInfo = `<div class="record-grid"><div><small>轨迹点数</small><strong>${track.points.length}</strong></div><div><small>模拟位置点</small><strong>${track.points.filter(p => p.mock_location).length}</strong></div></div>`;
+        // 优先画平滑分段（漂移点已滤除、时间断点断开、滑动平均去锯齿）；原始点不变。
+        const segs = (track.display && Array.isArray(track.display.segments) ? track.display.segments : [])
+          .filter(s => s.length >= 2)
+          .map(s => s.map(p => [p[0], p[1]]));
+        if (!segs.length) segs.push(track.points.map(p => [p.latitude, p.longitude]));
+        let bounds = null;
+        for (const seg of segs) {
+          const line = L.polyline(seg, { color: '#326fcb', weight: 4, opacity: 0.8 }).addTo(state.map);
+          state.trackPolylines.push(line);
+          bounds = bounds ? bounds.extend(line.getBounds()) : line.getBounds();
+        }
+        if (bounds) state.map.fitBounds(bounds, { padding: [70, 70], maxZoom: 16, animate: false });
+        const dropped = (track.display && track.display.dropped) || 0;
+        const segNote = segs.length > 1 ? `，${segs.length} 段（暂停/信号中断处断开）` : '';
+        trackInfo = `<div class="record-grid"><div><small>轨迹点数</small><strong>${track.points.length}</strong></div><div><small>模拟位置点</small><strong>${track.points.filter(p => p.mock_location).length}</strong></div></div>${(dropped || segNote) ? `<p class="dialog-tip">轨迹已平滑显示${dropped ? `（滤除 ${dropped} 个漂移点）` : ''}${segNote}；原始数据与 GPX 导出未改动。</p>` : ''}`;
       }
     } catch { trackInfo = '<div class="empty-detail">轨迹读取失败。</div>'; }
   }
@@ -3462,7 +3473,7 @@ module.exports = { hashPin, verifyPin, safeEqual, signToken, verifyToken, totp, 
 
 #### `bsc-sampling-v1/src/server.js`
 
-SHA-256: `19774a0dc49e01192eb676e7ee2827cc705a7c7ebe4fc31ba1980cafba83347b`
+SHA-256: `50d76eb621c2b7990182b8ce4f7be3c35ba01bfc0aaab3f1df973f6ddfb7374d`
 
 ~~~~javascript
 'use strict';
@@ -3475,6 +3486,7 @@ const { DatabaseSync } = require('node:sqlite');
 const QRCode = require('qrcode');
 const sharp = require('sharp');
 const { initialize, audit } = require('./schema');
+const { smoothTrack } = require('./track');
 const { verifyPin, safeEqual, signToken, verifyToken, verifyTotp, randomToken } = require('./security');
 const { backfillWeather } = require('./weather');
 const rateLimit = require('./ratelimit');
@@ -3588,7 +3600,7 @@ async function adminApi(req, res, url) {
   m = /^\/api\/v1\/admin\/records\/(\d+)\/backfill-weather$/.exec(url.pathname);
   if (m && req.method === 'POST') { const id = Number(m[1]), record = db.prepare('SELECT id,latitude,longitude,captured_at FROM records WHERE id=?').get(id); if (!record) throw error(404, '记录不存在'); const r = await backfillWeather(record); db.prepare('UPDATE records SET server_weather_text=?,server_weather_status=? WHERE id=?').run(r.text, r.status, id); audit(db, 'admin', 'admin', 'backfill_weather', 'record', id, { status: r.status }, ipOf(req)); return output(res, 200, { text: r.text, status: r.status }); }
   m = /^\/api\/v1\/admin\/journeys\/(\d+)\/track$/.exec(url.pathname);
-  if (m && req.method === 'GET') { const journey = db.prepare('SELECT * FROM journeys WHERE id=?').get(Number(m[1])); if (!journey) throw error(404, '行程不存在'); return output(res, 200, { points: db.prepare('SELECT sequence,recorded_at,latitude,longitude,accuracy_m,speed_mps,mock_location FROM track_points WHERE journey_id=? ORDER BY sequence').all(journey.id) }); }
+  if (m && req.method === 'GET') { const journey = db.prepare('SELECT * FROM journeys WHERE id=?').get(Number(m[1])); if (!journey) throw error(404, '行程不存在'); const points = db.prepare('SELECT sequence,recorded_at,latitude,longitude,accuracy_m,speed_mps,mock_location FROM track_points WHERE journey_id=? ORDER BY sequence').all(journey.id); return output(res, 200, { points, display: smoothTrack(points) }); }
   if (url.pathname === '/api/v1/admin/logs' && req.method === 'GET') return output(res, 200, { logs: queryAppLogs(url) });
   m = /^\/api\/v1\/admin\/exports\/(csv|geojson|gpx|photos\.zip|audit\.csv|logs\.csv)$/.exec(url.pathname);
   if (m && req.method === 'GET') {
@@ -4949,6 +4961,70 @@ async function main() {
 }
 
 main().catch(e => { console.error(e); process.exit(1); });
+~~~~
+
+#### `bsc-sampling-v1/test/track.test.js`
+
+SHA-256: `cd751b952493aef8e5c2414186820f314cbde3c3924390bb453a0dcda39d7d7d`
+
+~~~~javascript
+'use strict';
+
+// 轨迹展示平滑单元测试：只影响显示层，原始点不得被改动。
+
+const test = require('node:test');
+const assert = require('node:assert');
+const { smoothTrack } = require('../src/track');
+
+function pt(sequence, seconds, lat, lon) {
+  return { sequence, recorded_at: new Date(Date.UTC(2026, 7, 27, 4, 0, seconds)).toISOString(), latitude: lat, longitude: lon, accuracy_m: 4, speed_mps: 1, mock_location: 0 };
+}
+
+test('时间断点分段：间隔超过45秒断开为多段', () => {
+  const points = [
+    pt(0, 0, 30.0, 94.0), pt(1, 10, 30.0001, 94.0001), pt(2, 20, 30.0002, 94.0002),
+    pt(3, 140, 30.001, 94.001), pt(4, 150, 30.0011, 94.0011)
+  ];
+  const out = smoothTrack(points);
+  assert.equal(out.segments.length, 2, `应分成2段，实际 ${out.segments.length}`);
+  assert.equal(out.dropped, 0);
+});
+
+test('孤立漂移点剔除：前后推算速度都超8m/s的点被滤除', () => {
+  const points = [
+    pt(0, 0, 30.0, 94.0),
+    pt(1, 10, 30.001, 94.001),     // 去程约15m/s（漂移）
+    pt(2, 20, 30.00005, 94.00005), // 回程约15m/s（回正），中间点两侧都超速 → 孤立漂移
+    pt(3, 30, 30.0001, 94.0001)
+  ];
+  const out = smoothTrack(points);
+  assert.equal(out.dropped, 1, `应滤除1个漂移点，实际 ${out.dropped}`);
+  const all = out.segments.flat();
+  assert.equal(all.length, 3, '显示层剩3个点');
+});
+
+test('3点滑动平均平滑中间点', () => {
+  const points = [pt(0, 0, 30.0, 94.0), pt(1, 10, 30.00005, 94.00005), pt(2, 20, 30.0001, 94.0001)];
+  const out = smoothTrack(points);
+  const seg = out.segments[0];
+  assert.equal(out.dropped, 0, '正常步速点不应被滤除');
+  assert.equal(seg.length, 3);
+  assert.ok(Math.abs(seg[1][0] - (30.0 + 30.00005 + 30.0001) / 3) < 1e-9, '中间点应为三点均值');
+});
+
+test('输入数组不被修改', () => {
+  const points = [pt(0, 0, 30.0, 94.0), pt(1, 10, 30.001, 94.001), pt(2, 20, 30.0004, 94.0004)];
+  const copy = JSON.parse(JSON.stringify(points));
+  smoothTrack(points);
+  assert.deepEqual(points, copy);
+});
+
+test('空/单点输入安全', () => {
+  assert.equal(smoothTrack([]).segments.length, 0);
+  const one = smoothTrack([pt(0, 0, 30.0, 94.0)]);
+  assert.equal(one.segments.length, 1);
+  assert.equal(one.segments[0].length, 1);
+});
 ~~~~
 
 #### `bsc-sampling-v1/tools/backup.js`

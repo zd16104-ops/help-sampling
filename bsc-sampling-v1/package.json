@@ -7,7 +7,7 @@
     "start": "node src/server.js",
     "start:legacy": "node server.js",
     "check": "node --check src/server.js && node --check src/schema.js && node --check src/security.js && node --check src/weather.js && node --check src/ratelimit.js && node --check src/labels.js && node --check src/exports.js && node --check public/app.js && node --check test/frontend.e2e.js",
-    "test": "node --test test/security.test.js test/schema.test.js test/api.test.js test/backup.test.js",
+    "test": "node --test test/security.test.js test/schema.test.js test/api.test.js test/backup.test.js test/track.test.js",
     "test:unit": "node --test test/security.test.js test/schema.test.js",
     "test:api": "node --test test/api.test.js",
     "test:e2e": "node test/frontend.e2e.js",

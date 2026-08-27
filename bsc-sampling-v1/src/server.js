@@ -8,6 +8,7 @@ const { DatabaseSync } = require('node:sqlite');
 const QRCode = require('qrcode');
 const sharp = require('sharp');
 const { initialize, audit } = require('./schema');
+const { smoothTrack } = require('./track');
 const { verifyPin, safeEqual, signToken, verifyToken, verifyTotp, randomToken } = require('./security');
 const { backfillWeather } = require('./weather');
 const rateLimit = require('./ratelimit');
@@ -121,7 +122,7 @@ async function adminApi(req, res, url) {
   m = /^\/api\/v1\/admin\/records\/(\d+)\/backfill-weather$/.exec(url.pathname);
   if (m && req.method === 'POST') { const id = Number(m[1]), record = db.prepare('SELECT id,latitude,longitude,captured_at FROM records WHERE id=?').get(id); if (!record) throw error(404, '记录不存在'); const r = await backfillWeather(record); db.prepare('UPDATE records SET server_weather_text=?,server_weather_status=? WHERE id=?').run(r.text, r.status, id); audit(db, 'admin', 'admin', 'backfill_weather', 'record', id, { status: r.status }, ipOf(req)); return output(res, 200, { text: r.text, status: r.status }); }
   m = /^\/api\/v1\/admin\/journeys\/(\d+)\/track$/.exec(url.pathname);
-  if (m && req.method === 'GET') { const journey = db.prepare('SELECT * FROM journeys WHERE id=?').get(Number(m[1])); if (!journey) throw error(404, '行程不存在'); return output(res, 200, { points: db.prepare('SELECT sequence,recorded_at,latitude,longitude,accuracy_m,speed_mps,mock_location FROM track_points WHERE journey_id=? ORDER BY sequence').all(journey.id) }); }
+  if (m && req.method === 'GET') { const journey = db.prepare('SELECT * FROM journeys WHERE id=?').get(Number(m[1])); if (!journey) throw error(404, '行程不存在'); const points = db.prepare('SELECT sequence,recorded_at,latitude,longitude,accuracy_m,speed_mps,mock_location FROM track_points WHERE journey_id=? ORDER BY sequence').all(journey.id); return output(res, 200, { points, display: smoothTrack(points) }); }
   if (url.pathname === '/api/v1/admin/logs' && req.method === 'GET') return output(res, 200, { logs: queryAppLogs(url) });
   m = /^\/api\/v1\/admin\/exports\/(csv|geojson|gpx|photos\.zip|audit\.csv|logs\.csv)$/.exec(url.pathname);
   if (m && req.method === 'GET') {
