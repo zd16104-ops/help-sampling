@@ -1,7 +1,7 @@
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-28T16:23:40.985Z  
-> 文件数：77  
+> 生成时间：2026-08-28T17:12:20.971Z  
+> 文件数：79  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
 ### L.1 收录范围
@@ -14,7 +14,7 @@
 
 #### `bsc-android-native/app/build.gradle`
 
-SHA-256: `278b9d112d6cbeeb2f1ed1c58a14170c535eb769b704ba9be072001b8fac6abd`
+SHA-256: `0af8840278e723a50f89af4c5ab6858688811c7cafadbdc0563c4438cad513a4`
 
 ~~~~groovy
 plugins { id 'com.android.application' }
@@ -27,8 +27,8 @@ android {
         applicationId 'online.gpsgps.bscsampling'
         minSdk 29
         targetSdk 35
-        versionCode 104
-        versionName '1.2.3'
+        versionCode 105
+        versionName '1.2.4'
         buildConfigField 'String', 'DEFAULT_SERVER', '"https://bsc.gpsgps.online"'
     }
     buildFeatures { buildConfig true }
@@ -115,7 +115,7 @@ SHA-256: `4b52735353325fbd5c8b3ef1c27a604593aded660b69994e5ec12541df136506`
 
 #### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/Api.java`
 
-SHA-256: `7d0f76f54eafc2752a051ec1f34135635961fb56701f35fce0af4dc3a5bafa1c`
+SHA-256: `a8a1a8e3abb851348ea0aed239c123e0c3c43c2cecc2b04241e146f404498c8b`
 
 ~~~~java
 package online.gpsgps.bscsampling;
@@ -135,7 +135,7 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 final class Api {
-  private final Context c; private final Prefs p; private final OkHttpClient h=new OkHttpClient.Builder().connectTimeout(12,TimeUnit.SECONDS).readTimeout(35,TimeUnit.SECONDS).writeTimeout(60,TimeUnit.SECONDS).build();
+  private final Context c; private final Prefs p; private final OkHttpClient h=new OkHttpClient.Builder().dns(new SyncDns()).connectTimeout(12,TimeUnit.SECONDS).readTimeout(35,TimeUnit.SECONDS).writeTimeout(60,TimeUnit.SECONDS).build();
   Api(Context c){this.c=c.getApplicationContext();p=new Prefs(c);}
   JSONObject activate(String server,String user,String code)throws Exception{JSONObject b=new JSONObject().put("username",user).put("activationToken",code).put("deviceUuid",Util.uuid(c)).put("deviceName",android.os.Build.MANUFACTURER+" "+android.os.Build.MODEL).put("androidVersion",android.os.Build.VERSION.RELEASE).put("appVersion",BuildConfig.VERSION_NAME);return call(Prefs.normalize(server),"POST","/api/v1/mobile/activate",b,"");}
   JSONObject login()throws Exception{return call(p.server(),"POST","/api/v1/mobile/login",new JSONObject().put("username",p.user()).put("deviceUuid",Util.uuid(c)).put("appVersion",BuildConfig.VERSION_NAME),"");}
@@ -145,7 +145,7 @@ final class Api {
   String weather(double lat,double lon,String at)throws Exception{String day=at.substring(0,10);String u="https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon+"&hourly=temperature_2m,precipitation,weather_code&start_date="+day+"&end_date="+day+"&timezone=auto";try(Response r=h.newCall(new Request.Builder().url(u).build()).execute()){if(!r.isSuccessful()||r.body()==null)return"待补充";JSONObject j=new JSONObject(r.body().string()).optJSONObject("hourly");if(j==null)return"待补充";JSONArray times=j.optJSONArray("time"),temp=j.optJSONArray("temperature_2m"),rain=j.optJSONArray("precipitation"),codes=j.optJSONArray("weather_code");if(times==null||temp==null)return"待补充";long target;try{target=OffsetDateTime.parse(at).toInstant().toEpochMilli();}catch(Exception e){target=System.currentTimeMillis();}int n=0;long best=Long.MAX_VALUE;for(int i=0;i<times.length();i++){try{long x=LocalDateTime.parse(times.optString(i)).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();if(Math.abs(x-target)<best){best=Math.abs(x-target);n=i;}}catch(Exception ignored){}}double t=temp.optDouble(n,Double.NaN);if(Double.isNaN(t))return"待补充";return weatherName(codes==null?-1:codes.optInt(n))+" "+t+"℃，降水 "+(rain==null?0:rain.optDouble(n))+"mm";}}
   private String weatherName(int x){if(x==0)return"晴";if(x<=3&&x>0)return"多云";if(x==45||x==48)return"雾";if(x>=51&&x<=67)return"雨";if(x>=71&&x<=77)return"雪";if(x>=80&&x<=82)return"阵雨";if(x>=95)return"雷暴";return"未知";}
   private JSONObject auth(String m,String path,JSONObject b)throws Exception{return call(p.server(),m,path,b,p.token());}
-  private JSONObject call(String server,String method,String path,JSONObject body,String token)throws Exception{Request.Builder q=new Request.Builder().url(server+path).header("Accept","application/json");if(!token.isEmpty())q.header("Authorization","Bearer "+token);if(method.equals("GET"))q.get();else q.method(method,RequestBody.create(body==null?"{}":body.toString(),MediaType.get("application/json; charset=utf-8")));try(Response r=h.newCall(q.build()).execute()){String text=r.body()==null?"":r.body().string();JSONObject j;try{j=text.isEmpty()?new JSONObject():new JSONObject(text);}catch(Exception e){j=new JSONObject().put("message",text);}if(!r.isSuccessful())throw new ApiError(r.code(),j.optString("message","服务器错误"));return j;}catch(IOException e){throw new IOException("无法连接服务器："+e.getMessage(),e);}}
+  private JSONObject call(String server,String method,String path,JSONObject body,String token)throws Exception{Request.Builder q=new Request.Builder().url(server+path).header("Accept","application/json");if(!token.isEmpty())q.header("Authorization","Bearer "+token);if(method.equals("GET"))q.get();else q.method(method,RequestBody.create(body==null?"{}":body.toString(),MediaType.get("application/json; charset=utf-8")));try(Response r=h.newCall(q.build()).execute()){String text=r.body()==null?"":r.body().string();JSONObject j;try{j=text.isEmpty()?new JSONObject():new JSONObject(text);}catch(Exception e){j=new JSONObject().put("message",text);}if(!r.isSuccessful())throw new ApiError(r.code(),j.optString("message","服务器错误"));return j;}catch(ApiError e){throw e;}catch(IOException e){try{new Store(c).log("warning","HTTP_FAIL "+path+" "+e.getClass().getSimpleName()+":"+e.getMessage());}catch(Exception ignored){}throw new IOException("无法连接服务器："+e.getMessage(),e);}}
   static final class ApiError extends IOException{final int status;ApiError(int s,String m){super(m);status=s;}}
 }
 ~~~~
@@ -380,6 +380,73 @@ final class Store extends SQLiteOpenHelper {
   // 导出诊断日志为 CSV 文件（带 UTF-8 BOM，Excel 可直接打开），返回缓存目录中的文件。
   java.io.File logsCsv(){try{java.io.File f=new java.io.File(ctx.getCacheDir(),"bsc-logs-"+System.currentTimeMillis()+".csv");try(java.io.Writer w=new java.io.OutputStreamWriter(new java.io.FileOutputStream(f),java.nio.charset.StandardCharsets.UTF_8)){w.write('\uFEFF');w.write("时间,级别,消息,结构化详情\r\n");try(Cursor c=getReadableDatabase().rawQuery("SELECT at,level,message,details FROM logs ORDER BY id DESC LIMIT 2000",null)){while(c.moveToNext()){w.write(csv(c.getString(0)));w.write(',');w.write(csv(c.getString(1)));w.write(',');w.write(csv(c.getString(2)));w.write(',');w.write(csv(c.getString(3)));w.write("\r\n");}}}return f;}catch(Exception e){return null;}}
   private static String csv(String s){String v=String.valueOf(s==null?"":s);return "\""+v.replace("\"","\"\"")+"\"";}
+}
+~~~~
+
+#### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/SyncDns.java`
+
+SHA-256: `f796ba9222ac9361238c6cd88406afb3af439faf048f0d702d526e495909dd7e`
+
+~~~~java
+package online.gpsgps.bscsampling;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.concurrent.TimeUnit;
+import okhttp3.Dns;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
+
+// 移动网络下运营商 DNS 经常解析不了 bsc.gpsgps.online（日志里出现
+// "Unable to resolve host"），导致手机在 4G/5G 下无法同步。
+// 这里先走阿里公共 DNS over HTTPS（223.5.5.5，IP 直连不依赖运营商 DNS），
+// 失败再回退系统 DNS；两种都失败才报域名无法解析。
+final class SyncDns implements Dns {
+  private static final String DOH = "https://223.5.5.5/resolve?name=%s&type=A";
+  private static final OkHttpClient dohClient = new OkHttpClient.Builder()
+      .connectTimeout(8, TimeUnit.SECONDS).readTimeout(8, TimeUnit.SECONDS).build();
+
+  @Override public List<InetAddress> lookup(String host) throws UnknownHostException {
+    try {
+      Request r = new Request.Builder().url(String.format(Locale.US, DOH, host)).header("Accept", "application/dns-json").build();
+      try (Response resp = dohClient.newCall(r).execute()) {
+        if (resp.isSuccessful() && resp.body() != null) {
+          List<String> ips = parseDohAnswers(resp.body().string());
+          if (!ips.isEmpty()) {
+            List<InetAddress> out = new ArrayList<>();
+            for (String ip : ips) out.add(InetAddress.getByName(ip));
+            return out;
+          }
+        }
+      }
+    } catch (Exception ignored) { /* 回退系统 DNS */ }
+    return Dns.SYSTEM.lookup(host);
+  }
+
+  // 从 DNS-JSON 应答里提取 A 记录（type=1）的 IPv4 地址。
+  // 纯字符串解析、不依赖 org.json，Android 运行时与 JVM 单元测试均可直接用。
+  static List<String> parseDohAnswers(String json) {
+    List<String> out = new ArrayList<>();
+    if (json == null) return out;
+    int from = 0;
+    while (true) {
+      int t = json.indexOf("\"type\":1", from);
+      if (t < 0) break;
+      int d = json.indexOf("\"data\":\"", t);
+      if (d < 0) break;
+      int s = d + 8;
+      int e = json.indexOf('"', s);
+      if (e < 0) break;
+      String ip = json.substring(s, e);
+      if (ip.matches("\\d{1,3}(\\.\\d{1,3}){3}")) out.add(ip);
+      from = e + 1;
+    }
+    return out;
+  }
 }
 ~~~~
 
@@ -746,6 +813,38 @@ public class QrDataTest {
 
   @Test(expected = IllegalArgumentException.class)
   public void rejectsBottleShapeWithWrongPartCount() { QrData.parse("BSC-SAMPLE|code|token|extra"); }
+}
+~~~~
+
+#### `bsc-android-native/app/src/test/java/online/gpsgps/bscsampling/SyncDnsTest.java`
+
+SHA-256: `64f393b6b05ee783c919843927aef819e81ec7c3bb2bfc40a38aa0b6099ae4b8`
+
+~~~~java
+package online.gpsgps.bscsampling;
+
+import org.junit.Test;
+import java.util.List;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+
+public final class SyncDnsTest {
+  @Test public void parsesARecordsFromDohJson() {
+    String json = "{\"Status\":0,\"Answer\":["
+      + "{\"name\":\"bsc.gpsgps.online.\",\"type\":1,\"TTL\":600,\"data\":\"117.72.52.14\"},"
+      + "{\"name\":\"bsc.gpsgps.online.\",\"type\":28,\"TTL\":600,\"data\":\"2408:0:0::1\"},"
+      + "{\"name\":\"bsc.gpsgps.online.\",\"type\":1,\"TTL\":600,\"data\":\"117.72.52.15\"}"
+      + "]}";
+    List<String> ips = SyncDns.parseDohAnswers(json);
+    assertEquals(2, ips.size());
+    assertTrue(ips.contains("117.72.52.14"));
+    assertTrue(ips.contains("117.72.52.15"));
+  }
+
+  @Test public void emptyAnswerReturnsEmpty() {
+    assertTrue(SyncDns.parseDohAnswers("{\"Status\":3}").isEmpty());
+    assertTrue(SyncDns.parseDohAnswers("not json").isEmpty());
+  }
 }
 ~~~~
 
@@ -3542,7 +3641,7 @@ module.exports = { check, recordFailure, recordSuccess, prune };
 
 #### `bsc-sampling-v1/src/schema.js`
 
-SHA-256: `305e55c15703ba396cc548855d2e52c73872c680add5f4b5986922e2f2ba6cda`
+SHA-256: `596b9ec43d5806b592ceda2485c461250dae8e6638a0d5275213f32bdb2341f3`
 
 ~~~~javascript
 'use strict';
@@ -3762,7 +3861,7 @@ function migrate(db) {
   db.prepare("UPDATE sites SET reference_image='' WHERE reference_image='/sample-reference.svg'").run();
   // 旧库补建标签打印记录表；并登记当前 APP 版本供手机端检查更新。
   db.exec('CREATE TABLE IF NOT EXISTS label_prints (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, sample_code TEXT NOT NULL, printed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
-  db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(104, '1.2.3', '同步完成后自动刷新任务列表；空列表自动触发同步并提示');
+  db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(105, '1.2.4', '移动网络 DNS 解析失败时自动走阿里 DoH（223.5.5.5）回退；请求失败详细日志；修复 ApiError 状态码被吞');
 }
 
 function seed(db) {
@@ -4221,7 +4320,7 @@ module.exports = { backfillWeather };
 
 #### `bsc-sampling-v1/test/api.test.js`
 
-SHA-256: `915ad32b30a77020cea70d9cff8ef92c56a72da47ce9877c38c23ec422ce710a`
+SHA-256: `a1d8d1596fcd22e5bd0540ad3f24347acb1a00034462f36fe5ff903d70a67fde`
 
 ~~~~javascript
 'use strict';
@@ -4846,8 +4945,8 @@ test('activation code messages distinguish used vs invalid', async () => {
 test('app-version endpoint returns latest version', async () => {
   const res = await call('GET', '/api/v1/mobile/app-version', null, null);
   assert.equal(res.status, 200);
-  assert.ok(res.json.versionCode >= 104, `versionCode=${res.json.versionCode}`);
-  assert.equal(res.json.versionName, '1.2.3');
+  assert.ok(res.json.versionCode >= 105, `versionCode=${res.json.versionCode}`);
+  assert.equal(res.json.versionName, '1.2.4');
 });
 
 test('captured time in the future adds risk flag', async () => {
