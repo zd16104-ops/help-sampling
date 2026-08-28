@@ -19,6 +19,7 @@ function renderLabelPage(tasks) {
       <div class="label">
         <img class="qr" alt="二维码" src="${task.qr_data_url}">
         <div class="text">
+          ${task.co_sited > 1 ? `<div class="multi">⚠ 此处共 ${task.co_sited} 个采样点</div>` : ''}
           <div class="code">${escapeHtml(task.sample_code)}</div>
           <div class="type">${escapeHtml(TYPE_NAMES[task.sample_type] || task.sample_type)}</div>
           <div class="meta">${escapeHtml(task.site_code)} · ${escapeHtml(task.planned_date)}</div>
@@ -42,6 +43,7 @@ function renderLabelPage(tasks) {
   .text { min-width: 0; }
   .code { font-size: 3.2mm; font-weight: 900; letter-spacing: .1mm; word-break: break-all; }
   .type { font-size: 4.6mm; font-weight: 900; color: #0b5b45; margin-top: .4mm; word-break: break-all; }
+  .multi { font-size: 3mm; font-weight: 900; color: #a02020; background: #ffe3e0; border: 0.3mm solid #c0392b; border-radius: 1mm; padding: .6mm 1mm; margin-bottom: .5mm; }
   .meta { font-size: 2.3mm; color: #333; margin-top: .5mm; word-break: break-all; }
   @media print { .page { padding: 0; } }
 </style>

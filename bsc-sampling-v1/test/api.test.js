@@ -706,6 +706,27 @@ test('batch weather backfill endpoint', async () => {
 test('security headers present', async () => {
   const res = await fetch(`${BASE}/`);
   assert.match(res.headers.get('content-security-policy') || '', /default-src/);
+  assert.match(res.headers.get('content-security-policy') || '', /blob:/, 'blob: 必须允许（参考图预览）');
   assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
   assert.equal(res.headers.get('x-frame-options'), 'DENY');
+});
+
+test('duplicate site code returns 422 (not 500)', async () => {
+  const sites = await call('GET', '/api/v1/admin/sites?projectId=1', null, adminToken);
+  const s = sites.json.sites[0];
+  const dup = await call('POST', '/api/v1/admin/sites', {
+    projectId: 1, code: s.code, name: '重复点', latitude: 30.1, longitude: 94.1, sampleTypes: ['R'], enabled: true
+  }, adminToken);
+  assert.equal(dup.status, 422, `应为422而不是500: ${JSON.stringify(dup.json)}`);
+  assert.match(dup.json.message, /已存在/);
+});
+
+test('task creation without sampleTypes uses the site own types', async () => {
+  const sites = await call('GET', '/api/v1/admin/sites?projectId=1', null, adminToken);
+  const multi = sites.json.sites.find(x => (x.sample_types || []).length >= 2);
+  const res = await call('POST', '/api/v1/admin/tasks', {
+    siteId: multi.id, villagerId, plannedDate: tomorrow
+  }, adminToken);
+  assert.equal(res.status, 201, JSON.stringify(res.json));
+  assert.ok(res.json.codes.length >= 2, `按点位类型生成任务: ${JSON.stringify(res.json.codes)}`);
 });

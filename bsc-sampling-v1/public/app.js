@@ -458,6 +458,18 @@ async function renderMap(tasks) {
 }
 
 $('#fitMap').addEventListener('click', () => renderMap(state.siteMode ? state.sites : currentTasks()));
+// 左侧栏桌面端展开/收起（记忆状态）
+$('#sideToggle').addEventListener('click', () => {
+  const app = document.getElementById('app');
+  const collapsed = app.classList.toggle('side-collapsed');
+  localStorage.setItem('bscSideCollapsed', collapsed ? '1' : '0');
+  $('#sideToggle').textContent = collapsed ? '◨ 侧栏' : '◧ 侧栏';
+  setTimeout(() => { if (state.map) state.map.invalidateSize(); }, 60);
+});
+if (localStorage.getItem('bscSideCollapsed') === '1') {
+  document.getElementById('app').classList.add('side-collapsed');
+  $('#sideToggle').textContent = '◨ 侧栏';
+}
 // 表格视图：切换、筛选、批量审核通过、批量补齐天气
 $('#tableViewButton').addEventListener('click', () => { state.tableMode = !state.tableMode; render(); });
 $('#tableVillager').addEventListener('change', () => renderTable(currentTasks()));
@@ -903,7 +915,6 @@ $('#newTaskButton').addEventListener('click', async () => {
   if (all) all.addEventListener('change', () => {
     $('#taskSiteList').querySelectorAll('input[type=checkbox]').forEach(input => { if (input !== all) input.checked = all.checked; });
   });
-  typeCheckboxes($('#taskTypes'), ['R']);
   $('#taskDialog').showModal();
 });
 
@@ -911,16 +922,14 @@ $('#createTask').addEventListener('click', async () => {
   const siteIds = [...$('#taskSiteList').querySelectorAll('input[type=checkbox]:checked')]
     .filter(input => input.id !== 'taskSiteAll')
     .map(input => Number(input.value));
-  const types = checkedTypes($('#taskTypes'));
   if (!siteIds.length) return alert('请选择至少一个采样点');
-  if (!types.length) return alert('请选择至少一种样品类型');
   if (!$('#taskVillager').value) return alert('请选择采样人员');
   try {
     const created = [];
     for (const siteId of siteIds) {
       const res = await post('/api/v1/admin/tasks', {
         siteId, villagerId: Number($('#taskVillager').value),
-        plannedDate: $('#plannedDate').value, sampleTypes: types
+        plannedDate: $('#plannedDate').value
       });
       created.push(...(res.codes || []));
     }

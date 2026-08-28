@@ -15,12 +15,15 @@
     <uses-feature android:name="android.hardware.location.gps" android:required="true"/>
     <application android:name=".SamplingApp" android:theme="@style/Theme.Bsc" android:label="巴松措采样"
         android:icon="@drawable/ic_launcher" android:allowBackup="false" android:usesCleartextTraffic="false">
-        <activity android:name=".PhotoActivity" android:screenOrientation="landscape" android:exported="false"/>
+        <activity android:name=".PhotoActivity" android:screenOrientation="sensor" android:exported="false"/>
         <activity android:name=".ScanActivity" android:screenOrientation="portrait" android:exported="false"/>
         <activity android:name=".TaskActivity" android:exported="false"/>
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
         </activity>
+        <provider android:name="androidx.core.content.FileProvider" android:authorities="online.gpsgps.bscsampling.files" android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths"/>
+        </provider>
         <service android:name=".TrackingService" android:foregroundServiceType="location" android:exported="false"/>
         <receiver android:name=".BootReceiver" android:exported="false"><intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/></intent-filter></receiver>
     </application>

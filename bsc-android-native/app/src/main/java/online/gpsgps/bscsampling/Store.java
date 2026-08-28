@@ -13,7 +13,8 @@ import java.util.List;
 import java.util.UUID;
 
 final class Store extends SQLiteOpenHelper {
-  Store(Context c){super(c,"bsc-sampling-v1.db",null,1);}
+  private final Context ctx;
+  Store(Context c){super(c,"bsc-sampling-v1.db",null,1);ctx=c.getApplicationContext();}
   public void onCreate(SQLiteDatabase d){
     d.execSQL("CREATE TABLE tasks(id INTEGER PRIMARY KEY,json TEXT NOT NULL,local_status TEXT,updated_at TEXT NOT NULL)");
     d.execSQL("CREATE TABLE journeys(local_id TEXT PRIMARY KEY,task_id INTEGER,site_id INTEGER,server_id INTEGER,status TEXT,server_done INTEGER DEFAULT 0,offline_start INTEGER DEFAULT 0,start_lat REAL,start_lon REAL,start_acc REAL,started_at TEXT,ended_at TEXT)");
@@ -57,4 +58,7 @@ final class Store extends SQLiteOpenHelper {
   JSONArray logs(){JSONArray a=new JSONArray();try(Cursor c=getReadableDatabase().rawQuery("SELECT id,level,message,details,at FROM logs WHERE uploaded=0 ORDER BY id LIMIT 100",null)){while(c.moveToNext()){JSONObject d=new JSONObject();try{d=new JSONObject(c.getString(3));}catch(Exception ignored){}a.put(new JSONObject().put("localId",c.getLong(0)).put("level",c.getString(1)).put("message",c.getString(2)).put("diagnostics",d).put("createdAt",c.getString(4)).put("appVersion",BuildConfig.VERSION_NAME));}}catch(Exception ignored){}return a;}
   void logsDone(JSONArray a){long max=0;for(int i=0;i<a.length();i++)max=Math.max(max,a.optJSONObject(i).optLong("localId"));ContentValues v=new ContentValues();v.put("uploaded",1);getWritableDatabase().update("logs",v,"id<=?",new String[]{""+max});}
   String diagnostics(){StringBuilder s=new StringBuilder("巴松措采样诊断日志\nAPP ").append(BuildConfig.VERSION_NAME).append("\n").append(Util.now()).append("\n---\n");try(Cursor c=getReadableDatabase().rawQuery("SELECT at,level,message,details FROM logs ORDER BY id DESC LIMIT 300",null)){while(c.moveToNext())s.append(c.getString(0)).append(" [").append(c.getString(1)).append("] ").append(c.getString(2)).append("  ").append(c.getString(3)).append('\n');}return s.toString();}
+  // 导出诊断日志为 CSV 文件（带 UTF-8 BOM，Excel 可直接打开），返回缓存目录中的文件。
+  java.io.File logsCsv(){try{java.io.File f=new java.io.File(ctx.getCacheDir(),"bsc-logs-"+System.currentTimeMillis()+".csv");try(java.io.Writer w=new java.io.OutputStreamWriter(new java.io.FileOutputStream(f),java.nio.charset.StandardCharsets.UTF_8)){w.write('\uFEFF');w.write("时间,级别,消息,结构化详情\r\n");try(Cursor c=getReadableDatabase().rawQuery("SELECT at,level,message,details FROM logs ORDER BY id DESC LIMIT 2000",null)){while(c.moveToNext()){w.write(csv(c.getString(0)));w.write(',');w.write(csv(c.getString(1)));w.write(',');w.write(csv(c.getString(2)));w.write(',');w.write(csv(c.getString(3)));w.write("\r\n");}}}return f;}catch(Exception e){return null;}}
+  private static String csv(String s){String v=String.valueOf(s==null?"":s);return "\""+v.replace("\"","\"\"")+"\"";}
 }

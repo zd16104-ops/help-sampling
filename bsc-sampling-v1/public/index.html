@@ -46,6 +46,7 @@
       <header class="topbar">
         <div class="topbar-title"><button id="menuButton" class="menu-button" title="菜单">☰</button><div><p id="crumb" class="crumb">项目</p><h2 id="pageTitle">待采样任务</h2></div></div>
         <div class="top-actions">
+          <button id="sideToggle" class="secondary" title="展开/收起左侧栏">◧ 侧栏</button>
           <button id="tableViewButton" class="secondary">▦ 表格</button>
           <span class="top-action-wrap"><button id="exportCsv" class="secondary">导出CSV</button><i class="info-badge">!</i><span class="info-tip">导出当前项目的全部采样记录为 CSV 表格（编号、历史序号、WGS84 坐标、距离、精度、风险标志中文解释、审核意见、照片 SHA-256），可用 Excel 打开。</span></span>
           <span class="top-action-wrap"><button id="exportGeo" class="secondary">GeoJSON</button><i class="info-badge">!</i><span class="info-tip">导出采样记录为 GeoJSON（WGS84 点要素），可在 QGIS、ArcGIS 等地图软件中打开。</span></span>
@@ -176,9 +177,7 @@
         <label class="wide">选择固定采样点（可多选，每个点位按其样品类型生成任务）
           <div id="taskSiteList" class="site-pick-list"><label class="site-pick select-all"><input type="checkbox" id="taskSiteAll"> <strong>全选 / 全不选</strong></label></div>
         </label>
-        <label class="wide">本次样品类型（对每个选中点位生效）
-          <div class="type-checkboxes" id="taskTypes"></div>
-        </label>
+        <label class="wide">样品类型按点位自身设置生效（点位列表括号内为各点位类型；要改某点类型请到"点位管理"编辑该点）</label>
       </div>
       <section id="labelResult" class="label-result hidden">
         <div id="labelCodes" class="label-codes"></div>

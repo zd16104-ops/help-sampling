@@ -215,7 +215,7 @@ function migrate(db) {
   db.prepare("UPDATE sites SET reference_image='' WHERE reference_image='/sample-reference.svg'").run();
   // 旧库补建标签打印记录表；并登记当前 APP 版本供手机端检查更新。
   db.exec('CREATE TABLE IF NOT EXISTS label_prints (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, sample_code TEXT NOT NULL, printed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
-  db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(101, '1.1.0', '崩溃日志、照片压缩+EXIF、任务筛选、参考图放大、同步进度、更新提示');
+  db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(102, '1.2.0', '两态任务、日期过滤地图、拍照对焦/自动保存/横竖屏、免开始直接扫码、离线行程补传修复、日志CSV分享');
 }
 
 function seed(db) {
