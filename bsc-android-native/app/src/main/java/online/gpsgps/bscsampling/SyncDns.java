@@ -11,10 +11,9 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 
-// 移动网络下运营商 DNS 经常解析不了 bsc.gpsgps.online（日志里出现
-// "Unable to resolve host"），导致手机在 4G/5G 下无法同步。
-// 这里先走阿里公共 DNS over HTTPS（223.5.5.5，IP 直连不依赖运营商 DNS），
-// 失败再回退系统 DNS；两种都失败才报域名无法解析。
+// 保持原有解析方式（系统 DNS）优先，与旧版行为完全一致；
+// 仅当系统 DNS 解析失败（移动网络下运营商 DNS 抽风）时才用阿里
+// 公共 DNS over HTTPS（223.5.5.5，IP 直连）兜底，避免同步彻底失败。
 final class SyncDns implements Dns {
   private static final String DOH = "https://223.5.5.5/resolve?name=%s&type=A";
   private static final OkHttpClient dohClient = new OkHttpClient.Builder()
@@ -22,19 +21,23 @@ final class SyncDns implements Dns {
 
   @Override public List<InetAddress> lookup(String host) throws UnknownHostException {
     try {
-      Request r = new Request.Builder().url(String.format(Locale.US, DOH, host)).header("Accept", "application/dns-json").build();
-      try (Response resp = dohClient.newCall(r).execute()) {
-        if (resp.isSuccessful() && resp.body() != null) {
-          List<String> ips = parseDohAnswers(resp.body().string());
-          if (!ips.isEmpty()) {
-            List<InetAddress> out = new ArrayList<>();
-            for (String ip : ips) out.add(InetAddress.getByName(ip));
-            return out;
+      return Dns.SYSTEM.lookup(host);
+    } catch (UnknownHostException systemFail) {
+      try {
+        Request r = new Request.Builder().url(String.format(Locale.US, DOH, host)).header("Accept", "application/dns-json").build();
+        try (Response resp = dohClient.newCall(r).execute()) {
+          if (resp.isSuccessful() && resp.body() != null) {
+            List<String> ips = parseDohAnswers(resp.body().string());
+            if (!ips.isEmpty()) {
+              List<InetAddress> out = new ArrayList<>();
+              for (String ip : ips) out.add(InetAddress.getByName(ip));
+              return out;
+            }
           }
         }
-      }
-    } catch (Exception ignored) { /* 回退系统 DNS */ }
-    return Dns.SYSTEM.lookup(host);
+      } catch (Exception ignored) { /* 回退失败，抛出原始解析错误 */ }
+      throw systemFail;
+    }
   }
 
   // 从 DNS-JSON 应答里提取 A 记录（type=1）的 IPv4 地址。
