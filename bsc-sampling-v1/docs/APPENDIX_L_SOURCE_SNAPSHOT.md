@@ -1,6 +1,6 @@
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-28T14:49:12.121Z  
+> 生成时间：2026-08-28T16:15:18.223Z  
 > 文件数：77  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
@@ -14,7 +14,7 @@
 
 #### `bsc-android-native/app/build.gradle`
 
-SHA-256: `4a278561bc6b6cb011aff92043bb25b04208d2cd184f47eb4206f5c444b1292f`
+SHA-256: `ecfa92eacc1c01234d7ce9c8dea403e4e275fa23bf9cbb392b9cb7e012bd93c3`
 
 ~~~~groovy
 plugins { id 'com.android.application' }
@@ -27,8 +27,8 @@ android {
         applicationId 'online.gpsgps.bscsampling'
         minSdk 29
         targetSdk 35
-        versionCode 102
-        versionName '1.2.0'
+        versionCode 103
+        versionName '1.2.2'
         buildConfigField 'String', 'DEFAULT_SERVER', '"https://bsc.gpsgps.online"'
     }
     buildFeatures { buildConfig true }
@@ -160,7 +160,7 @@ package online.gpsgps.bscsampling;import android.content.*;public final class Bo
 
 #### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/MainActivity.java`
 
-SHA-256: `2c63742ec1a303b027bb39de775a756fd48d7506be23bf37623afad7b36d06e1`
+SHA-256: `5b42a4e08775fe349639737a94b12c7b4c418c0f3b34a604dcd3a36043b1f488`
 
 ~~~~java
 package online.gpsgps.bscsampling;
@@ -191,7 +191,7 @@ public final class MainActivity extends AppCompatActivity implements LocationLis
  private void showTasks(){if(!unlocked)return;destroyMap();currentTab=1;title.setText("我的任务");content.removeAllViews();View v=getLayoutInflater().inflate(R.layout.view_list,content,false);content.addView(v);List<Task> all=new ArrayList<>(db.tasks());List<Task> a=new ArrayList<>();for(Task t:all){if(t.canceled())continue;boolean sub=t.submitted();if(taskFilter==1&&sub)continue;if(taskFilter==2&&!sub)continue;a.add(t);}
   // 筛选条：全部/待采样/已采样（按需求只保留两种状态，已取消不再显示）
   LinearLayout chips=new LinearLayout(this);chips.setOrientation(LinearLayout.HORIZONTAL);chips.setPadding(0,10,0,0);String[] names={"全部","待采样","已采样"};for(int i=0;i<3;i++){final int fi=i;MaterialButton b=new MaterialButton(this);b.setText(names[i]);b.setMinWidth(0);b.setPadding(24,0,24,0);b.setTextSize(14);b.setBackgroundColor(taskFilter==fi?0xFF16A27A:0xFFE3EDEB);b.setTextColor(taskFilter==fi?0xFFFFFFFF:0xFF17343A);b.setOnClickListener(x->{taskFilter=fi;showTasks();});chips.addView(b);}((LinearLayout)v).addView(chips,1);
-  java.util.Map<String,List<Task>> groups=new java.util.TreeMap<>();for(Task t:a)groups.computeIfAbsent(t.j.optString("planned_date","未定日期"),k->new ArrayList<>()).add(t);java.util.Comparator<Task> byDist=(x,y)->Double.compare(here==null?x.id:Util.distance(here.getLatitude(),here.getLongitude(),x.lat(),x.lon()),here==null?y.id:Util.distance(here.getLatitude(),here.getLongitude(),y.lat(),y.lon()));List<String> dates=new ArrayList<>(groups.keySet());Collections.sort(dates);List<List<Task>> data=new ArrayList<>();for(String d:dates){List<Task> l=groups.get(d);l.sort(byDist);data.add(l);}((TextView)v.findViewById(R.id.listHint)).setText(a.isEmpty()?("暂无任务。请确认：①管理员下发任务时选择的采样员是本账号（"+prefs.user()+"）；②联网后点右上角同步。"):("按日期归档 · 共"+a.size()+"个任务 · 点击日期展开/收缩；地图只显示最后点击的日期"));if(a.isEmpty()&&Util.online(this))sync();ExpandableListView list=v.findViewById(R.id.list);list.setAdapter(new DateAdapter(dates,data));list.setOnGroupClickListener((p,x,g,id)->{mapDateFilter=dates.get(g);return false;});list.setOnChildClickListener((p,x,g,c,id)->{startActivity(new Intent(this,TaskActivity.class).putExtra("task",data.get(g).get(c).id));return true;});}
+  java.util.Map<String,List<Task>> groups=new java.util.TreeMap<>();for(Task t:a)groups.computeIfAbsent(t.j.optString("planned_date","未定日期"),k->new ArrayList<>()).add(t);java.util.Comparator<Task> byDist=(x,y)->Double.compare(here==null?x.id:Util.distance(here.getLatitude(),here.getLongitude(),x.lat(),x.lon()),here==null?y.id:Util.distance(here.getLatitude(),here.getLongitude(),y.lat(),y.lon()));List<String> dates=new ArrayList<>(groups.keySet());Collections.sort(dates,Comparator.reverseOrder());List<List<Task>> data=new ArrayList<>();for(String d:dates){List<Task> l=groups.get(d);l.sort(byDist);data.add(l);}((TextView)v.findViewById(R.id.listHint)).setText(a.isEmpty()?("暂无任务。请确认：①管理员下发任务时选择的采样员是本账号（"+prefs.user()+"）；②联网后点右上角同步。"):("按日期归档 · 共"+a.size()+"个任务（默认展开，最新日期在前）"));if(a.isEmpty()&&Util.online(this))sync();ExpandableListView list=v.findViewById(R.id.list);list.setAdapter(new DateAdapter(dates,data));for(int i=0;i<dates.size();i++)list.expandGroup(i);list.setOnGroupClickListener((p,x,g,id)->{mapDateFilter=dates.get(g);return false;});list.setOnChildClickListener((p,x,g,c,id)->{startActivity(new Intent(this,TaskActivity.class).putExtra("task",data.get(g).get(c).id));return true;});}
  private void showUpload(){if(!unlocked)return;destroyMap();currentTab=2;title.setText("上传");LinearLayout p=panel();int pending=db.count("status!='uploaded'"),done=db.count("status='uploaded'");text(p,"待同步 "+pending+" 条 · 已同步 "+done+" 条",22);text(p,"有网络时自动同步；未同步的数据会一直保存在手机，不会丢失。",15);for(JSONObject r:db.recordsAll()){Task t=db.task(r.optLong("taskId"));String code=t==null?("任务"+r.optLong("taskId")):t.code();if(r.optString("status").equals("uploaded")){String at=r.optString("uploadedAt").replace('T',' ');if(at.length()>16)at=at.substring(0,16);text(p,"✅ 已同步 "+code+"　"+at,15);}else{String err=r.optString("error");if(err.length()>90)err=err.substring(0,90)+"…";text(p,"⏳ 未同步 "+code+(err.isEmpty()?"　等待上传":"　上次失败："+err),15);}}MaterialButton b=button("立即重试同步");b.setOnClickListener(v->{sync();showUpload();});p.addView(b);content.removeAllViews();content.addView(p);}
  private void showMine(){if(!unlocked)return;destroyMap();currentTab=3;title.setText("我的");LinearLayout p=panel();text(p,prefs.name()+"（"+prefs.user()+"）",22);text(p,"服务器："+prefs.server()+"\n设备："+Util.uuid(this)+"\n坐标：WGS84\n版本："+BuildConfig.VERSION_NAME,16);MaterialButton map=button(prefs.map().isEmpty()?"导入离线卫星地图包（MBTiles）":"更换离线地图包");map.setOnClickListener(v->mapFile.launch("*/*"));p.addView(map);MaterialButton log=button("复制诊断日志");log.setOnClickListener(v->copyLog());p.addView(log);MaterialButton csv=button("分享日志文件（Excel可打开）");csv.setOnClickListener(v->{java.io.File f=db.logsCsv();if(f==null){Toast.makeText(this,"生成日志文件失败",Toast.LENGTH_LONG).show();return;}try{android.net.Uri u=androidx.core.content.FileProvider.getUriForFile(this,"online.gpsgps.bscsampling.files",f);Intent s=new Intent(Intent.ACTION_SEND).setType("text/csv").putExtra(Intent.EXTRA_STREAM,u).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivity(Intent.createChooser(s,"分享日志文件"));}catch(Exception e){Toast.makeText(this,"分享失败："+e.getMessage(),Toast.LENGTH_LONG).show();}});p.addView(csv);content.removeAllViews();content.addView(p);}
  private LinearLayout panel(){LinearLayout p=new LinearLayout(this);p.setOrientation(LinearLayout.VERTICAL);p.setPadding(24,24,24,24);return p;}private void text(LinearLayout p,String s,int size){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(Color.DKGRAY);v.setPadding(10,16,10,16);p.addView(v);}private MaterialButton button(String s){MaterialButton b=new MaterialButton(this);b.setText(s);b.setTextSize(18);b.setMinHeight(64);return b;}
@@ -2993,13 +2993,13 @@ SHA-256: `15c86461400dd919267ef3ce2d9838a553d252d0f47efcd6484a230c5e30c9ea`
 
 #### `bsc-sampling-v1/public/styles.css`
 
-SHA-256: `ca85aae64bac99f7f5548fbdc1086c21d123699759066a0a0b358f6a3be9f7e5`
+SHA-256: `a606800971f985dd40eda21ad5002e786326c508cc4a2095e7e157439157cd7c`
 
 ~~~~css
 :root{--ink:#17343a;--muted:#708187;--line:#dbe5e4;--soft:#f3f7f6;--green:#16a27a;--green-dark:#087557;--aqua:#dff6ef;--amber:#ef9c2f;--red:#d95d58;--blue:#3a84c6;--shadow:0 16px 48px rgba(25,54,58,.13)}
 *{box-sizing:border-box}body{margin:0;font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:var(--ink);background:#eef4f2}button,input,select,textarea{font:inherit}button{cursor:pointer}.hidden{display:none!important}.muted{color:var(--muted)}.error{min-height:22px;color:var(--red);font-size:13px}.primary,.secondary,.ghost{border:0;border-radius:10px;padding:11px 18px;font-weight:700}.primary{background:var(--green);color:#fff;box-shadow:0 8px 22px rgba(22,162,122,.23)}.primary:hover{background:var(--green-dark)}.secondary{background:#fff;border:1px solid var(--line);color:var(--ink)}.ghost{background:transparent;color:var(--muted)}
 .login-shell{min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 25% 20%,#e5fff6 0,transparent 32%),linear-gradient(135deg,#edf6f3,#dceae6)}.login-card{width:min(440px,calc(100% - 32px));padding:42px;background:#fff;border-radius:24px;box-shadow:var(--shadow)}.brand-mark{display:grid;place-items:center;width:62px;height:62px;border-radius:20px 20px 26px 26px;background:linear-gradient(145deg,#24c49a,#0d8064);color:#fff;font-size:30px;font-weight:900;box-shadow:0 12px 30px rgba(13,128,100,.25)}.brand-mark.small{width:42px;height:42px;border-radius:14px 14px 18px 18px;font-size:20px;box-shadow:none}.eyebrow{margin:24px 0 7px;color:var(--green);font-size:12px;font-weight:800;letter-spacing:1px}.login-card h1{margin:0;font-size:29px}.login-card form{margin-top:28px}.login-card label,.form-grid label{display:grid;gap:7px;font-size:13px;font-weight:700}.login-card input,.form-grid input,.form-grid select,.form-grid textarea{width:100%;border:1px solid var(--line);border-radius:10px;padding:12px;background:#fbfdfc;color:var(--ink);outline:none}.login-card input:focus,.form-grid input:focus,.form-grid textarea:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(22,162,122,.12)}.login-card .primary{width:100%;margin-top:14px}
-.app{height:100vh;display:grid;grid-template-columns:250px minmax(0,1fr);overflow:hidden}.app.side-collapsed{grid-template-columns:0 minmax(0,1fr)}.app.side-collapsed .sidebar{display:none}.sidebar{position:relative;background:#fff;border-right:1px solid var(--line);padding:22px 14px}.brand{display:flex;align-items:center;gap:11px;padding:0 8px 24px}.brand strong,.brand small{display:block}.brand strong{font-size:18px}.brand small{color:var(--muted);font-size:12px;margin-top:2px}.section-label{margin:8px 10px;color:#9ba9ac;font-size:11px;font-weight:800;letter-spacing:1px}.project,.date-list button{width:100%;display:flex;align-items:center;gap:9px;border:0;border-radius:10px;background:transparent;padding:11px;text-align:left;color:var(--ink)}.project.active{background:var(--aqua);color:var(--green-dark);font-weight:800}.side-heading{display:flex;justify-content:space-between;align-items:center;margin:27px 10px 8px;font-size:12px;color:var(--muted);font-weight:800}.side-heading button{border:0;background:transparent;color:var(--green);font-size:20px}.date-list{display:grid;gap:4px}.date-list button{justify-content:space-between;font-size:13px}.date-list button.active{background:#edf5f3;color:var(--green-dark);font-weight:800}.date-list b{display:grid;place-items:center;min-width:24px;height:20px;border-radius:10px;background:#e6efed;font-size:11px}.sidebar-bottom{position:absolute;left:24px;right:24px;bottom:24px;display:grid;gap:8px;color:var(--muted);font-size:11px}.server-dot{display:flex;align-items:center;gap:7px;color:#53706c}.server-dot i{width:8px;height:8px;border-radius:50%;background:#30b987;box-shadow:0 0 0 4px #e1f7ef}
+.app{height:100vh;display:grid;grid-template-columns:250px minmax(0,1fr);overflow:hidden}.app.side-collapsed{display:block}.app.side-collapsed .sidebar{display:none}.app.side-collapsed .main{height:100vh}.sidebar{position:relative;background:#fff;border-right:1px solid var(--line);padding:22px 14px}.brand{display:flex;align-items:center;gap:11px;padding:0 8px 24px}.brand strong,.brand small{display:block}.brand strong{font-size:18px}.brand small{color:var(--muted);font-size:12px;margin-top:2px}.section-label{margin:8px 10px;color:#9ba9ac;font-size:11px;font-weight:800;letter-spacing:1px}.project,.date-list button{width:100%;display:flex;align-items:center;gap:9px;border:0;border-radius:10px;background:transparent;padding:11px;text-align:left;color:var(--ink)}.project.active{background:var(--aqua);color:var(--green-dark);font-weight:800}.side-heading{display:flex;justify-content:space-between;align-items:center;margin:27px 10px 8px;font-size:12px;color:var(--muted);font-weight:800}.side-heading button{border:0;background:transparent;color:var(--green);font-size:20px}.date-list{display:grid;gap:4px}.date-list button{justify-content:space-between;font-size:13px}.date-list button.active{background:#edf5f3;color:var(--green-dark);font-weight:800}.date-list b{display:grid;place-items:center;min-width:24px;height:20px;border-radius:10px;background:#e6efed;font-size:11px}.sidebar-bottom{position:absolute;left:24px;right:24px;bottom:24px;display:grid;gap:8px;color:var(--muted);font-size:11px}.server-dot{display:flex;align-items:center;gap:7px;color:#53706c}.server-dot i{width:8px;height:8px;border-radius:50%;background:#30b987;box-shadow:0 0 0 4px #e1f7ef}
 .main{min-width:0;padding:22px 25px 26px;overflow:auto}.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.topbar-title{display:flex;align-items:center;gap:12px;min-width:0}.menu-button{display:none;flex:none;border:0;background:var(--aqua);color:var(--green-dark);width:44px;height:44px;border-radius:12px;font-size:20px;font-weight:900}.sidebar-backdrop{display:none}.crumb{margin:0 0 4px;color:var(--muted);font-size:12px}.topbar h2{margin:0;font-size:25px}.top-actions{display:flex;gap:9px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}.stats article{display:flex;align-items:center;gap:12px;padding:15px 18px;background:#fff;border:1px solid #e3ebe9;border-radius:14px}.stats small,.stats strong{display:block}.stats small{font-size:11px;color:var(--muted);margin-bottom:4px}.stats strong{font-size:22px}.stat-icon{display:grid;place-items:center;width:35px;height:35px;border-radius:11px;font-weight:900}.stat-icon.blue{background:#e5f0fa;color:var(--blue)}.stat-icon.green{background:#dcf5ec;color:var(--green)}.stat-icon.amber{background:#fff0da;color:var(--amber)}.stat-icon.gray{background:#edf1f1;color:#889595}
 .map-panel{position:relative;height:calc(100vh - 190px);min-height:500px;background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden;box-shadow:0 9px 30px rgba(34,61,62,.06)}.map-toolbar{height:50px;display:flex;align-items:center;justify-content:space-between;padding:0 15px;border-bottom:1px solid var(--line)}.legend{display:flex;gap:15px;font-size:11px;color:var(--muted)}.legend span{display:flex;align-items:center;gap:5px}.pin{width:9px;height:9px;border-radius:50%;display:inline-block}.pin.gray{background:#879493}.pin.amber{background:var(--amber)}.pin.green{background:var(--green)}.pin.red{background:var(--red)}.map-action{border:0;background:#edf7f4;color:var(--green-dark);border-radius:9px;padding:7px 10px;font-size:12px;font-weight:800}#map{height:calc(100% - 50px);background:#dfe9e5}.leaflet-control-attribution{font-size:9px}.sample-marker{width:34px;height:42px;border-radius:18px 18px 18px 3px;transform:rotate(-45deg);border:3px solid #fff;box-shadow:0 4px 12px rgba(0,0,0,.28);display:grid;place-items:center}.sample-marker span{transform:rotate(45deg);color:#fff;font-weight:900}.sample-marker.gray{background:#7f8d8c}.sample-marker.amber{background:var(--amber)}.sample-marker.green{background:var(--green)}.sample-marker.red{background:var(--red)}.map-fallback{position:absolute;inset:50px 0 0;z-index:400;display:grid;place-content:center;text-align:center;gap:8px;background:linear-gradient(135deg,#dfeae6,#c7d9d3);color:var(--ink)}.map-fallback span{font-size:12px;color:var(--muted)}
 .detail{position:fixed;z-index:1100;top:0;right:0;width:min(430px,100%);height:100vh;background:#fff;box-shadow:-18px 0 50px rgba(17,43,47,.16);overflow:auto}.detail-head{position:sticky;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;padding:22px;background:#fff;border-bottom:1px solid var(--line)}.detail-head small{color:var(--green);font-weight:800}.detail-head h3{margin:4px 0 0;font-size:22px}.detail-head button,.dialog-head button{border:0;background:#eef4f2;width:36px;height:36px;border-radius:50%;font-size:24px;color:var(--muted)}#detailBody{padding:20px}.record-photo{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:14px;background:#edf2f0}.record-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:18px 0}.record-grid div{padding:12px;background:var(--soft);border-radius:10px}.record-grid small,.record-grid strong{display:block}.record-grid small{color:var(--muted);font-size:10px;margin-bottom:4px}.record-grid strong{font-size:13px}.reference{display:flex;gap:12px;padding:12px;border:1px solid var(--line);border-radius:12px}.reference img{width:90px;height:68px;object-fit:cover;border-radius:8px}.reference strong,.reference small{display:block}.reference small{color:var(--muted);font-size:11px;margin-top:5px;line-height:1.45}.review-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:18px}.review-actions button{border:0;border-radius:10px;padding:12px;font-weight:800}.approve{background:#dff7ee;color:#087557}.suspicious{background:#fff0da;color:#9a5a05}.reject{background:#fde4e2;color:#9f332e}.risk{margin:12px 0;padding:10px;border-radius:10px;background:#fff2df;color:#8a530b;font-size:12px}.empty-detail{padding:25px;text-align:center;color:var(--muted)}
@@ -3542,7 +3542,7 @@ module.exports = { check, recordFailure, recordSuccess, prune };
 
 #### `bsc-sampling-v1/src/schema.js`
 
-SHA-256: `c708be2ff73ba5e22cecec556b1c6f2926d1b9ee5cb6d1fe05f665041a29f567`
+SHA-256: `aab9e4dbbef4c1a61685f6ad2cafb8ed599119d27da06d836d7b644e92dc45cf`
 
 ~~~~javascript
 'use strict';
@@ -3762,7 +3762,7 @@ function migrate(db) {
   db.prepare("UPDATE sites SET reference_image='' WHERE reference_image='/sample-reference.svg'").run();
   // 旧库补建标签打印记录表；并登记当前 APP 版本供手机端检查更新。
   db.exec('CREATE TABLE IF NOT EXISTS label_prints (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, sample_code TEXT NOT NULL, printed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
-  db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(102, '1.2.0', '两态任务、日期过滤地图、拍照对焦/自动保存/横竖屏、免开始直接扫码、离线行程补传修复、日志CSV分享');
+  db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(103, '1.2.2', '任务列表默认展开、最新日期在前；网页侧栏折叠修复');
 }
 
 function seed(db) {
@@ -4221,7 +4221,7 @@ module.exports = { backfillWeather };
 
 #### `bsc-sampling-v1/test/api.test.js`
 
-SHA-256: `fdbe8253309473e924be38e7f34d60e99a635396a9c092ba6096edf09168df74`
+SHA-256: `1f378972bfc2f635272c0efe625762298d8acf96600c9950bfe308cd85647701`
 
 ~~~~javascript
 'use strict';
@@ -4846,8 +4846,8 @@ test('activation code messages distinguish used vs invalid', async () => {
 test('app-version endpoint returns latest version', async () => {
   const res = await call('GET', '/api/v1/mobile/app-version', null, null);
   assert.equal(res.status, 200);
-  assert.ok(res.json.versionCode >= 102, `versionCode=${res.json.versionCode}`);
-  assert.equal(res.json.versionName, '1.2.0');
+  assert.ok(res.json.versionCode >= 103, `versionCode=${res.json.versionCode}`);
+  assert.equal(res.json.versionName, '1.2.2');
 });
 
 test('captured time in the future adds risk flag', async () => {
