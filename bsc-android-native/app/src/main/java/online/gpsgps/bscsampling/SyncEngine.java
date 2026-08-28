@@ -18,7 +18,7 @@ final class SyncEngine {
       // 设备已绑定：令牌过期/失效时用已存账号+设备编号静默重新登录（无需再扫码），一次绑定终身免登录。
       try{String tok=new Api(c).login().getString("token");new Prefs(c).token(tok);d.log("info","AUTO_RELOGIN 绑定设备自动重新登录");t=a.sync().optJSONArray("tasks");}
       catch(Exception e2){fail("SYNC_TASKS",e2);out.errors++;out.message=e2.getMessage();d.log("info","SYNC_END",detail());return out;}}
-    if(t!=null){d.tasks(t);out.tasks=t.length();}
+    if(t!=null){d.tasks(t);out.tasks=t.length();d.log("info","SYNC_TASKS","{\"tasks\":"+t.length()+"}");}
     // 离线开始的行程（含已在本地完成的）都要先补报服务器 start，拿到 serverId 后
     // 轨迹与记录才能上传；旧实现只处理 status='active'，导致离线完成的行程永远卡住。
     for(JSONObject j:d.journeys("server_id IS NULL AND (status='active' OR (status='completed' AND server_done=0))")){try{JSONObject r=a.start(j.optLong("taskId"),j.optDouble("latitude"),j.optDouble("longitude"),j.optDouble("accuracyM"));d.serverJourney(j.optString("localId"),r.getJSONObject("journey").getLong("id"));}catch(Exception e){fail("SYNC_START task="+j.optLong("taskId"),e);out.errors++;}}

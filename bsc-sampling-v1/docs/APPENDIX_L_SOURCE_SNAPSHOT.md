@@ -1,6 +1,6 @@
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-28T05:21:50.610Z  
+> 生成时间：2026-08-28T14:49:12.121Z  
 > 文件数：77  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
@@ -160,7 +160,7 @@ package online.gpsgps.bscsampling;import android.content.*;public final class Bo
 
 #### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/MainActivity.java`
 
-SHA-256: `ec0aad88f0350fbe6236e531d6a52dcc4ced8f46ae53928a3a8400de08f61391`
+SHA-256: `2c63742ec1a303b027bb39de775a756fd48d7506be23bf37623afad7b36d06e1`
 
 ~~~~java
 package online.gpsgps.bscsampling;
@@ -191,7 +191,7 @@ public final class MainActivity extends AppCompatActivity implements LocationLis
  private void showTasks(){if(!unlocked)return;destroyMap();currentTab=1;title.setText("我的任务");content.removeAllViews();View v=getLayoutInflater().inflate(R.layout.view_list,content,false);content.addView(v);List<Task> all=new ArrayList<>(db.tasks());List<Task> a=new ArrayList<>();for(Task t:all){if(t.canceled())continue;boolean sub=t.submitted();if(taskFilter==1&&sub)continue;if(taskFilter==2&&!sub)continue;a.add(t);}
   // 筛选条：全部/待采样/已采样（按需求只保留两种状态，已取消不再显示）
   LinearLayout chips=new LinearLayout(this);chips.setOrientation(LinearLayout.HORIZONTAL);chips.setPadding(0,10,0,0);String[] names={"全部","待采样","已采样"};for(int i=0;i<3;i++){final int fi=i;MaterialButton b=new MaterialButton(this);b.setText(names[i]);b.setMinWidth(0);b.setPadding(24,0,24,0);b.setTextSize(14);b.setBackgroundColor(taskFilter==fi?0xFF16A27A:0xFFE3EDEB);b.setTextColor(taskFilter==fi?0xFFFFFFFF:0xFF17343A);b.setOnClickListener(x->{taskFilter=fi;showTasks();});chips.addView(b);}((LinearLayout)v).addView(chips,1);
-  java.util.Map<String,List<Task>> groups=new java.util.TreeMap<>();for(Task t:a)groups.computeIfAbsent(t.j.optString("planned_date","未定日期"),k->new ArrayList<>()).add(t);java.util.Comparator<Task> byDist=(x,y)->Double.compare(here==null?x.id:Util.distance(here.getLatitude(),here.getLongitude(),x.lat(),x.lon()),here==null?y.id:Util.distance(here.getLatitude(),here.getLongitude(),y.lat(),y.lon()));List<String> dates=new ArrayList<>(groups.keySet());Collections.sort(dates);List<List<Task>> data=new ArrayList<>();for(String d:dates){List<Task> l=groups.get(d);l.sort(byDist);data.add(l);}((TextView)v.findViewById(R.id.listHint)).setText("按日期归档 · 共"+a.size()+"个任务 · 点击日期展开/收缩；地图只显示最后点击的日期");ExpandableListView list=v.findViewById(R.id.list);list.setAdapter(new DateAdapter(dates,data));list.setOnGroupClickListener((p,x,g,id)->{mapDateFilter=dates.get(g);return false;});list.setOnChildClickListener((p,x,g,c,id)->{startActivity(new Intent(this,TaskActivity.class).putExtra("task",data.get(g).get(c).id));return true;});}
+  java.util.Map<String,List<Task>> groups=new java.util.TreeMap<>();for(Task t:a)groups.computeIfAbsent(t.j.optString("planned_date","未定日期"),k->new ArrayList<>()).add(t);java.util.Comparator<Task> byDist=(x,y)->Double.compare(here==null?x.id:Util.distance(here.getLatitude(),here.getLongitude(),x.lat(),x.lon()),here==null?y.id:Util.distance(here.getLatitude(),here.getLongitude(),y.lat(),y.lon()));List<String> dates=new ArrayList<>(groups.keySet());Collections.sort(dates);List<List<Task>> data=new ArrayList<>();for(String d:dates){List<Task> l=groups.get(d);l.sort(byDist);data.add(l);}((TextView)v.findViewById(R.id.listHint)).setText(a.isEmpty()?("暂无任务。请确认：①管理员下发任务时选择的采样员是本账号（"+prefs.user()+"）；②联网后点右上角同步。"):("按日期归档 · 共"+a.size()+"个任务 · 点击日期展开/收缩；地图只显示最后点击的日期"));if(a.isEmpty()&&Util.online(this))sync();ExpandableListView list=v.findViewById(R.id.list);list.setAdapter(new DateAdapter(dates,data));list.setOnGroupClickListener((p,x,g,id)->{mapDateFilter=dates.get(g);return false;});list.setOnChildClickListener((p,x,g,c,id)->{startActivity(new Intent(this,TaskActivity.class).putExtra("task",data.get(g).get(c).id));return true;});}
  private void showUpload(){if(!unlocked)return;destroyMap();currentTab=2;title.setText("上传");LinearLayout p=panel();int pending=db.count("status!='uploaded'"),done=db.count("status='uploaded'");text(p,"待同步 "+pending+" 条 · 已同步 "+done+" 条",22);text(p,"有网络时自动同步；未同步的数据会一直保存在手机，不会丢失。",15);for(JSONObject r:db.recordsAll()){Task t=db.task(r.optLong("taskId"));String code=t==null?("任务"+r.optLong("taskId")):t.code();if(r.optString("status").equals("uploaded")){String at=r.optString("uploadedAt").replace('T',' ');if(at.length()>16)at=at.substring(0,16);text(p,"✅ 已同步 "+code+"　"+at,15);}else{String err=r.optString("error");if(err.length()>90)err=err.substring(0,90)+"…";text(p,"⏳ 未同步 "+code+(err.isEmpty()?"　等待上传":"　上次失败："+err),15);}}MaterialButton b=button("立即重试同步");b.setOnClickListener(v->{sync();showUpload();});p.addView(b);content.removeAllViews();content.addView(p);}
  private void showMine(){if(!unlocked)return;destroyMap();currentTab=3;title.setText("我的");LinearLayout p=panel();text(p,prefs.name()+"（"+prefs.user()+"）",22);text(p,"服务器："+prefs.server()+"\n设备："+Util.uuid(this)+"\n坐标：WGS84\n版本："+BuildConfig.VERSION_NAME,16);MaterialButton map=button(prefs.map().isEmpty()?"导入离线卫星地图包（MBTiles）":"更换离线地图包");map.setOnClickListener(v->mapFile.launch("*/*"));p.addView(map);MaterialButton log=button("复制诊断日志");log.setOnClickListener(v->copyLog());p.addView(log);MaterialButton csv=button("分享日志文件（Excel可打开）");csv.setOnClickListener(v->{java.io.File f=db.logsCsv();if(f==null){Toast.makeText(this,"生成日志文件失败",Toast.LENGTH_LONG).show();return;}try{android.net.Uri u=androidx.core.content.FileProvider.getUriForFile(this,"online.gpsgps.bscsampling.files",f);Intent s=new Intent(Intent.ACTION_SEND).setType("text/csv").putExtra(Intent.EXTRA_STREAM,u).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivity(Intent.createChooser(s,"分享日志文件"));}catch(Exception e){Toast.makeText(this,"分享失败："+e.getMessage(),Toast.LENGTH_LONG).show();}});p.addView(csv);content.removeAllViews();content.addView(p);}
  private LinearLayout panel(){LinearLayout p=new LinearLayout(this);p.setOrientation(LinearLayout.VERTICAL);p.setPadding(24,24,24,24);return p;}private void text(LinearLayout p,String s,int size){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(Color.DKGRAY);v.setPadding(10,16,10,16);p.addView(v);}private MaterialButton button(String s){MaterialButton b=new MaterialButton(this);b.setText(s);b.setTextSize(18);b.setMinHeight(64);return b;}
@@ -385,7 +385,7 @@ final class Store extends SQLiteOpenHelper {
 
 #### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/SyncEngine.java`
 
-SHA-256: `cdc8228bd8899d8261692170632f0892723dff08a0db022d33f27a5ed2c0bf8e`
+SHA-256: `2408bba90596c8ae159a3632f1c61de8f0e7cd4675cd5b47079988be64360d6a`
 
 ~~~~java
 package online.gpsgps.bscsampling;
@@ -408,7 +408,7 @@ final class SyncEngine {
       // 设备已绑定：令牌过期/失效时用已存账号+设备编号静默重新登录（无需再扫码），一次绑定终身免登录。
       try{String tok=new Api(c).login().getString("token");new Prefs(c).token(tok);d.log("info","AUTO_RELOGIN 绑定设备自动重新登录");t=a.sync().optJSONArray("tasks");}
       catch(Exception e2){fail("SYNC_TASKS",e2);out.errors++;out.message=e2.getMessage();d.log("info","SYNC_END",detail());return out;}}
-    if(t!=null){d.tasks(t);out.tasks=t.length();}
+    if(t!=null){d.tasks(t);out.tasks=t.length();d.log("info","SYNC_TASKS","{\"tasks\":"+t.length()+"}");}
     // 离线开始的行程（含已在本地完成的）都要先补报服务器 start，拿到 serverId 后
     // 轨迹与记录才能上传；旧实现只处理 status='active'，导致离线完成的行程永远卡住。
     for(JSONObject j:d.journeys("server_id IS NULL AND (status='active' OR (status='completed' AND server_done=0))")){try{JSONObject r=a.start(j.optLong("taskId"),j.optDouble("latitude"),j.optDouble("longitude"),j.optDouble("accuracyM"));d.serverJourney(j.optString("localId"),r.getJSONObject("journey").getLong("id"));}catch(Exception e){fail("SYNC_START task="+j.optLong("taskId"),e);out.errors++;}}
@@ -1625,7 +1625,7 @@ SHA-256: `993a539bcb81926555f283a0b763e207c022a0f0c4b2757a54c4d260cd876e71`
 
 #### `bsc-sampling-v1/public/app.js`
 
-SHA-256: `97bdc680b9480309a003d0329e889eded53cb5fe5e470cbb2a178a99b1baa4ff`
+SHA-256: `1135ecc6492a971a6af5c5d8b455e4cd4ad17926acaf716409f6165f77bdc8af`
 
 ~~~~javascript
 'use strict';
@@ -2554,6 +2554,8 @@ $('#createTask').addEventListener('click', async () => {
     .map(input => Number(input.value));
   if (!siteIds.length) return alert('请选择至少一个采样点');
   if (!$('#taskVillager').value) return alert('请选择采样人员');
+  const villager = state.villagers.find(v => v.id === Number($('#taskVillager').value));
+  const villagerLabel = villager ? `${villager.display_name}（${villager.username}）` : '所选采样员';
   try {
     const created = [];
     for (const siteId of siteIds) {
@@ -2563,10 +2565,11 @@ $('#createTask').addEventListener('click', async () => {
       });
       created.push(...(res.codes || []));
     }
+    if (!created.length) return alert('没有生成任何任务：所选点位都未设置样品类型，请先在点位管理里为点位设置类型。');
     const after = await api(`/api/v1/admin/tasks?projectId=${state.projectId}`);
     state.tasks = after.tasks;
     state.lastCreatedTaskIds = after.tasks.filter(t => created.includes(t.sample_code)).map(t => t.id);
-    $('#labelCodes').innerHTML = created.map(c => `<div class="label-code-item">${esc(c)}</div>`).join('');
+    $('#labelCodes').innerHTML = created.map(c => `<div class="label-code-item">${esc(c)}</div>`).join('') + `<p class="dialog-tip">已为 ${esc(villagerLabel)} 生成 ${created.length} 个任务</p>`;
     $('#labelResult').classList.remove('hidden');
     $('#printLabel').classList.remove('hidden');
     $('#createTask').classList.add('hidden');
@@ -3884,7 +3887,7 @@ module.exports = { hashPin, verifyPin, safeEqual, signToken, verifyToken, totp, 
 
 #### `bsc-sampling-v1/src/server.js`
 
-SHA-256: `badb6921cbf5ea21793215d794e156d66a09856d39753638a3a16e013babd278`
+SHA-256: `c44c5febb1db324091026aeb113284dba3160ce441fa750d313ed91bb5428d24`
 
 ~~~~javascript
 'use strict';
@@ -4029,7 +4032,7 @@ async function adminApi(req, res, url) {
   throw error(404, '管理员接口不存在');
 }
 
-function syncData(session) { expire(); const tasks = db.prepare(`SELECT t.*,p.name project_name,p.code project_code,s.code site_code,s.name site_name,s.latitude target_latitude,s.longitude target_longitude,s.normal_radius_m,s.exception_radius_m,s.severe_radius_m,s.reference_image,s.instructions,s.risk_note,s.remarks,r.id record_id,r.review_status,r.photo_path FROM tasks t JOIN projects p ON p.id=t.project_id JOIN sites s ON s.id=t.site_id LEFT JOIN records r ON r.task_id=t.id AND r.is_primary=1 WHERE t.villager_id=? AND p.enabled=1 AND s.deleted_at IS NULL AND t.canceled_at IS NULL ORDER BY CASE WHEN t.status IN('assigned','in_progress') THEN 0 ELSE 1 END,t.planned_date DESC,t.id`).all(session.villagerId).map(t => ({ ...t, canceled_at: t.canceled_at || null, canceled_reason: t.canceled_reason || null, reference_image: t.reference_image ? `${config.publicBaseUrl}${signImage(t.reference_image, 30 * 86400)}` : '' })); return { serverTime: new Date().toISOString(), tasks, rules: { normalRadiusM: 30, exceptionRadiusM: 80, severeRadiusM: 300, poorAccuracyM: 40, trackIntervalSeconds: 10, liveIntervalSeconds: 30 } }; }
+function syncData(session) { expire(); const tasks = db.prepare(`SELECT t.*,p.name project_name,p.code project_code,s.code site_code,s.name site_name,s.latitude target_latitude,s.longitude target_longitude,s.normal_radius_m,s.exception_radius_m,s.severe_radius_m,s.reference_image,s.instructions,s.risk_note,s.remarks,r.id record_id,r.review_status,r.photo_path FROM tasks t JOIN projects p ON p.id=t.project_id JOIN sites s ON s.id=t.site_id LEFT JOIN records r ON r.task_id=t.id AND r.is_primary=1 WHERE t.villager_id=? AND p.enabled=1 AND s.deleted_at IS NULL AND t.canceled_at IS NULL ORDER BY CASE WHEN t.status IN('assigned','in_progress') THEN 0 ELSE 1 END,t.planned_date DESC,t.id`).all(session.villagerId).map(t => ({ ...t, canceled_at: t.canceled_at || null, canceled_reason: t.canceled_reason || null, reference_image: t.reference_image ? `${config.publicBaseUrl}${signImage(t.reference_image, 30 * 86400)}` : '' })); const v = db.prepare('SELECT username,display_name FROM villagers WHERE id=?').get(session.villagerId); return { serverTime: new Date().toISOString(), villager: { id: session.villagerId, username: v ? v.username : '', displayName: v ? v.display_name : '' }, tasks, rules: { normalRadiusM: 30, exceptionRadiusM: 80, severeRadiusM: 300, poorAccuracyM: 40, trackIntervalSeconds: 10, liveIntervalSeconds: 30 } }; }
 
 async function mobileApi(req, res, url) {
   if (url.pathname === '/api/v1/mobile/activate' && req.method === 'POST') { const p = await body(req, 50_000), key = `mobile:${ipOf(req)}:${String(p.username || '').toLowerCase()}`; const lim = rateLimit.check(key); if (lim.limited) throw error(429, '尝试过多，请稍后再试'); const user = db.prepare('SELECT * FROM villagers WHERE username=? AND enabled=1').get(required(p.username, '账号').toLowerCase()); if (!user) { rateLimit.recordFailure(key); throw error(401, '账号不存在或已停用'); } const hash = crypto.createHash('sha256').update(required(p.activationToken, '激活码')).digest('hex'), act = db.prepare("SELECT * FROM activation_codes WHERE villager_id=? AND token_hash=? AND used_at IS NULL AND datetime(expires_at)>datetime('now')").get(user.id, hash); if (!act) { rateLimit.recordFailure(key); const any = db.prepare('SELECT * FROM activation_codes WHERE villager_id=? AND token_hash=?').get(user.id, hash); if (any && any.used_at) throw error(403, '激活二维码已被使用，请让管理员重新生成'); if (any && new Date(any.expires_at) <= new Date()) throw error(403, '激活二维码已过期（24小时有效），请让管理员重新生成'); throw error(403, '激活二维码无效，请扫描正确的二维码'); } rateLimit.recordSuccess(key); const device = transaction(() => { let d = db.prepare('SELECT id FROM devices WHERE villager_id=? AND device_uuid=?').get(user.id, required(p.deviceUuid, '设备编号')); let id; if (d) { id = d.id; db.prepare('UPDATE devices SET enabled=1,device_name=?,android_version=?,app_version=?,last_seen_at=CURRENT_TIMESTAMP WHERE id=?').run(String(p.deviceName || ''), String(p.androidVersion || ''), String(p.appVersion || ''), id); } else id = Number(db.prepare('INSERT INTO devices(villager_id,device_uuid,device_name,android_version,app_version,last_seen_at) VALUES(?,?,?,?,?,CURRENT_TIMESTAMP)').run(user.id, p.deviceUuid, String(p.deviceName || ''), String(p.androidVersion || ''), String(p.appVersion || '')).lastInsertRowid); db.prepare('UPDATE activation_codes SET used_at=CURRENT_TIMESTAMP WHERE id=?').run(act.id); return id; }); audit(db, 'mobile', user.id, 'activate', 'device', device, { username: user.username }, ipOf(req)); return output(res, 200, { token: signToken(config.sessionSecret, 'villager', user.id, { deviceId: device }, 3650 * 86400), villager: { id: user.id, username: user.username, displayName: user.display_name }, deviceId: device }); }
@@ -4218,7 +4221,7 @@ module.exports = { backfillWeather };
 
 #### `bsc-sampling-v1/test/api.test.js`
 
-SHA-256: `27e95f38ba3cc38493dbbe7d39e05bc8506f75ffc154d2e326494fc390bbdb9d`
+SHA-256: `fdbe8253309473e924be38e7f34d60e99a635396a9c092ba6096edf09168df74`
 
 ~~~~javascript
 'use strict';
@@ -4843,8 +4846,8 @@ test('activation code messages distinguish used vs invalid', async () => {
 test('app-version endpoint returns latest version', async () => {
   const res = await call('GET', '/api/v1/mobile/app-version', null, null);
   assert.equal(res.status, 200);
-  assert.ok(res.json.versionCode >= 101, `versionCode=${res.json.versionCode}`);
-  assert.equal(res.json.versionName, '1.1.0');
+  assert.ok(res.json.versionCode >= 102, `versionCode=${res.json.versionCode}`);
+  assert.equal(res.json.versionName, '1.2.0');
 });
 
 test('captured time in the future adds risk flag', async () => {
