@@ -833,7 +833,7 @@ Android 单元测试：
 
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-28T16:15:18.223Z  
+> 生成时间：2026-08-28T16:23:40.985Z  
 > 文件数：77  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
@@ -847,7 +847,7 @@ Android 单元测试：
 
 #### `bsc-android-native/app/build.gradle`
 
-SHA-256: `ecfa92eacc1c01234d7ce9c8dea403e4e275fa23bf9cbb392b9cb7e012bd93c3`
+SHA-256: `278b9d112d6cbeeb2f1ed1c58a14170c535eb769b704ba9be072001b8fac6abd`
 
 ~~~~groovy
 plugins { id 'com.android.application' }
@@ -860,8 +860,8 @@ android {
         applicationId 'online.gpsgps.bscsampling'
         minSdk 29
         targetSdk 35
-        versionCode 103
-        versionName '1.2.2'
+        versionCode 104
+        versionName '1.2.3'
         buildConfigField 'String', 'DEFAULT_SERVER', '"https://bsc.gpsgps.online"'
     }
     buildFeatures { buildConfig true }
@@ -993,7 +993,7 @@ package online.gpsgps.bscsampling;import android.content.*;public final class Bo
 
 #### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/MainActivity.java`
 
-SHA-256: `5b42a4e08775fe349639737a94b12c7b4c418c0f3b34a604dcd3a36043b1f488`
+SHA-256: `df83e1224d64244ab41314f25c7923353aa76e461b71ecda36bd137dd5ef621b`
 
 ~~~~java
 package online.gpsgps.bscsampling;
@@ -1001,7 +1001,7 @@ package online.gpsgps.bscsampling;
 import android.Manifest;import android.app.AlertDialog;import android.content.*;import android.content.pm.PackageManager;import android.database.Cursor;import android.graphics.*;import android.location.*;import android.net.*;import android.os.*;import android.provider.OpenableColumns;import android.view.*;import android.widget.*;import androidx.activity.result.*;import androidx.activity.result.contract.ActivityResultContracts;import androidx.annotation.NonNull;import androidx.appcompat.app.AppCompatActivity;import androidx.core.app.ActivityCompat;import androidx.core.content.ContextCompat;import com.google.android.material.button.MaterialButton;import org.json.JSONObject;import org.maplibre.android.MapLibre;import org.maplibre.android.annotations.*;import org.maplibre.android.camera.CameraPosition;import org.maplibre.android.geometry.LatLng;import org.maplibre.android.maps.*;import java.io.*;import java.nio.charset.StandardCharsets;import java.util.*;import java.util.concurrent.*;
 
 public final class MainActivity extends AppCompatActivity implements LocationListener{
- private FrameLayout content;private View tabs,header;private TextView title,status;private Prefs prefs;private Store db;private LocationManager lm;private Location here;private MapView mapView;private MapLibreMap map;private final Map<Long,Task> markerTasks=new HashMap<>();private final ExecutorService work=Executors.newSingleThreadExecutor();private QrData activation;private boolean unlocked;private ConnectivityManager.NetworkCallback netCallback;private int currentTab=1;private int taskFilter=0;private String mapDateFilter=null;
+ private FrameLayout content;private View tabs,header;private TextView title,status;private Prefs prefs;private Store db;private LocationManager lm;private Location here;private MapView mapView;private MapLibreMap map;private final Map<Long,Task> markerTasks=new HashMap<>();private final ExecutorService work=Executors.newSingleThreadExecutor();private QrData activation;private boolean unlocked;private ConnectivityManager.NetworkCallback netCallback;private int currentTab=1;private int taskFilter=0;private String mapDateFilter=null;private volatile boolean syncing=false;
  private final ActivityResultLauncher<Intent> scan=registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),r->{if(r.getResultCode()!=RESULT_OK||r.getData()==null)return;try{activation=QrData.parse(r.getData().getStringExtra(ScanActivity.RESULT));if(!activation.activation)throw new IllegalArgumentException("请扫描设备激活二维码");showLogin();}catch(Exception e){Toast.makeText(this,e.getMessage(),Toast.LENGTH_LONG).show();}});
  private final ActivityResultLauncher<String[]> permissions=registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(),r->locations());
  private final ActivityResultLauncher<String> mapFile=registerForActivityResult(new ActivityResultContracts.GetContent(),this::importMap);
@@ -1011,7 +1011,7 @@ public final class MainActivity extends AppCompatActivity implements LocationLis
  private void checkUpdate(){work.execute(()->{try{JSONObject v=new Api(MainActivity.this).version();String latest=v.optString("versionName","");if(!latest.isEmpty()&&!BuildConfig.VERSION_NAME.equals(latest))runOnUiThread(()->new AlertDialog.Builder(MainActivity.this).setTitle("发现新版本 "+latest).setMessage("当前版本 "+BuildConfig.VERSION_NAME+"。请让管理员安装新版本 APP，以获得最新功能与修复。").setPositiveButton("知道了",null).setCancelable(false).show());}catch(Exception ignored){}});}
  private void askPermissions(){List<String> x=new ArrayList<>();if(ContextCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED)x.add(Manifest.permission.ACCESS_FINE_LOCATION);if(Build.VERSION.SDK_INT>=33&&ContextCompat.checkSelfPermission(this,Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)x.add(Manifest.permission.POST_NOTIFICATIONS);if(x.isEmpty())locations();else permissions.launch(x.toArray(new String[0]));}
  private void locations(){if(ActivityCompat.checkSelfPermission(this,Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED)return;try{lm.requestLocationUpdates(LocationManager.GPS_PROVIDER,5000,0,this);if(lm.isProviderEnabled(LocationManager.NETWORK_PROVIDER))lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,5000,0,this);Location x=lm.getLastKnownLocation(LocationManager.GPS_PROVIDER);if(x!=null)onLocationChanged(x);}catch(Exception e){db.log("error","LOCATION "+e.getMessage());}}
- private void sync(){if(!unlocked)return;status.setText(Util.online(this)?"正在同步服务器…":"当前离线，使用手机缓存");work.execute(()->{if(Util.online(this))try{prefs.token(new Api(this).login().getString("token"));}catch(Exception e){db.log("warning","LOGIN_REFRESH "+e.getMessage());}SyncEngine.Result r=new SyncEngine(this).run();runOnUiThread(()->{status.setText(r.message+" · 待上传"+db.count("status!='uploaded'")+"条");if(map!=null)markers();if(currentTab==2)showUpload();});});}
+ private void sync(){if(!unlocked||syncing)return;syncing=true;status.setText(Util.online(this)?"正在同步服务器…":"当前离线，使用手机缓存");work.execute(()->{if(Util.online(this))try{prefs.token(new Api(this).login().getString("token"));}catch(Exception e){db.log("warning","LOGIN_REFRESH "+e.getMessage());}SyncEngine.Result r=new SyncEngine(this).run();runOnUiThread(()->{syncing=false;status.setText(r.message+" · 待上传"+db.count("status!='uploaded'")+"条");if(map!=null)markers();if(currentTab==1)showTasks();if(currentTab==2)showUpload();});});}
  private void showMap(){if(!unlocked)return;destroyMap();currentTab=0;title.setText("地图");content.removeAllViews();View v=getLayoutInflater().inflate(R.layout.view_map,content,false);content.addView(v);mapView=v.findViewById(R.id.map);mapView.onCreate(null);v.findViewById(R.id.locate).setOnClickListener(x->locate());if(mapDateFilter!=null){TextView f=new TextView(this);f.setText("仅显示 "+mapDateFilter+" 的点位（点此显示全部日期）");f.setTextColor(0xFFFFFFFF);f.setBackgroundColor(0xCC16A27A);int pad=(int)(10*getResources().getDisplayMetrics().density);f.setPadding(pad,pad,pad,pad);f.setGravity(android.view.Gravity.CENTER);f.setOnClickListener(x->{mapDateFilter=null;showMap();});FrameLayout root=(FrameLayout)v;FrameLayout.LayoutParams lp=new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT,FrameLayout.LayoutParams.WRAP_CONTENT,android.view.Gravity.TOP);root.addView(f,lp);}mapView.getMapAsync(m->{map=m;map.setStyle(new Style.Builder().fromJson(style()),s->{markers();center();});map.setOnMarkerClickListener(marker->{Task t=markerTasks.get(marker.getId());if(t!=null)startActivity(new Intent(this,TaskActivity.class).putExtra("task",t.id));return t!=null;});map.addOnMapClickListener(p->{copyCoords(p.getLatitude(),p.getLongitude());return true;});map.addOnMapLongClickListener(p->{new AlertDialog.Builder(this).setTitle("复制该位置坐标？").setMessage(String.format(Locale.CHINA,"【WGS84】%.8f°N，%.8f°E",p.getLatitude(),p.getLongitude())).setPositiveButton("复制",(d,w)->copyCoords(p.getLatitude(),p.getLongitude())).setNegativeButton("取消",null).show();return true;});});locationText();}
  private void locate(){if(map!=null&&here!=null)map.setCameraPosition(new CameraPosition.Builder().target(new LatLng(here.getLatitude(),here.getLongitude())).zoom(14).build());if(here==null){Toast.makeText(this,"正在获取WGS84位置…",Toast.LENGTH_SHORT).show();return;}new AlertDialog.Builder(this).setTitle("我的位置（WGS84）").setMessage(String.format(Locale.CHINA,"【WGS84】%.8f°N，%.8f°E\n精度 ±%.0fm",here.getLatitude(),here.getLongitude(),here.getAccuracy())).setPositiveButton("复制",(d,w)->copyCoords(here.getLatitude(),here.getLongitude())).setNegativeButton("关闭",null).show();}
  private void copyCoords(double lat,double lon){String s=String.format(Locale.CHINA,"【WGS84】%.8f°N，%.8f°E",lat,lon);getSystemService(android.content.ClipboardManager.class).setPrimaryClip(ClipData.newPlainText("WGS84坐标",s));Toast.makeText(this,"已复制 "+s,Toast.LENGTH_LONG).show();}
@@ -1024,7 +1024,7 @@ public final class MainActivity extends AppCompatActivity implements LocationLis
  private void showTasks(){if(!unlocked)return;destroyMap();currentTab=1;title.setText("我的任务");content.removeAllViews();View v=getLayoutInflater().inflate(R.layout.view_list,content,false);content.addView(v);List<Task> all=new ArrayList<>(db.tasks());List<Task> a=new ArrayList<>();for(Task t:all){if(t.canceled())continue;boolean sub=t.submitted();if(taskFilter==1&&sub)continue;if(taskFilter==2&&!sub)continue;a.add(t);}
   // 筛选条：全部/待采样/已采样（按需求只保留两种状态，已取消不再显示）
   LinearLayout chips=new LinearLayout(this);chips.setOrientation(LinearLayout.HORIZONTAL);chips.setPadding(0,10,0,0);String[] names={"全部","待采样","已采样"};for(int i=0;i<3;i++){final int fi=i;MaterialButton b=new MaterialButton(this);b.setText(names[i]);b.setMinWidth(0);b.setPadding(24,0,24,0);b.setTextSize(14);b.setBackgroundColor(taskFilter==fi?0xFF16A27A:0xFFE3EDEB);b.setTextColor(taskFilter==fi?0xFFFFFFFF:0xFF17343A);b.setOnClickListener(x->{taskFilter=fi;showTasks();});chips.addView(b);}((LinearLayout)v).addView(chips,1);
-  java.util.Map<String,List<Task>> groups=new java.util.TreeMap<>();for(Task t:a)groups.computeIfAbsent(t.j.optString("planned_date","未定日期"),k->new ArrayList<>()).add(t);java.util.Comparator<Task> byDist=(x,y)->Double.compare(here==null?x.id:Util.distance(here.getLatitude(),here.getLongitude(),x.lat(),x.lon()),here==null?y.id:Util.distance(here.getLatitude(),here.getLongitude(),y.lat(),y.lon()));List<String> dates=new ArrayList<>(groups.keySet());Collections.sort(dates,Comparator.reverseOrder());List<List<Task>> data=new ArrayList<>();for(String d:dates){List<Task> l=groups.get(d);l.sort(byDist);data.add(l);}((TextView)v.findViewById(R.id.listHint)).setText(a.isEmpty()?("暂无任务。请确认：①管理员下发任务时选择的采样员是本账号（"+prefs.user()+"）；②联网后点右上角同步。"):("按日期归档 · 共"+a.size()+"个任务（默认展开，最新日期在前）"));if(a.isEmpty()&&Util.online(this))sync();ExpandableListView list=v.findViewById(R.id.list);list.setAdapter(new DateAdapter(dates,data));for(int i=0;i<dates.size();i++)list.expandGroup(i);list.setOnGroupClickListener((p,x,g,id)->{mapDateFilter=dates.get(g);return false;});list.setOnChildClickListener((p,x,g,c,id)->{startActivity(new Intent(this,TaskActivity.class).putExtra("task",data.get(g).get(c).id));return true;});}
+  java.util.Map<String,List<Task>> groups=new java.util.TreeMap<>();for(Task t:a)groups.computeIfAbsent(t.j.optString("planned_date","未定日期"),k->new ArrayList<>()).add(t);java.util.Comparator<Task> byDist=(x,y)->Double.compare(here==null?x.id:Util.distance(here.getLatitude(),here.getLongitude(),x.lat(),x.lon()),here==null?y.id:Util.distance(here.getLatitude(),here.getLongitude(),y.lat(),y.lon()));List<String> dates=new ArrayList<>(groups.keySet());Collections.sort(dates,Comparator.reverseOrder());List<List<Task>> data=new ArrayList<>();for(String d:dates){List<Task> l=groups.get(d);l.sort(byDist);data.add(l);}((TextView)v.findViewById(R.id.listHint)).setText(a.isEmpty()?(Util.online(this)?"正在同步任务列表，请稍候…":"暂无任务。请联网后点右上角同步；若仍为空，请让管理员确认下发任务的采样员是本账号（"+prefs.user()+"）。"):("按日期归档 · 共"+a.size()+"个任务（默认展开，最新日期在前）"));if(a.isEmpty()&&Util.online(this)&&!syncing)sync();ExpandableListView list=v.findViewById(R.id.list);list.setAdapter(new DateAdapter(dates,data));for(int i=0;i<dates.size();i++)list.expandGroup(i);list.setOnGroupClickListener((p,x,g,id)->{mapDateFilter=dates.get(g);return false;});list.setOnChildClickListener((p,x,g,c,id)->{startActivity(new Intent(this,TaskActivity.class).putExtra("task",data.get(g).get(c).id));return true;});}
  private void showUpload(){if(!unlocked)return;destroyMap();currentTab=2;title.setText("上传");LinearLayout p=panel();int pending=db.count("status!='uploaded'"),done=db.count("status='uploaded'");text(p,"待同步 "+pending+" 条 · 已同步 "+done+" 条",22);text(p,"有网络时自动同步；未同步的数据会一直保存在手机，不会丢失。",15);for(JSONObject r:db.recordsAll()){Task t=db.task(r.optLong("taskId"));String code=t==null?("任务"+r.optLong("taskId")):t.code();if(r.optString("status").equals("uploaded")){String at=r.optString("uploadedAt").replace('T',' ');if(at.length()>16)at=at.substring(0,16);text(p,"✅ 已同步 "+code+"　"+at,15);}else{String err=r.optString("error");if(err.length()>90)err=err.substring(0,90)+"…";text(p,"⏳ 未同步 "+code+(err.isEmpty()?"　等待上传":"　上次失败："+err),15);}}MaterialButton b=button("立即重试同步");b.setOnClickListener(v->{sync();showUpload();});p.addView(b);content.removeAllViews();content.addView(p);}
  private void showMine(){if(!unlocked)return;destroyMap();currentTab=3;title.setText("我的");LinearLayout p=panel();text(p,prefs.name()+"（"+prefs.user()+"）",22);text(p,"服务器："+prefs.server()+"\n设备："+Util.uuid(this)+"\n坐标：WGS84\n版本："+BuildConfig.VERSION_NAME,16);MaterialButton map=button(prefs.map().isEmpty()?"导入离线卫星地图包（MBTiles）":"更换离线地图包");map.setOnClickListener(v->mapFile.launch("*/*"));p.addView(map);MaterialButton log=button("复制诊断日志");log.setOnClickListener(v->copyLog());p.addView(log);MaterialButton csv=button("分享日志文件（Excel可打开）");csv.setOnClickListener(v->{java.io.File f=db.logsCsv();if(f==null){Toast.makeText(this,"生成日志文件失败",Toast.LENGTH_LONG).show();return;}try{android.net.Uri u=androidx.core.content.FileProvider.getUriForFile(this,"online.gpsgps.bscsampling.files",f);Intent s=new Intent(Intent.ACTION_SEND).setType("text/csv").putExtra(Intent.EXTRA_STREAM,u).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivity(Intent.createChooser(s,"分享日志文件"));}catch(Exception e){Toast.makeText(this,"分享失败："+e.getMessage(),Toast.LENGTH_LONG).show();}});p.addView(csv);content.removeAllViews();content.addView(p);}
  private LinearLayout panel(){LinearLayout p=new LinearLayout(this);p.setOrientation(LinearLayout.VERTICAL);p.setPadding(24,24,24,24);return p;}private void text(LinearLayout p,String s,int size){TextView v=new TextView(this);v.setText(s);v.setTextSize(size);v.setTextColor(Color.DKGRAY);v.setPadding(10,16,10,16);p.addView(v);}private MaterialButton button(String s){MaterialButton b=new MaterialButton(this);b.setText(s);b.setTextSize(18);b.setMinHeight(64);return b;}
@@ -4375,7 +4375,7 @@ module.exports = { check, recordFailure, recordSuccess, prune };
 
 #### `bsc-sampling-v1/src/schema.js`
 
-SHA-256: `aab9e4dbbef4c1a61685f6ad2cafb8ed599119d27da06d836d7b644e92dc45cf`
+SHA-256: `305e55c15703ba396cc548855d2e52c73872c680add5f4b5986922e2f2ba6cda`
 
 ~~~~javascript
 'use strict';
@@ -4595,7 +4595,7 @@ function migrate(db) {
   db.prepare("UPDATE sites SET reference_image='' WHERE reference_image='/sample-reference.svg'").run();
   // 旧库补建标签打印记录表；并登记当前 APP 版本供手机端检查更新。
   db.exec('CREATE TABLE IF NOT EXISTS label_prints (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, sample_code TEXT NOT NULL, printed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
-  db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(103, '1.2.2', '任务列表默认展开、最新日期在前；网页侧栏折叠修复');
+  db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(104, '1.2.3', '同步完成后自动刷新任务列表；空列表自动触发同步并提示');
 }
 
 function seed(db) {
@@ -5054,7 +5054,7 @@ module.exports = { backfillWeather };
 
 #### `bsc-sampling-v1/test/api.test.js`
 
-SHA-256: `1f378972bfc2f635272c0efe625762298d8acf96600c9950bfe308cd85647701`
+SHA-256: `915ad32b30a77020cea70d9cff8ef92c56a72da47ce9877c38c23ec422ce710a`
 
 ~~~~javascript
 'use strict';
@@ -5679,8 +5679,8 @@ test('activation code messages distinguish used vs invalid', async () => {
 test('app-version endpoint returns latest version', async () => {
   const res = await call('GET', '/api/v1/mobile/app-version', null, null);
   assert.equal(res.status, 200);
-  assert.ok(res.json.versionCode >= 103, `versionCode=${res.json.versionCode}`);
-  assert.equal(res.json.versionName, '1.2.2');
+  assert.ok(res.json.versionCode >= 104, `versionCode=${res.json.versionCode}`);
+  assert.equal(res.json.versionName, '1.2.3');
 });
 
 test('captured time in the future adds risk flag', async () => {
