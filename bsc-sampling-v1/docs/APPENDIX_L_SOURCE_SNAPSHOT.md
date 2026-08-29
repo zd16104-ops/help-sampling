@@ -1,6 +1,6 @@
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-29T16:07:48.043Z  
+> 生成时间：2026-08-29T17:13:11.990Z  
 > 文件数：79  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
@@ -14,7 +14,7 @@
 
 #### `bsc-android-native/app/build.gradle`
 
-SHA-256: `d34d206512911aff48d665dbc116ad96c3ecab34c4361501af0949bb2652c502`
+SHA-256: `3dc2b05c2e90a166b13792ac8184c55600ae41b81021ffd4cabe5dfe931544c2`
 
 ~~~~groovy
 plugins { id 'com.android.application' }
@@ -27,8 +27,8 @@ android {
         applicationId 'online.gpsgps.bscsampling'
         minSdk 29
         targetSdk 35
-        versionCode 107
-        versionName '1.2.6'
+        versionCode 108
+        versionName '1.2.7'
         buildConfigField 'String', 'DEFAULT_SERVER', '"https://bsc.gpsgps.online"'
     }
     buildFeatures { buildConfig true }
@@ -505,12 +505,12 @@ public final class SyncWorker extends Worker{public SyncWorker(@NonNull Context 
 
 #### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/Task.java`
 
-SHA-256: `967db9e9d5e19439c520f8634267700e0c63c864352136470766f4718b2827ad`
+SHA-256: `bb17bc3e3f1d57b62a98564b8430ba7a563ea4a239bc8a04da45b5294565d120`
 
 ~~~~java
 package online.gpsgps.bscsampling;
 import org.json.JSONObject;
-final class Task { final JSONObject j; final long id; Task(JSONObject j){this.j=j;id=j.optLong("id");} String title(){return j.optString("site_name","采样点");} String code(){return j.optString("sample_code","");} String siteCode(){return j.optString("site_code","");} String status(){return j.optString("status","assigned");} double lat(){return j.optDouble("target_latitude");} double lon(){return j.optDouble("target_longitude");} boolean submitted(){return status().equals("submitted")||j.optString("local_status").equals("queued")||j.optLong("record_id")>0;} boolean canceled(){return !j.optString("canceled_at").isEmpty();} }
+final class Task { final JSONObject j; final long id; Task(JSONObject j){this.j=j;id=j.optLong("id");} String title(){return j.optString("site_name","采样点");} String code(){return j.optString("sample_code","");} String siteCode(){return j.optString("site_code","");} String status(){return j.optString("status","assigned");} double lat(){return j.optDouble("target_latitude");} double lon(){return j.optDouble("target_longitude");} boolean submitted(){return status().equals("submitted")||j.optString("local_status").equals("queued")||j.optLong("record_id")>0;} boolean canceled(){String s=j.optString("canceled_at");return !j.isNull("canceled_at")&&!s.isEmpty()&&!"null".equalsIgnoreCase(s);} }
 ~~~~
 
 #### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/TaskActivity.java`
@@ -3644,7 +3644,7 @@ module.exports = { check, recordFailure, recordSuccess, prune };
 
 #### `bsc-sampling-v1/src/schema.js`
 
-SHA-256: `744156c85a7745bc1b4927fbd273869a6d48cd9e4a42d18d422742e5d9c2bb2a`
+SHA-256: `d6f3d858bbdfdff80d35cfcdcf0d2b5b5726fb3b3017e14c2ce6f895994d6905`
 
 ~~~~javascript
 'use strict';
@@ -3866,6 +3866,7 @@ function migrate(db) {
   db.exec('CREATE TABLE IF NOT EXISTS label_prints (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, sample_code TEXT NOT NULL, printed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(107, '1.2.6', '同步按钮点击必有反馈（进行中提示+完成Toast显示任务数），同步完成自动刷新任务页');
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(107, '1.2.6', '修复同步完成后任务列表不刷新（手机收不到下发任务）；恢复任务列表点击日期联动地图日期过滤');
+  db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(108, '1.2.7', '修复 Android JSON 空值被 optString 误读为文本null导致全部任务被判已取消而隐藏（任务列表空白根因）');
 }
 
 function seed(db) {

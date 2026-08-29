@@ -775,6 +775,7 @@ Android 单元测试：
 40. **手机任务列表空白修复（用户反馈，日志定位）**：日志证明任务已同步到手机（`SYNC_TASKS tasks=293`），问题是任务列表只在打开时读一次本地库、同步完成后不刷新。修复：同步完成自动刷新任务页（与上传页一致）；空列表自动触发同步并显示"正在同步"提示；列表默认全部展开、最新日期在前。
 41. **移动网络无法同步修复（用户反馈）**：移动网络下运营商 DNS 解析 `bsc.gpsgps.online` 不稳定（历史日志多次 `Unable to resolve host`）。APP 新增 `SyncDns`：**优先走阿里公共 DNS over HTTPS（223.5.5.5，IP 直连）**，失败回退系统 DNS；请求失败时记录 `HTTP_FAIL` 详细日志（路径+异常类型+原因）；顺带修复 `ApiError` 被包装成普通 IOException 导致状态码丢失的问题（影响静默重登判断）。新增 `SyncDnsTest` 单元测试（DoH 应答解析，纯字符串解析不依赖 org.json）。新增 **《同步日志审查规则》`docs/SYNC_DIAGNOSIS.md`**：同步日志骨架、错误关键字对照表、字段说明、标准排查流程与健康基线。
 42. **手机收不到下发任务修复（用户反馈，日志实锤）**：手机日志 `SYNC_TASKS {"tasks":58}` 证明任务反复到达手机，但任务界面不显示。根因：v1.2.5 回退时把 v1.2.3 的"同步完成后自动刷新任务列表"一并撤销，任务页只在打开瞬间读一次本地库；同时"任务列表点击日期 → 地图只显示该日期合集点位"的联动（v1.2.0 引入）也被删除。修复：① 同步完成回调恢复 `if(currentTab==1)showTasks()`（刻意不恢复"空列表自动触发同步"，避免 v1.2.5 回退前的空列表无限循环同步问题）；② 恢复 `mapDateFilter` 日期过滤联动（点日期组设定、地图顶部"点此显示全部日期"一键恢复）。服务端 `app_versions` 登记 1.2.6（107）。
+43. **任务列表空白最终根因修复（用户反馈，诊断版 APK 定位）**：诊断日志显示本地库 648 条任务全部被判 `canceled`（`catLen=4`），而服务器与数据库经逐字节核验完全正常（`canceled_at` 全为真空值，server.js 与仓库一致）。根因是 **Android libcore `org.json` 的知名怪癖**：对 JSON 空值调用 `optString()` 返回字符串 `"null"`（4 字符），导致 `Task.canceled()`（`!optString("canceled_at").isEmpty()`）把每条正常任务的空 `canceled_at` 误判为"已取消"；v1.2.0 起"已取消不再显示"后全部任务被隐藏 → 列表永远空白。这与用户观察完全吻合（旧版本任务曾全部显示"已取消"标签）。修复：`Task.canceled()` 改用 `isNull()` 精确判定，并把文本 `"null"` 一并视为空（双保险）。服务端登记 1.2.7（108）。
 
 ### 28.2 未完成，不得宣称已可上线
 
@@ -837,7 +838,7 @@ Android 单元测试：
 
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-29T16:07:48.043Z  
+> 生成时间：2026-08-29T17:13:11.990Z  
 > 文件数：79  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
@@ -851,7 +852,7 @@ Android 单元测试：
 
 #### `bsc-android-native/app/build.gradle`
 
-SHA-256: `d34d206512911aff48d665dbc116ad96c3ecab34c4361501af0949bb2652c502`
+SHA-256: `3dc2b05c2e90a166b13792ac8184c55600ae41b81021ffd4cabe5dfe931544c2`
 
 ~~~~groovy
 plugins { id 'com.android.application' }
@@ -864,8 +865,8 @@ android {
         applicationId 'online.gpsgps.bscsampling'
         minSdk 29
         targetSdk 35
-        versionCode 107
-        versionName '1.2.6'
+        versionCode 108
+        versionName '1.2.7'
         buildConfigField 'String', 'DEFAULT_SERVER', '"https://bsc.gpsgps.online"'
     }
     buildFeatures { buildConfig true }
@@ -1342,12 +1343,12 @@ public final class SyncWorker extends Worker{public SyncWorker(@NonNull Context 
 
 #### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/Task.java`
 
-SHA-256: `967db9e9d5e19439c520f8634267700e0c63c864352136470766f4718b2827ad`
+SHA-256: `bb17bc3e3f1d57b62a98564b8430ba7a563ea4a239bc8a04da45b5294565d120`
 
 ~~~~java
 package online.gpsgps.bscsampling;
 import org.json.JSONObject;
-final class Task { final JSONObject j; final long id; Task(JSONObject j){this.j=j;id=j.optLong("id");} String title(){return j.optString("site_name","采样点");} String code(){return j.optString("sample_code","");} String siteCode(){return j.optString("site_code","");} String status(){return j.optString("status","assigned");} double lat(){return j.optDouble("target_latitude");} double lon(){return j.optDouble("target_longitude");} boolean submitted(){return status().equals("submitted")||j.optString("local_status").equals("queued")||j.optLong("record_id")>0;} boolean canceled(){return !j.optString("canceled_at").isEmpty();} }
+final class Task { final JSONObject j; final long id; Task(JSONObject j){this.j=j;id=j.optLong("id");} String title(){return j.optString("site_name","采样点");} String code(){return j.optString("sample_code","");} String siteCode(){return j.optString("site_code","");} String status(){return j.optString("status","assigned");} double lat(){return j.optDouble("target_latitude");} double lon(){return j.optDouble("target_longitude");} boolean submitted(){return status().equals("submitted")||j.optString("local_status").equals("queued")||j.optLong("record_id")>0;} boolean canceled(){String s=j.optString("canceled_at");return !j.isNull("canceled_at")&&!s.isEmpty()&&!"null".equalsIgnoreCase(s);} }
 ~~~~
 
 #### `bsc-android-native/app/src/main/java/online/gpsgps/bscsampling/TaskActivity.java`
@@ -4481,7 +4482,7 @@ module.exports = { check, recordFailure, recordSuccess, prune };
 
 #### `bsc-sampling-v1/src/schema.js`
 
-SHA-256: `744156c85a7745bc1b4927fbd273869a6d48cd9e4a42d18d422742e5d9c2bb2a`
+SHA-256: `d6f3d858bbdfdff80d35cfcdcf0d2b5b5726fb3b3017e14c2ce6f895994d6905`
 
 ~~~~javascript
 'use strict';
@@ -4703,6 +4704,7 @@ function migrate(db) {
   db.exec('CREATE TABLE IF NOT EXISTS label_prints (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, sample_code TEXT NOT NULL, printed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(107, '1.2.6', '同步按钮点击必有反馈（进行中提示+完成Toast显示任务数），同步完成自动刷新任务页');
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(107, '1.2.6', '修复同步完成后任务列表不刷新（手机收不到下发任务）；恢复任务列表点击日期联动地图日期过滤');
+  db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(108, '1.2.7', '修复 Android JSON 空值被 optString 误读为文本null导致全部任务被判已取消而隐藏（任务列表空白根因）');
 }
 
 function seed(db) {
