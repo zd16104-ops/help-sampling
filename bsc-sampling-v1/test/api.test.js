@@ -776,3 +776,18 @@ test('delete task without record works; with record returns 422', async () => {
   assert.equal(refuse.status, 422, `有记录任务删除应422: ${JSON.stringify(refuse.json)}`);
   assert.match(refuse.json.message, /不能删除/);
 });
+
+test('batch delete tasks by date keeps tasks with records', async () => {
+  const date = new Date(Date.now() + 2 * 86400_000).toISOString().slice(0, 10);
+  const clean1 = await adminCreateTask({ plannedDate: date });
+  const clean2 = await adminCreateTask({ plannedDate: date });
+  const withRecord = await adminCreateTask({ plannedDate: date });
+  const deviceId = rawDb.prepare('SELECT id FROM devices WHERE villager_id=? LIMIT 1').get(villagerId).id;
+  rawDb.prepare('INSERT INTO records(client_record_id,task_id,device_id,captured_at,latitude,longitude,photo_path,photo_sha256) VALUES(?,?,?,?,?,?,?,?)').run(`batch-${Date.now()}`, withRecord, deviceId, new Date().toISOString(), 30.1, 94.1, '/uploads/1/x.jpg', 'sha-batch');
+  const res = await call('POST', '/api/v1/admin/tasks/batch-delete', { projectId: 1, plannedDate: date }, adminToken);
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  assert.equal(res.json.deleted, 2, `deleted=${res.json.deleted}`);
+  assert.equal(res.json.skipped, 1, `skipped=${res.json.skipped}`);
+  assert.equal(rawDb.prepare('SELECT COUNT(*) c FROM tasks WHERE id IN (?,?)').get(clean1, clean2).c, 0, '无记录任务已删除');
+  assert.ok(rawDb.prepare('SELECT id FROM tasks WHERE id=?').get(withRecord), '有记录任务保留');
+});

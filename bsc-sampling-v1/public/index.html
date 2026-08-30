@@ -53,7 +53,8 @@
           <span class="top-action-wrap"><button id="exportPhotos" class="secondary">照片包</button><i class="info-badge">!</i><span class="info-tip">把全部现场水印照片打包为 ZIP 下载，文件名含样品编号，可作原始证据归档。</span></span>
           <span class="top-action-wrap"><button id="exportAudit" class="secondary">审计记录</button><i class="info-badge">!</i><span class="info-tip">导出全部管理员操作审计日志 CSV（登录、点位/项目修改、任务下发/取消/改期、审核等），只追加不可删除。</span></span>
           <span class="top-action-wrap"><button id="importButton" class="secondary">导入Excel/CSV</button><i class="info-badge">!</i><span class="info-tip">把现有点位表格另存为 CSV（UTF-8）后批量导入，列名：编号,序号,经纬度,海拔,备注（可选点位名称/采样说明/风险提醒/样品类型）。"编号"是排序号，"序号"是历史序号（5.1 等小数保留）；坐标必须是 WGS84。导入点位默认启用，可再补传参考图。</span></span>
-          <span class="top-action-wrap"><button id="newTaskButton" class="secondary">＋ 下发采样任务</button><i class="info-badge">!</i><span class="info-tip">选择计划采样日期、采样员和一个或多个点位、样品类型，系统为每个"点位×类型"生成独立任务、瓶子编号与二维码，并可打印 40 枚/页 A4 不干胶标签。</span></span>
+          <span class="top-action-wrap"><button id="deleteDateTasks" class="btn btn-danger hidden">删除本日期全部任务</button><i class="info-badge">!</i><span class="info-tip">删除左侧所选日期的全部采样任务：无采样记录的任务将被永久删除；已有采样记录的任务会保留（证据链保护）。</span></span>
+          <span class="top-action-wrap"><button id="newTaskButton" class="secondary">＋ 下发采样任务</button><i class="info-badge">!</i><span class="info-tip">选择计划采样日期、采样员和一个或多个点位、样品类型，系统为每个"点位×类型"生成独立任务、瓶子编号与二维码，并可打印 60 枚/页 A4 不干胶标签。</span></span>
           <span class="top-action-wrap"><button id="addSiteButton" class="primary">＋ 设置采样点</button><i class="info-badge">!</i><span class="info-tip">新建/编辑固定采样点：历史序号（5.1 等格式保留）、WGS84 坐标（可在地图上点选并拖动微调）、样品类型多选、可选现场参考图、采样说明与风险提醒。</span></span>
         </div>
       </header>

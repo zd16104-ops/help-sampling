@@ -95,7 +95,7 @@ async function main() {
   await page.waitForTimeout(250);
 
   // 1b. 顶栏按钮"!"信息点与悬停详情
-  check('顶栏按钮均带"!"信息点', await page.locator('.top-action-wrap .info-badge').count() === 7);
+  check('顶栏按钮均带"!"信息点', await page.locator('.top-action-wrap .info-badge').count() === 8);
   await page.hover('#exportCsv');
   await page.waitForSelector('#exportCsv ~ .info-tip', { state: 'visible', timeout: 5000 });
   const tipText = await page.locator('#exportCsv ~ .info-tip').textContent();

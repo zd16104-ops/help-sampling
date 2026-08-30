@@ -273,6 +273,7 @@ function render() {
   $('#statApproved').textContent = tasks.filter(t => t.review_status === 'approved').length;
   $('#statPending').textContent = tasks.filter(t => t.record_id && t.review_status !== 'approved').length;
   $('#statUnfinished').textContent = tasks.filter(t => !t.record_id).length;
+  $('#deleteDateTasks').classList.toggle('hidden', state.selectedDate === 'pending');
   const tableWrap = $('#taskTableWrap');
   const mapPanel = document.querySelector('.map-panel');
   if (state.tableMode) {
@@ -864,6 +865,20 @@ $('#deleteSite').addEventListener('click', async () => {
     $('#siteDialog').close();
     await loadAll();
     alert(`点位已删除，已取消 ${res.canceledTasks} 个未采样任务。历史序号已释放，可立即用于新建点位。`);
+  } catch (error) { alert(error.message); }
+});
+
+$('#deleteDateTasks').addEventListener('click', async () => {
+  const d = state.selectedDate;
+  if (!d || d === 'pending') return;
+  const del = state.tasks.filter(t => t.planned_date === d && !t.record_id).length;
+  const keep = state.tasks.filter(t => t.planned_date === d && t.record_id).length;
+  if (!del && !keep) return alert('该日期没有任务。');
+  if (!confirm(`确定删除 ${d} 的全部采样任务？\n可删除：${del} 个（无采样记录，不可恢复）\n将保留：${keep} 个（已有采样记录）`)) return;
+  try {
+    const res = await post('/api/v1/admin/tasks/batch-delete', { projectId: state.projectId, plannedDate: d });
+    await loadAll();
+    alert(`已删除 ${res.deleted} 个任务，保留 ${res.skipped} 个（有采样记录）。`);
   } catch (error) { alert(error.message); }
 });
 

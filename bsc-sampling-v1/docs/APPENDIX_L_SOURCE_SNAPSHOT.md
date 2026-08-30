@@ -1,6 +1,6 @@
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-30T15:36:41.851Z  
+> 生成时间：2026-08-30T16:55:45.655Z  
 > 文件数：80  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
@@ -1742,7 +1742,7 @@ SHA-256: `993a539bcb81926555f283a0b763e207c022a0f0c4b2757a54c4d260cd876e71`
 
 #### `bsc-sampling-v1/public/app.js`
 
-SHA-256: `36b45d06a79e983f66fa3fa1ee1792c0311aed20da0a54681000ea326e3b55a1`
+SHA-256: `9c281b6d3dfd3e7adac6a17a78b79461b4b6c12299ad3987861c1e4a40c60ab4`
 
 ~~~~javascript
 'use strict';
@@ -2020,6 +2020,7 @@ function render() {
   $('#statApproved').textContent = tasks.filter(t => t.review_status === 'approved').length;
   $('#statPending').textContent = tasks.filter(t => t.record_id && t.review_status !== 'approved').length;
   $('#statUnfinished').textContent = tasks.filter(t => !t.record_id).length;
+  $('#deleteDateTasks').classList.toggle('hidden', state.selectedDate === 'pending');
   const tableWrap = $('#taskTableWrap');
   const mapPanel = document.querySelector('.map-panel');
   if (state.tableMode) {
@@ -2614,6 +2615,20 @@ $('#deleteSite').addEventListener('click', async () => {
   } catch (error) { alert(error.message); }
 });
 
+$('#deleteDateTasks').addEventListener('click', async () => {
+  const d = state.selectedDate;
+  if (!d || d === 'pending') return;
+  const del = state.tasks.filter(t => t.planned_date === d && !t.record_id).length;
+  const keep = state.tasks.filter(t => t.planned_date === d && t.record_id).length;
+  if (!del && !keep) return alert('该日期没有任务。');
+  if (!confirm(`确定删除 ${d} 的全部采样任务？\n可删除：${del} 个（无采样记录，不可恢复）\n将保留：${keep} 个（已有采样记录）`)) return;
+  try {
+    const res = await post('/api/v1/admin/tasks/batch-delete', { projectId: state.projectId, plannedDate: d });
+    await loadAll();
+    alert(`已删除 ${res.deleted} 个任务，保留 ${res.skipped} 个（有采样记录）。`);
+  } catch (error) { alert(error.message); }
+});
+
 // ---------- CSV 导入 ----------
 $('#importButton').addEventListener('click', () => $('#importDialog').showModal());
 $('#runImport').addEventListener('click', async () => {
@@ -2876,7 +2891,7 @@ SHA-256: `56ea901d1568162180fb0187726da544ff446b0ccc6fba614cd913e472cbe7a1`
 
 #### `bsc-sampling-v1/public/index.html`
 
-SHA-256: `e46f06c066b8872549e86b542af6f84d0458d8e1d61c507e661ee039e0a54300`
+SHA-256: `1d8f2ee25f8f98780a21301cd1e2fee1a3f109da0d93fdc3cc491c54e3a5ac3c`
 
 ~~~~html
 <!doctype html>
@@ -2934,7 +2949,8 @@ SHA-256: `e46f06c066b8872549e86b542af6f84d0458d8e1d61c507e661ee039e0a54300`
           <span class="top-action-wrap"><button id="exportPhotos" class="secondary">照片包</button><i class="info-badge">!</i><span class="info-tip">把全部现场水印照片打包为 ZIP 下载，文件名含样品编号，可作原始证据归档。</span></span>
           <span class="top-action-wrap"><button id="exportAudit" class="secondary">审计记录</button><i class="info-badge">!</i><span class="info-tip">导出全部管理员操作审计日志 CSV（登录、点位/项目修改、任务下发/取消/改期、审核等），只追加不可删除。</span></span>
           <span class="top-action-wrap"><button id="importButton" class="secondary">导入Excel/CSV</button><i class="info-badge">!</i><span class="info-tip">把现有点位表格另存为 CSV（UTF-8）后批量导入，列名：编号,序号,经纬度,海拔,备注（可选点位名称/采样说明/风险提醒/样品类型）。"编号"是排序号，"序号"是历史序号（5.1 等小数保留）；坐标必须是 WGS84。导入点位默认启用，可再补传参考图。</span></span>
-          <span class="top-action-wrap"><button id="newTaskButton" class="secondary">＋ 下发采样任务</button><i class="info-badge">!</i><span class="info-tip">选择计划采样日期、采样员和一个或多个点位、样品类型，系统为每个"点位×类型"生成独立任务、瓶子编号与二维码，并可打印 40 枚/页 A4 不干胶标签。</span></span>
+          <span class="top-action-wrap"><button id="deleteDateTasks" class="btn btn-danger hidden">删除本日期全部任务</button><i class="info-badge">!</i><span class="info-tip">删除左侧所选日期的全部采样任务：无采样记录的任务将被永久删除；已有采样记录的任务会保留（证据链保护）。</span></span>
+          <span class="top-action-wrap"><button id="newTaskButton" class="secondary">＋ 下发采样任务</button><i class="info-badge">!</i><span class="info-tip">选择计划采样日期、采样员和一个或多个点位、样品类型，系统为每个"点位×类型"生成独立任务、瓶子编号与二维码，并可打印 60 枚/页 A4 不干胶标签。</span></span>
           <span class="top-action-wrap"><button id="addSiteButton" class="primary">＋ 设置采样点</button><i class="info-badge">!</i><span class="info-tip">新建/编辑固定采样点：历史序号（5.1 等格式保留）、WGS84 坐标（可在地图上点选并拖动微调）、样品类型多选、可选现场参考图、采样说明与风险提醒。</span></span>
         </div>
       </header>
@@ -4203,7 +4219,7 @@ module.exports = { hashPin, verifyPin, safeEqual, signToken, verifyToken, totp, 
 
 #### `bsc-sampling-v1/src/server.js`
 
-SHA-256: `19d9af0e454fe47b2e8211ed0e7213fd68c28bef6a82a4272acd7e03faabd51a`
+SHA-256: `2a9527206606d9c50d2879816e70fe647684d33e026ec6b133d8f460a4f2bb15`
 
 ~~~~javascript
 'use strict';
@@ -4322,6 +4338,7 @@ async function adminApi(req, res, url) {
   if (m && req.method === 'POST') { const user = db.prepare('SELECT * FROM villagers WHERE id=?').get(Number(m[1])); if (!user) throw error(404, '采样员不存在'); const raw = randomToken(24), hash = crypto.createHash('sha256').update(raw).digest('hex'), expires = new Date(Date.now() + 24 * 3600_000).toISOString(); db.prepare('INSERT INTO activation_codes(villager_id,token_hash,expires_at) VALUES(?,?,?)').run(user.id, hash, expires); const value = `BSC-ACT|${config.publicBaseUrl}|${user.username}|${raw}`; audit(db, 'admin', 'admin', 'create_activation', 'villager', user.id, { expiresAt: expires }, ipOf(req)); return output(res, 201, { value, qrDataUrl: await QRCode.toDataURL(value, { width: 480, margin: 1 }), expiresAt: expires }); }
   if (url.pathname === '/api/v1/admin/tasks' && req.method === 'POST') { const p = await body(req); const site = db.prepare('SELECT * FROM sites WHERE id=? AND enabled=1').get(number(p.siteId, '点位')); if (!site) throw error(422, '点位未启用'); const requested = Array.isArray(p.sampleTypes) ? p.sampleTypes : [p.sampleType]; const siteTypes = parse(site.sample_types); const wanted = requested.filter(t => ['R','T','S','P','Y','L'].includes(t)); const types = (wanted.length ? wanted : siteTypes).filter(Boolean); if (!types.length) throw error(422, '该点位未设置样品类型，请先在点位管理里设置'); const created = transaction(() => types.map(type => { const code = sampleCode(required(p.plannedDate, '日期'), type, site); return { id: Number(db.prepare(`INSERT INTO tasks(project_id,site_id,villager_id,planned_date,base_sample_code,sample_code,sample_type,sequence,qr_token) VALUES(?,?,?,?,?,?,?,?,?)`).run(site.project_id, site.id, number(p.villagerId, '采样员'), p.plannedDate, code.base, code.code, type, code.count, randomToken(24)).lastInsertRowid), sampleCode: code.code }; })); audit(db, 'admin', 'admin', 'create_tasks', 'site', site.id, { count: created.length, plannedDate: p.plannedDate, villagerId: p.villagerId, types }, ipOf(req)); return output(res, 201, { ids: created.map(c => c.id), codes: created.map(c => c.sampleCode) }); }
   if (url.pathname === '/api/v1/admin/tasks' && req.method === 'GET') { const project = Number(url.searchParams.get('projectId') || 1); const date = url.searchParams.get('date') || ''; const sql = `SELECT t.*,s.code site_code,s.name site_name,s.latitude target_latitude,s.longitude target_longitude,s.reference_image,s.instructions,s.risk_note,p.name project_name,p.code project_code,v.display_name villager_name,r.id record_id,r.captured_at,r.received_at,r.latitude,r.longitude,r.accuracy_m,r.distance_m,r.weather_text,r.server_weather_text,r.server_weather_status,r.manual_code,r.exception_category,r.exception_detail,r.mock_location,r.no_water,r.photo_path,r.photo_sha256,r.review_status,r.review_note,r.risk_flags,j.start_distance_m,j.interrupted,j.started_at,(SELECT COUNT(*) FROM label_prints lp WHERE lp.task_id=t.id) printed_count,(SELECT MAX(lp.printed_at) FROM label_prints lp WHERE lp.task_id=t.id) printed_last FROM tasks t JOIN sites s ON s.id=t.site_id JOIN projects p ON p.id=t.project_id JOIN villagers v ON v.id=t.villager_id LEFT JOIN records r ON r.task_id=t.id AND r.is_primary=1 LEFT JOIN journeys j ON j.id=t.journey_id WHERE t.project_id=?${date === 'pending' ? " AND r.id IS NULL" : date ? " AND r.id IS NOT NULL AND substr(r.captured_at,1,10)=?" : ''} ORDER BY t.planned_date DESC,t.id`; const rows = date && date !== 'pending' ? db.prepare(sql).all(project, date) : db.prepare(sql).all(project); return output(res, 200, { tasks: rows.map(t => ({ ...t, risk_flags: parse(t.risk_flags), canceled_at: t.canceled_at || null, canceled_reason: t.canceled_reason || null, photo_path: signedImage(t.photo_path), reference_image: signedImage(t.reference_image) })) }); }
+  if (url.pathname === '/api/v1/admin/tasks/batch-delete' && req.method === 'POST') { const p = await body(req); const date = required(p.plannedDate, '日期'); const project = Number(p.projectId || 1); const result = transaction(() => { const rows = db.prepare('SELECT id FROM tasks WHERE project_id=? AND planned_date=? AND id NOT IN (SELECT task_id FROM records)').all(project, date); for (const r of rows) { db.prepare('DELETE FROM label_prints WHERE task_id=?').run(r.id); db.prepare('DELETE FROM live_locations WHERE task_id=?').run(r.id); db.prepare('DELETE FROM track_points WHERE journey_id IN (SELECT journey_id FROM tasks WHERE id=?)').run(r.id); db.prepare('DELETE FROM journeys WHERE id IN (SELECT journey_id FROM tasks WHERE id=?)').run(r.id); db.prepare('DELETE FROM tasks WHERE id=?').run(r.id); } const skipped = db.prepare('SELECT COUNT(*) c FROM tasks WHERE project_id=? AND planned_date=? AND id IN (SELECT task_id FROM records)').get(project, date).c; return { deleted: rows.length, skipped }; }); audit(db, 'admin', 'admin', 'batch_delete_tasks', 'date', date, { projectId: project, ...result }, ipOf(req)); return output(res, 200, result); }
   m = /^\/api\/v1\/admin\/tasks\/(\d+)\/cancel$/.exec(url.pathname);
   if (m && req.method === 'POST') { const id = Number(m[1]), p = await body(req), task = db.prepare('SELECT * FROM tasks WHERE id=?').get(id); if (!task) throw error(404, '任务不存在'); if (db.prepare('SELECT id FROM records WHERE task_id=? AND is_primary=1').get(id)) throw error(422, '已提交记录，不能取消；请使用退回重采'); if (task.canceled_at) throw error(422, '任务已取消'); db.prepare('UPDATE tasks SET canceled_at=CURRENT_TIMESTAMP,canceled_reason=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(String(p.reason || '管理员取消'), id); audit(db, 'admin', 'admin', 'cancel_task', 'task', id, { reason: p.reason }, ipOf(req)); return output(res, 200, { ok: true }); }
   m = /^\/api\/v1\/admin\/tasks\/(\d+)\/reschedule$/.exec(url.pathname);
@@ -4540,7 +4557,7 @@ module.exports = { backfillWeather };
 
 #### `bsc-sampling-v1/test/api.test.js`
 
-SHA-256: `c73be7cfe07dbf02274cb55728efbddd4b7eba2357dcf980dc0aab8d3f1c77f3`
+SHA-256: `6bfacf5602f4fcabd07791023f07cab45f1e7ba90737d605993ab32c8842efef`
 
 ~~~~javascript
 'use strict';
@@ -5321,6 +5338,21 @@ test('delete task without record works; with record returns 422', async () => {
   assert.equal(refuse.status, 422, `有记录任务删除应422: ${JSON.stringify(refuse.json)}`);
   assert.match(refuse.json.message, /不能删除/);
 });
+
+test('batch delete tasks by date keeps tasks with records', async () => {
+  const date = new Date(Date.now() + 2 * 86400_000).toISOString().slice(0, 10);
+  const clean1 = await adminCreateTask({ plannedDate: date });
+  const clean2 = await adminCreateTask({ plannedDate: date });
+  const withRecord = await adminCreateTask({ plannedDate: date });
+  const deviceId = rawDb.prepare('SELECT id FROM devices WHERE villager_id=? LIMIT 1').get(villagerId).id;
+  rawDb.prepare('INSERT INTO records(client_record_id,task_id,device_id,captured_at,latitude,longitude,photo_path,photo_sha256) VALUES(?,?,?,?,?,?,?,?)').run(`batch-${Date.now()}`, withRecord, deviceId, new Date().toISOString(), 30.1, 94.1, '/uploads/1/x.jpg', 'sha-batch');
+  const res = await call('POST', '/api/v1/admin/tasks/batch-delete', { projectId: 1, plannedDate: date }, adminToken);
+  assert.equal(res.status, 200, JSON.stringify(res.json));
+  assert.equal(res.json.deleted, 2, `deleted=${res.json.deleted}`);
+  assert.equal(res.json.skipped, 1, `skipped=${res.json.skipped}`);
+  assert.equal(rawDb.prepare('SELECT COUNT(*) c FROM tasks WHERE id IN (?,?)').get(clean1, clean2).c, 0, '无记录任务已删除');
+  assert.ok(rawDb.prepare('SELECT id FROM tasks WHERE id=?').get(withRecord), '有记录任务保留');
+});
 ~~~~
 
 #### `bsc-sampling-v1/test/backup.test.js`
@@ -5373,7 +5405,7 @@ test('backup --photos copies top-level reference files and survives same-second 
 
 #### `bsc-sampling-v1/test/frontend.e2e.js`
 
-SHA-256: `16522fd09823183d10175ea55db93fb1b3b8b9e6d9dc821566b5b3210a645d70`
+SHA-256: `86e2f26adbabcb2ffe1d652c854a5081d136af938004995ed2aeca1ec57edf7f`
 
 ~~~~javascript
 'use strict';
@@ -5473,7 +5505,7 @@ async function main() {
   await page.waitForTimeout(250);
 
   // 1b. 顶栏按钮"!"信息点与悬停详情
-  check('顶栏按钮均带"!"信息点', await page.locator('.top-action-wrap .info-badge').count() === 7);
+  check('顶栏按钮均带"!"信息点', await page.locator('.top-action-wrap .info-badge').count() === 8);
   await page.hover('#exportCsv');
   await page.waitForSelector('#exportCsv ~ .info-tip', { state: 'visible', timeout: 5000 });
   const tipText = await page.locator('#exportCsv ~ .info-tip').textContent();
