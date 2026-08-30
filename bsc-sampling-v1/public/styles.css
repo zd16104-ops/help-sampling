@@ -151,3 +151,51 @@ button{font-family:var(--font)}
 .error{color:var(--c-danger);font-size:13px;min-height:18px;margin:0}
 /* 打印（原样保留，勿改） */
 @media print{body *{visibility:hidden}#labelResult,#labelResult *{visibility:visible}#labelResult{position:absolute;left:20mm;top:20mm;width:85mm;border:1px solid #222;background:#fff}.label-result p{display:none}}
+
+/* 应用壳 */
+.app{display:grid;grid-template-columns:230px minmax(0,1fr);height:100vh;background:var(--c-bg)}
+.app.side-collapsed{grid-template-columns:64px minmax(0,1fr)}
+.sidebar{background:linear-gradient(180deg,#FDFEFE,#EFF7F5);border-right:1px solid var(--c-line);display:flex;flex-direction:column;gap:6px;padding:16px 12px;overflow:auto}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 8px 14px}
+.brand .brand-mark.small{width:36px;height:36px;margin:0;font-size:18px;border-radius:10px}
+.brand strong{font-size:15px}.brand small{display:block;color:var(--c-ink-2);font-size:11px}
+.section-label{font-size:11px;color:var(--c-ink-2);letter-spacing:.1em;margin:10px 8px 2px}
+.side-action{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:0;border-radius:var(--radius-sm);
+  background:transparent;color:var(--c-ink);font-size:13.5px;cursor:pointer;text-align:left}
+.side-action:hover{background:#E3F2EE;color:var(--c-primary-strong)}
+.side-action.active{background:var(--c-primary);color:#fff}
+.date-list,.project-list{display:flex;flex-direction:column;gap:4px}
+#dateList button,#projectList button{border:0;border-radius:var(--radius-sm);background:transparent;color:var(--c-ink);font-size:13px;padding:8px 12px;text-align:left;cursor:pointer}
+#dateList button:hover,#projectList button:hover{background:#E3F2EE}
+#dateList button.active,#projectList button.active{background:var(--c-primary);color:#fff}
+.sidebar-bottom{margin-top:auto;display:grid;gap:6px;padding-top:10px;border-top:1px solid var(--c-line)}
+.server-dot{display:flex;align-items:center;gap:8px;color:var(--c-ink-2);font-size:12px;padding:4px 8px}
+.server-dot i{width:8px;height:8px;border-radius:50%;background:var(--c-green)}
+/* 顶栏 */
+.main{min-width:0;display:flex;flex-direction:column;padding:18px 22px;gap:16px;overflow:auto}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.topbar-title{display:flex;align-items:center;gap:10px}
+.crumb{font-size:12px;color:var(--c-ink-2)}
+.topbar h2{font-size:24px;font-weight:800}
+.menu-button{display:none;border:0;background:transparent;font-size:20px;cursor:pointer}
+.top-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+/* 统计卡 */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.stats article{display:flex;align-items:center;gap:12px;background:var(--c-card);border:1px solid var(--c-line);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow-soft)}
+.stats small{color:var(--c-ink-2);font-size:12px}
+.stats strong{font-size:22px;display:block}
+.stat-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;font-weight:700;color:#fff}
+.stat-icon.blue{background:var(--c-accent)}.stat-icon.green{background:var(--c-green)}
+.stat-icon.amber{background:var(--c-amber)}.stat-icon.gray{background:#9AA8A5}
+/* 表格视图 */
+.task-table-wrap{background:var(--c-card);border:1px solid var(--c-line);border-radius:var(--radius);box-shadow:var(--shadow-soft);overflow:hidden}
+.task-table-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--c-line);background:#FBFDFC}
+.task-table-tools select,.task-table-tools input{width:auto;min-width:150px}
+.task-table-scroll{overflow:auto;max-height:60vh}
+.task-table{width:100%;border-collapse:collapse;font-size:13px}
+.task-table th{position:sticky;top:0;background:#F0F7F5;color:var(--c-ink-2);font-size:12px;text-align:left;padding:10px 12px}
+.task-table td{padding:10px 12px;border-top:1px solid var(--c-line)}
+.task-table tbody tr:hover{background:#F2F9F7}
+.row-check{accent-color:var(--c-primary)}
+/* 兜底：移动端侧栏抽屉红线——≤650px 时 #menuButton 必须可见（与 Task 5 响应式块一致，提前补齐以保住 e2e 红线） */
+@media(max-width:650px){.menu-button{display:block}}
