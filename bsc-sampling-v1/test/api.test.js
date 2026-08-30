@@ -621,7 +621,7 @@ test('app-version endpoint returns latest version', async () => {
   const res = await call('GET', '/api/v1/mobile/app-version', null, null);
   assert.equal(res.status, 200);
   assert.ok(res.json.versionCode >= 107, `versionCode=${res.json.versionCode}`);
-  assert.equal(res.json.versionName, '1.2.6');
+  assert.equal(res.json.versionName, '1.2.7');
 });
 
 test('captured time in the future adds risk flag', async () => {
