@@ -53,6 +53,7 @@ async function api(path, options = {}) {
   return payload;
 }
 const post = (path, body) => api(path, { method: 'POST', body: JSON.stringify(body) });
+const del = path => api(path, { method: 'DELETE' });
 
 function esc(value) {
   return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -307,6 +308,7 @@ function renderTable(tasks) {
   });
   $('#taskTableBody').innerHTML = rows.map(t => {
     const reviewable = t.record_id && t.review_status !== 'approved' && t.review_status !== 'rejected';
+    const cancellable = !t.record_id && !t.canceled_at;
     return `<tr data-id="${t.id}">
       <td>${reviewable ? `<input type="checkbox" class="row-check" data-record="${t.record_id}">` : ''}</td>
       <td>${esc(t.sample_code)}</td>
@@ -316,12 +318,26 @@ function renderTable(tasks) {
       <td>${esc(t.villager_name || '')}</td>
       <td>${t.distance_m != null ? Math.round(Number(t.distance_m)) + ' 米' : '-'}</td>
       <td>${t.record_id ? reviewName(t.review_status) : (t.canceled_at ? '已取消' : '待采样')}</td>
-      <td><button class="ghost row-open">查看</button></td>
+      <td><button class="ghost row-open">查看</button>${cancellable ? `<button class="ghost row-cancel" data-task="${t.id}">取消</button><button class="ghost-danger row-delete" data-task="${t.id}">删除</button>` : ''}</td>
     </tr>`;
   }).join('');
   document.querySelectorAll('#taskTableBody .row-open').forEach(b => b.addEventListener('click', () => {
     const t = state.tasks.find(x => x.id === Number(b.closest('tr').dataset.id));
     if (t) showDetail(t);
+  }));
+  document.querySelectorAll('#taskTableBody .row-cancel').forEach(b => b.addEventListener('click', async () => {
+    const id = Number(b.dataset.task);
+    const t = state.tasks.find(x => x.id === id);
+    if (!confirm(`确定取消任务 ${t ? t.sample_code : ''}？取消后不再下发手机，记录保留。`)) return;
+    try { await post(`/api/v1/admin/tasks/${id}/cancel`, { reason: '管理员取消' }); await loadAll(); alert('任务已取消'); }
+    catch (error) { alert(error.message); }
+  }));
+  document.querySelectorAll('#taskTableBody .row-delete').forEach(b => b.addEventListener('click', async () => {
+    const id = Number(b.dataset.task);
+    const t = state.tasks.find(x => x.id === id);
+    if (!confirm(`确定永久删除任务 ${t ? t.sample_code : ''}？此操作不可恢复。`)) return;
+    try { await del(`/api/v1/admin/tasks/${id}/delete`); await loadAll(); alert('任务已删除'); }
+    catch (error) { alert(error.message); }
   }));
   $('#tableCheckAll').checked = false;
 }
@@ -553,7 +569,7 @@ async function showDetail(task) {
       <p>正常范围 ${task.normal_radius_m || 30}m · 异常上限 ${task.exception_radius_m || 80}m · 硬上限 300m</p>
       ${task.canceled_at ? `<p class="cancel-note">取消原因：${esc(task.canceled_reason || '未填写')}（记录保留，供审计）</p>` : ''}</div>
       ${task.locked_device_id ? `<p class="dialog-tip">已被设备锁定（${formatTime(task.locked_at)}）</p><button class="ghost-danger" id="unlockTask">人工解锁设备</button>` : ''}
-      ${!task.canceled_at ? `<div class="detail-actions"><button class="ghost-danger" id="cancelTask">取消此任务</button><button class="secondary" id="rescheduleTask">改期（重新编号）</button></div>` : ''}
+      ${!task.canceled_at ? `<div class="detail-actions"><button class="ghost-danger" id="cancelTask">取消此任务</button>${!task.record_id ? `<button class="ghost-danger" id="deleteTask">删除此任务</button>` : ''}<button class="secondary" id="rescheduleTask">改期（重新编号）</button></div>` : ''}
       ${task.journey_id ? `<a class="secondary gpx-link" href="#" id="exportGpx">导出本任务轨迹 GPX</a>` : ''}
       ${task.journey_id ? trackInfo : ''}`;
     if (task.journey_id && $('#exportGpx')) $('#exportGpx').addEventListener('click', e => { e.preventDefault(); downloadFile(`/api/v1/admin/exports/gpx?journeyId=${task.journey_id}`, `journey-${task.journey_id}.gpx`); });
@@ -561,6 +577,11 @@ async function showDetail(task) {
       const reason = prompt('请输入取消原因（会保留记录，供审计）：', '管理员取消');
       if (reason === null) return;
       try { await post(`/api/v1/admin/tasks/${task.id}/cancel`, { reason }); await loadAll(); render(); showDetail(state.tasks.find(t => t.id === task.id) || task); }
+      catch (error) { alert(error.message); }
+    });
+    if ($('#deleteTask')) $('#deleteTask').addEventListener('click', async () => {
+      if (!confirm(`确定永久删除任务 ${task.sample_code}？此操作不可恢复。`)) return;
+      try { await del(`/api/v1/admin/tasks/${task.id}/delete`); await loadAll(); $('#detail').classList.add('hidden'); alert('任务已删除'); }
       catch (error) { alert(error.message); }
     });
     if ($('#rescheduleTask')) $('#rescheduleTask').addEventListener('click', async () => {
@@ -702,6 +723,7 @@ function resetSiteForm() {
 function openSiteDialog(site = null, coords = null) {
   resetSiteForm();
   state.editingSiteId = site ? site.id : null;
+  $('#deleteSite').classList.toggle('hidden', !site);
   $('#siteDialogTitle').textContent = site ? `编辑采样点 ${site.code}` : '设置采样点';
   if (site) {
     $('#siteSortOrder').value = site.sort_order ?? '';
@@ -830,6 +852,18 @@ $('#saveSite').addEventListener('click', async () => {
     $('#siteDialog').close();
     await loadAll();
     alert(hasReference ? '采样点已保存。' : '采样点已保存。建议补充现场参考图，方便村民对照找点。');
+  } catch (error) { alert(error.message); }
+});
+
+$('#deleteSite').addEventListener('click', async () => {
+  if (!state.editingSiteId) return;
+  const code = $('#siteCode').value.trim();
+  if (!confirm(`确定删除点位 ${code}？\n其名下未采样任务将一并取消，此操作不可恢复。`)) return;
+  try {
+    const res = await del(`/api/v1/admin/sites/${state.editingSiteId}`);
+    $('#siteDialog').close();
+    await loadAll();
+    alert(`点位已删除，已取消 ${res.canceledTasks} 个未采样任务。`);
   } catch (error) { alert(error.message); }
 });
 

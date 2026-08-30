@@ -621,7 +621,8 @@ test('app-version endpoint returns latest version', async () => {
   const res = await call('GET', '/api/v1/mobile/app-version', null, null);
   assert.equal(res.status, 200);
   assert.ok(res.json.versionCode >= 107, `versionCode=${res.json.versionCode}`);
-  assert.equal(res.json.versionName, '1.2.7');
+  assert.equal(res.json.versionName, '1.3.1');
+  assert.equal(res.json.mandatory, 0, 'mandatory 字段应下发（默认0）');
 });
 
 test('captured time in the future adds risk flag', async () => {
@@ -729,4 +730,41 @@ test('task creation without sampleTypes uses the site own types', async () => {
   }, adminToken);
   assert.equal(res.status, 201, JSON.stringify(res.json));
   assert.ok(res.json.codes.length >= 2, `按点位类型生成任务: ${JSON.stringify(res.json.codes)}`);
+});
+
+test('delete site cancels its unsampled tasks and hides the site', async () => {
+  const code = `DEL${Date.now()}`;
+  const created = await call('POST', '/api/v1/admin/sites', {
+    projectId: 1, code, name: '待删除点位', latitude: 30.2, longitude: 94.2, sampleTypes: ['R'], enabled: true
+  }, adminToken);
+  assert.equal(created.status, 201, `create site: ${JSON.stringify(created.json)}`);
+  const siteId = created.json.id;
+  const taskId = await adminCreateTask({ siteId });
+  const del = await call('DELETE', `/api/v1/admin/sites/${siteId}`, null, adminToken);
+  assert.equal(del.status, 200, `delete site: ${JSON.stringify(del.json)}`);
+  assert.ok(del.json.canceledTasks >= 1, `canceledTasks=${del.json.canceledTasks}`);
+  const t = rawDb.prepare('SELECT canceled_at, canceled_reason FROM tasks WHERE id=?').get(taskId);
+  assert.ok(t.canceled_at, '任务应被取消');
+  assert.equal(t.canceled_reason, '点位已删除');
+  const sync = await syncTask(mobileA, taskId);
+  assert.equal(sync, undefined, '已取消任务不再下发手机');
+  const sites = await call('GET', '/api/v1/admin/sites?projectId=1', null, adminToken);
+  assert.equal(sites.json.sites.some(s => s.id === siteId), false, '已删除点位不再返回');
+  const again = await call('DELETE', `/api/v1/admin/sites/${siteId}`, null, adminToken);
+  assert.equal(again.status, 404, '重复删除返回404');
+});
+
+test('delete task without record works; with record returns 422', async () => {
+  const taskId = await adminCreateTask();
+  const del = await call('DELETE', `/api/v1/admin/tasks/${taskId}/delete`, null, adminToken);
+  assert.equal(del.status, 200, `delete task: ${JSON.stringify(del.json)}`);
+  assert.equal(rawDb.prepare('SELECT COUNT(*) c FROM tasks WHERE id=?').get(taskId).c, 0, '任务行已删除');
+  const tasks = await call('GET', '/api/v1/admin/tasks?projectId=1', null, adminToken);
+  assert.equal(tasks.json.tasks.some(t => t.id === taskId), false, '任务列表不再包含已删除任务');
+  const withRecord = await adminCreateTask();
+  const deviceId = rawDb.prepare('SELECT id FROM devices WHERE villager_id=? LIMIT 1').get(villagerId).id;
+  rawDb.prepare('INSERT INTO records(client_record_id,task_id,device_id,captured_at,latitude,longitude,photo_path,photo_sha256) VALUES(?,?,?,?,?,?,?,?)').run(`del-test-${Date.now()}`, withRecord, deviceId, new Date().toISOString(), 30.1, 94.1, '/uploads/1/x.jpg', 'sha-test');
+  const refuse = await call('DELETE', `/api/v1/admin/tasks/${withRecord}/delete`, null, adminToken);
+  assert.equal(refuse.status, 422, `有记录任务删除应422: ${JSON.stringify(refuse.json)}`);
+  assert.match(refuse.json.message, /不能删除/);
 });

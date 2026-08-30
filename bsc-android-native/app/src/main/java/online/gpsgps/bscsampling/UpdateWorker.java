@@ -1,0 +1,8 @@
+package online.gpsgps.bscsampling;
+import android.app.NotificationChannel;import android.app.NotificationManager;import android.app.PendingIntent;import android.content.Context;import android.content.Intent;import android.os.Build;import androidx.annotation.NonNull;import androidx.core.app.NotificationCompat;import androidx.work.Worker;import androidx.work.WorkerParameters;
+// 定期检查新版本：发现更新发高优先级系统通知（点通知打开 App 弹更新说明），
+// 不下载、不安装（按需求只做强提醒）。
+public final class UpdateWorker extends Worker{
+  public UpdateWorker(@NonNull Context c,@NonNull WorkerParameters p){super(c,p);}
+  @NonNull public Result doWork(){try{Context c=getApplicationContext();String latest=new Api(c).version().optString("versionName","");String cur=BuildConfig.VERSION_NAME;if(!latest.isEmpty()&&!cur.equals(latest)){NotificationManager nm=c.getSystemService(NotificationManager.class);if(Build.VERSION.SDK_INT>=26)nm.createNotificationChannel(new NotificationChannel("bsc_update","版本更新提醒",NotificationManager.IMPORTANCE_HIGH));Intent i=new Intent(c,MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);PendingIntent pi=PendingIntent.getActivity(c,0,i,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);NotificationCompat.Builder b=new NotificationCompat.Builder(c,"bsc_update").setSmallIcon(android.R.drawable.stat_sys_download_done).setContentTitle("发现新版本 "+latest).setContentText("请联系管理员安装新版本 APP").setPriority(NotificationCompat.PRIORITY_HIGH).setContentIntent(pi).setAutoCancel(true);try{nm.notify(302,b.build());}catch(Exception ignored){}}return Result.success();}catch(Exception e){return Result.retry();}}
+}
