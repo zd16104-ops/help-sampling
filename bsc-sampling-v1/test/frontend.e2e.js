@@ -241,7 +241,7 @@ async function main() {
   const popup = await popupPromise;
   await popup.waitForLoadState('domcontentloaded');
   const popupTitle = await popup.title();
-  check('标签打印页打开（40枚/页）', popupTitle.includes('瓶子标签'), `title=${popupTitle}`);
+  check('标签打印页打开（60枚/页）', popupTitle.includes('瓶子标签'), `title=${popupTitle}`);
   const labelCount = await popup.locator('.label').count();
   check('标签页包含标签', labelCount >= 1, `count=${labelCount}`);
   await popup.close();

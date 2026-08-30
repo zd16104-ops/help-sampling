@@ -398,14 +398,16 @@ test('task cancel rules and unlock', async () => {
   assert.equal(afterUnlock.status, 200, 'unlocked task can be claimed by another device');
 });
 
-test('labels page renders 40-per-page A4', async () => {
+test('labels page renders 60-per-page A4 grid', async () => {
   const ids = await Promise.all([adminCreateTask(), adminCreateTask()]);
   const res = await fetch(`${BASE}/api/v1/admin/labels?taskIds=${ids.join(',')}`, { headers: { Authorization: `Bearer ${adminToken}` } });
   assert.equal(res.status, 200);
   const html = await res.text();
-  assert.match(html, /-R-5-\d{2}/, 'rendered label text codes');
   assert.equal((html.match(/<div class="label">/g) || []).length, 2);
   assert.equal((html.match(/<div class="page">/g) || []).length, 1, 'two labels share one page');
+  assert.match(html, /grid-template-columns: repeat\(5, 42mm\)/, '5列×12行60枚/页满铺网格');
+  assert.match(html, /width: 24\.75mm/, '二维码 24.75mm 占满格高（防畸变）');
+  assert.match(html, /河流水|支流|土壤|植物|雨水|湖水/, '样品类型大号文字');
   assert.match(html, /data:image\/png;base64,/, 'qr codes embedded as data URLs');
 });
 

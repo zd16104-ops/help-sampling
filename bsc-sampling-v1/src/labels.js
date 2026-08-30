@@ -1,9 +1,10 @@
 'use strict';
 
-// A4 bottle label print page: 5 columns × 8 rows = 40 labels per page,
-// fixed millimetre sizes, no reliance on browser scaling (spec section 8.3).
-// Each label shows the QR code and the complete text sample code, plus the
-// historical site code, Chinese sample type, planned date and project code.
+// A4 bottle label print page: 5 columns × 12 rows = 60 labels per page,
+// the grid fills the whole 210×297mm sheet with no gaps between labels.
+// Each label: square QR (24.75mm, full cell height) on the left; on the right
+// the site code (top, bold) and the Chinese sample type (bottom, enlarged).
+// The complete sample code is encoded inside the QR (BSC-SAMPLE|code|token).
 
 const TYPE_NAMES = { R: '河流水', T: '支流', S: '土壤', P: '植物', Y: '雨水', L: '湖水' };
 
@@ -14,17 +15,15 @@ function escapeHtml(value) {
 // tasks: [{ sample_code, qr_value, qr_data_url, site_code, sample_type, planned_date, project_code }]
 function renderLabelPage(tasks) {
   const pages = [];
-  for (let i = 0; i < tasks.length; i += 40) {
-    const cells = tasks.slice(i, i + 40).map(task => `
+  for (let i = 0; i < tasks.length; i += 60) {
+    const cells = tasks.slice(i, i + 60).map(task => `
       <div class="label">
         <img class="qr" alt="二维码" src="${task.qr_data_url}">
-        <div class="text">
-          ${task.co_sited > 1 ? `<div class="multi">⚠ 此处共 ${task.co_sited} 个采样点</div>` : ''}
-          <div class="code">${escapeHtml(task.sample_code)}</div>
+        <div class="side">
+          <div class="site">${escapeHtml(task.site_code)}</div>
           <div class="type">${escapeHtml(TYPE_NAMES[task.sample_type] || task.sample_type)}</div>
-          <div class="meta">${escapeHtml(task.site_code)} · ${escapeHtml(task.planned_date)}</div>
-          <div class="meta">${escapeHtml(task.project_code || 'BSC')} · 巴松措采样</div>
         </div>
+        ${task.co_sited > 1 ? `<div class="multi">×${task.co_sited}</div>` : ''}
       </div>`).join('');
     pages.push(`<div class="page">${cells}</div>`);
   }
@@ -36,16 +35,14 @@ function renderLabelPage(tasks) {
 <style>
   @page { size: A4 portrait; margin: 0; }
   html, body { margin: 0; padding: 0; background: #fff; font-family: "Microsoft YaHei", sans-serif; }
-  .page { width: 210mm; height: 297mm; page-break-after: always; display: flex; align-content: flex-start; flex-wrap: wrap; padding: 6mm 5mm 4mm 5mm; box-sizing: border-box; }
+  .page { width: 210mm; height: 297mm; page-break-after: always; display: grid; grid-template-columns: repeat(5, 42mm); grid-auto-rows: 24.75mm; box-sizing: border-box; }
   .page:last-child { page-break-after: auto; }
-  .label { width: 40mm; height: 30mm; box-sizing: border-box; border: 0.35mm solid #555; display: flex; align-items: center; gap: 1.5mm; padding: 1.5mm; margin: 0 0 2.5mm 0; }
-  .qr { width: 15mm; height: 15mm; flex: none; }
-  .text { min-width: 0; }
-  .code { font-size: 3.2mm; font-weight: 900; letter-spacing: .1mm; word-break: break-all; }
-  .type { font-size: 4.6mm; font-weight: 900; color: #0b5b45; margin-top: .4mm; word-break: break-all; }
-  .multi { font-size: 3mm; font-weight: 900; color: #a02020; background: #ffe3e0; border: 0.3mm solid #c0392b; border-radius: 1mm; padding: .6mm 1mm; margin-bottom: .5mm; }
-  .meta { font-size: 2.3mm; color: #333; margin-top: .5mm; word-break: break-all; }
-  @media print { .page { padding: 0; } }
+  .label { position: relative; box-sizing: border-box; border: 0.35mm solid #555; display: flex; align-items: center; }
+  .qr { width: 24.75mm; height: 24.75mm; flex: none; }
+  .side { min-width: 0; flex: 1; padding: 0 1.2mm; display: flex; flex-direction: column; justify-content: center; gap: 1mm; }
+  .site { font-size: 5mm; font-weight: 900; word-break: break-all; }
+  .type { font-size: 6.5mm; font-weight: 900; color: #0b5b45; word-break: break-all; }
+  .multi { position: absolute; top: 0; right: 0; font-size: 2.6mm; font-weight: 900; color: #a02020; background: #ffe3e0; border: 0.3mm solid #c0392b; border-radius: 0 0 0 1mm; padding: .3mm .6mm; }
 </style>
 </head>
 <body>
