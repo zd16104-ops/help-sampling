@@ -1,6 +1,6 @@
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-30T15:32:39.612Z  
+> 生成时间：2026-08-30T15:36:41.851Z  
 > 文件数：80  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
@@ -1742,7 +1742,7 @@ SHA-256: `993a539bcb81926555f283a0b763e207c022a0f0c4b2757a54c4d260cd876e71`
 
 #### `bsc-sampling-v1/public/app.js`
 
-SHA-256: `0e0f72ce6d6bcc546073fd8d00a563a2f03f941c3a6d2b3e281d4e8e37f31110`
+SHA-256: `36b45d06a79e983f66fa3fa1ee1792c0311aed20da0a54681000ea326e3b55a1`
 
 ~~~~javascript
 'use strict';
@@ -2610,7 +2610,7 @@ $('#deleteSite').addEventListener('click', async () => {
     const res = await del(`/api/v1/admin/sites/${state.editingSiteId}`);
     $('#siteDialog').close();
     await loadAll();
-    alert(`点位已删除，已取消 ${res.canceledTasks} 个未采样任务。`);
+    alert(`点位已删除，已取消 ${res.canceledTasks} 个未采样任务。历史序号已释放，可立即用于新建点位。`);
   } catch (error) { alert(error.message); }
 });
 
@@ -4203,7 +4203,7 @@ module.exports = { hashPin, verifyPin, safeEqual, signToken, verifyToken, totp, 
 
 #### `bsc-sampling-v1/src/server.js`
 
-SHA-256: `42b37d431cb294c7d648d9ef097bb1ed76824ca92dadff6e7360d2fe7d0ddce1`
+SHA-256: `19d9af0e454fe47b2e8211ed0e7213fd68c28bef6a82a4272acd7e03faabd51a`
 
 ~~~~javascript
 'use strict';
@@ -4312,7 +4312,7 @@ async function adminApi(req, res, url) {
   if (url.pathname === '/api/v1/admin/sites' && req.method === 'POST') { const p = await body(req); try { const id = db.prepare(`INSERT INTO sites(project_id,sort_order,code,name,latitude,longitude,altitude_m,sample_types,remarks,normal_radius_m,exception_radius_m,severe_radius_m,reference_image,instructions,risk_note,enabled) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(number(p.projectId, '项目'), Number(p.sortOrder || 0), required(p.code, '历史序号'), required(p.name, '点位名称'), number(p.latitude, '纬度'), number(p.longitude, '经度'), p.altitudeM == null ? null : Number(p.altitudeM), JSON.stringify(p.sampleTypes || []), String(p.remarks || ''), 30, 80, 300, String(p.referenceImage || ''), String(p.instructions || ''), String(p.riskNote || ''), p.enabled == null ? 1 : (p.enabled ? 1 : 0)).lastInsertRowid; audit(db, 'admin', 'admin', 'create_site', 'site', id, { code: p.code, projectId: p.projectId }, ipOf(req)); return output(res, 201, { id }); } catch (e) { if (String(e.message).includes('UNIQUE')) throw error(422, '该项目下历史序号已存在，请换一个序号或编辑原点位'); throw e; } }
   m = /^\/api\/v1\/admin\/sites\/(\d+)$/.exec(url.pathname);
   if (m && req.method === 'PUT') { const id = Number(m[1]), p = await body(req), site = db.prepare('SELECT * FROM sites WHERE id=? AND deleted_at IS NULL').get(id); if (!site) throw error(404, '点位不存在'); try { db.prepare(`UPDATE sites SET sort_order=?,code=?,name=?,latitude=?,longitude=?,altitude_m=?,sample_types=?,remarks=?,normal_radius_m=?,exception_radius_m=?,severe_radius_m=?,reference_image=?,instructions=?,risk_note=?,enabled=?,updated_at=CURRENT_TIMESTAMP WHERE id=?`).run(Number(p.sortOrder ?? site.sort_order ?? 0), required(p.code, '历史序号'), required(p.name, '点位名称'), number(p.latitude, '纬度'), number(p.longitude, '经度'), p.altitudeM == null ? null : Number(p.altitudeM), JSON.stringify(p.sampleTypes || parse(site.sample_types)), String(p.remarks ?? ''), Number(p.normalRadiusM ?? site.normal_radius_m), Number(p.exceptionRadiusM ?? site.exception_radius_m), Number(p.severeRadiusM ?? site.severe_radius_m), String(p.referenceImage ?? site.reference_image ?? ''), String(p.instructions ?? ''), String(p.riskNote ?? ''), p.enabled == null ? site.enabled : (p.enabled ? 1 : 0), id); } catch (e) { if (String(e.message).includes('UNIQUE')) throw error(422, '该项目下历史序号已存在'); throw e; } audit(db, 'admin', 'admin', 'update_site', 'site', id, { before: site.code, after: p.code }, ipOf(req)); return output(res, 200, { ok: true }); }
-  if (m && req.method === 'DELETE') { const id = Number(m[1]), site = db.prepare('SELECT * FROM sites WHERE id=? AND deleted_at IS NULL').get(id); if (!site) throw error(404, '点位不存在'); const result = transaction(() => { const r = db.prepare("UPDATE tasks SET canceled_at=CURRENT_TIMESTAMP,canceled_reason='点位已删除',updated_at=CURRENT_TIMESTAMP WHERE site_id=? AND canceled_at IS NULL AND id NOT IN (SELECT task_id FROM records)").run(id); db.prepare('UPDATE sites SET deleted_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(id); return r.changes; }); audit(db, 'admin', 'admin', 'delete_site', 'site', id, { code: site.code, canceledTasks: result }, ipOf(req)); return output(res, 200, { ok: true, canceledTasks: result }); }
+  if (m && req.method === 'DELETE') { const id = Number(m[1]), site = db.prepare('SELECT * FROM sites WHERE id=? AND deleted_at IS NULL').get(id); if (!site) throw error(404, '点位不存在'); const result = transaction(() => { const r = db.prepare("UPDATE tasks SET canceled_at=CURRENT_TIMESTAMP,canceled_reason='点位已删除',updated_at=CURRENT_TIMESTAMP WHERE site_id=? AND canceled_at IS NULL AND id NOT IN (SELECT task_id FROM records)").run(id); db.prepare('UPDATE sites SET code=?,deleted_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(`${site.code}-DEL${id}`, id); return r.changes; }); audit(db, 'admin', 'admin', 'delete_site', 'site', id, { code: site.code, canceledTasks: result }, ipOf(req)); return output(res, 200, { ok: true, canceledTasks: result }); }
   if (url.pathname === '/api/v1/admin/reference-images' && req.method === 'POST') { const p = await body(req, 12_000_000); const match = /^data:image\/(?:jpeg|jpg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(String(p.imageData || '')); if (!match) throw error(422, '必须上传JPEG/PNG/WebP图片'); const image = Buffer.from(match[1], 'base64'); if (image.length < 100 || image.length > 10_000_000) throw error(413, '参考图无效或过大'); const name = `ref-${Date.now()}-${randomToken(4)}.jpg`, target = path.join(REFERENCE, name); await sharp(image).rotate().resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true }).jpeg({ quality: 82 }).toFile(target); audit(db, 'admin', 'admin', 'upload_reference_image', 'reference', name, {}, ipOf(req)); return output(res, 201, { path: `/reference/${name}` }); }
   if (url.pathname === '/api/v1/admin/villagers' && req.method === 'POST') { const p = await body(req); try { const id = db.prepare('INSERT INTO villagers(username,display_name,pin_salt,pin_hash,enabled) VALUES(?,?,?,?,1)').run(required(p.username, '账号').toLowerCase().replace(/[^a-z0-9._-]/g, ''), required(p.displayName, '姓名'), '', '').lastInsertRowid; audit(db, 'admin', 'admin', 'create_villager', 'villager', id, { username: p.username }, ipOf(req)); return output(res, 201, { id }); } catch (e) { if (String(e.message).includes('UNIQUE')) throw error(422, '账号已存在'); throw e; } }
   m = /^\/api\/v1\/admin\/villagers\/(\d+)$/.exec(url.pathname);
@@ -4540,7 +4540,7 @@ module.exports = { backfillWeather };
 
 #### `bsc-sampling-v1/test/api.test.js`
 
-SHA-256: `e99207bcf3ee4e85a6b8d1f589a1d15c99f1e2cf9dccc306bbbafe943fa6c753`
+SHA-256: `c73be7cfe07dbf02274cb55728efbddd4b7eba2357dcf980dc0aab8d3f1c77f3`
 
 ~~~~javascript
 'use strict';
@@ -5299,6 +5299,12 @@ test('delete site cancels its unsampled tasks and hides the site', async () => {
   assert.equal(sites.json.sites.some(s => s.id === siteId), false, '已删除点位不再返回');
   const again = await call('DELETE', `/api/v1/admin/sites/${siteId}`, null, adminToken);
   assert.equal(again.status, 404, '重复删除返回404');
+  const reuse = await call('POST', '/api/v1/admin/sites', {
+    projectId: 1, code, name: '复用序号新点位', latitude: 30.25, longitude: 94.25, sampleTypes: ['R'], enabled: true
+  }, adminToken);
+  assert.equal(reuse.status, 201, `删除后同一历史序号应可复用: ${JSON.stringify(reuse.json)}`);
+  const reused = rawDb.prepare('SELECT code FROM sites WHERE id=?').get(reuse.json.id);
+  assert.equal(reused.code, code, '新点位使用原历史序号');
 });
 
 test('delete task without record works; with record returns 422', async () => {

@@ -754,6 +754,12 @@ test('delete site cancels its unsampled tasks and hides the site', async () => {
   assert.equal(sites.json.sites.some(s => s.id === siteId), false, '已删除点位不再返回');
   const again = await call('DELETE', `/api/v1/admin/sites/${siteId}`, null, adminToken);
   assert.equal(again.status, 404, '重复删除返回404');
+  const reuse = await call('POST', '/api/v1/admin/sites', {
+    projectId: 1, code, name: '复用序号新点位', latitude: 30.25, longitude: 94.25, sampleTypes: ['R'], enabled: true
+  }, adminToken);
+  assert.equal(reuse.status, 201, `删除后同一历史序号应可复用: ${JSON.stringify(reuse.json)}`);
+  const reused = rawDb.prepare('SELECT code FROM sites WHERE id=?').get(reuse.json.id);
+  assert.equal(reused.code, code, '新点位使用原历史序号');
 });
 
 test('delete task without record works; with record returns 422', async () => {

@@ -863,7 +863,7 @@ $('#deleteSite').addEventListener('click', async () => {
     const res = await del(`/api/v1/admin/sites/${state.editingSiteId}`);
     $('#siteDialog').close();
     await loadAll();
-    alert(`点位已删除，已取消 ${res.canceledTasks} 个未采样任务。`);
+    alert(`点位已删除，已取消 ${res.canceledTasks} 个未采样任务。历史序号已释放，可立即用于新建点位。`);
   } catch (error) { alert(error.message); }
 });
 
