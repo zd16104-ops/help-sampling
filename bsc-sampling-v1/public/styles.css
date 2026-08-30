@@ -199,3 +199,26 @@ button{font-family:var(--font)}
 .row-check{accent-color:var(--c-primary)}
 /* 兜底：移动端侧栏抽屉红线——≤650px 时 #menuButton 必须可见（与 Task 5 响应式块一致，提前补齐以保住 e2e 红线） */
 @media(max-width:650px){.menu-button{display:block}}
+
+/* ===== Task 3: 地图面板 + 详情审核侧栏 + 状态配色常量 ===== */
+/* 地图面板 */
+.map-panel{background:var(--c-card);border:1px solid var(--c-line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-soft);position:relative;min-height:0}
+.map-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-bottom:1px solid var(--c-line);background:#FBFDFC}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--c-ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.pin{width:10px;height:10px;border-radius:50%;display:inline-block}
+.pin.gray{background:#9AA8A5}.pin.amber{background:#F0A23B}.pin.green{background:#0E9F8A}.pin.red{background:#E0685F}
+.map-action{padding:7px 12px;border:1px solid var(--c-line);border-radius:var(--radius-sm);background:#fff;font-size:12.5px;font-weight:600;cursor:pointer}
+.map-action:hover{border-color:var(--c-primary);color:var(--c-primary)}
+.map-fallback{position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:6px;color:var(--c-ink-2);background:#F4F8F7}
+/* 详情侧栏 */
+.detail{position:fixed;right:0;top:0;bottom:0;width:430px;background:var(--c-card);box-shadow:var(--shadow-pop);z-index:1400;overflow:auto;padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.detail-head{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:1px solid var(--c-line);padding-bottom:12px}
+.detail-head small{color:var(--c-accent);font-weight:700;letter-spacing:.06em}
+.detail-head button{border:0;background:transparent;font-size:22px;cursor:pointer;color:var(--c-ink-2)}
+.record-photo{width:100%;border-radius:var(--radius);border:1px solid var(--c-line)}
+.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.review-actions{display:flex;flex-wrap:wrap;gap:8px}
+.review-actions button[data-status=approved]{background:var(--c-green);border-color:var(--c-green);color:#fff}
+.review-actions button[data-status=rejected]{background:var(--c-danger);border-color:var(--c-danger);color:#fff}
+.cancel-note{background:#FDF3EC;border:1px solid #F5D9C4;border-radius:var(--radius-sm);padding:10px 12px;color:#9A5B2D;font-size:13px}

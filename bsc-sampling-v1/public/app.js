@@ -370,7 +370,7 @@ function initMap() {
 }
 
 // 采样点标记：水滴外形轮廓 SVG，状态色填充（灰=待采样 橙=待审核 绿=已通过 红=异常/退回）。
-const MARKER_COLORS = { gray: '#7f8d8c', amber: '#ef9c2f', green: '#16a27a', red: '#d95d58' };
+const MARKER_COLORS = { gray: '#9AA8A5', amber: '#F0A23B', green: '#0E9F8A', red: '#E0685F' };
 function dropSvg(color) {
   return `<svg width="26" height="34" viewBox="0 0 26 34" xmlns="http://www.w3.org/2000/svg"><path d="M13 1C13 1 2 13.6 2 22.2a11 11 0 0 0 22 0C24 13.6 13 1 13 1Z" fill="${color}" stroke="#ffffff" stroke-width="2.5"/></svg>`;
 }
@@ -442,7 +442,7 @@ async function renderMap(tasks) {
       bounds.push([lat, lng]);
     });
     const first = group[0];
-    const circle = L.circle([first.target_latitude, first.target_longitude], { radius: first.normal_radius_m || 30, color: '#16a27a', weight: 1.4, fillOpacity: 0.05, keyboard: false }).addTo(state.map);
+    const circle = L.circle([first.target_latitude, first.target_longitude], { radius: first.normal_radius_m || 30, color: '#0E9F8A', weight: 1.4, fillOpacity: 0.05, keyboard: false }).addTo(state.map);
     state.markers.push(circle);
   }
   if (bounds.length) state.map.fitBounds(bounds, { padding: [65, 65], maxZoom: 16, animate: false });
@@ -451,7 +451,7 @@ async function renderMap(tasks) {
   trackTasks.forEach((task, index) => {
     const track = trackResults[index];
     if (track && Array.isArray(track.points) && track.points.length) {
-      const line = L.polyline(track.points.map(p => [p.latitude, p.longitude]), { color: '#326fcb', weight: 3, opacity: 0.65 }).addTo(state.map);
+      const line = L.polyline(track.points.map(p => [p.latitude, p.longitude]), { color: '#2E7CB8', weight: 3, opacity: 0.65 }).addTo(state.map);
       state.trackPolylines.push(line);
     }
   });
@@ -526,7 +526,7 @@ async function showDetail(task) {
         if (!segs.length) segs.push(track.points.map(p => [p.latitude, p.longitude]));
         let bounds = null;
         for (const seg of segs) {
-          const line = L.polyline(seg, { color: '#326fcb', weight: 4, opacity: 0.8 }).addTo(state.map);
+          const line = L.polyline(seg, { color: '#2E7CB8', weight: 4, opacity: 0.8 }).addTo(state.map);
           state.trackPolylines.push(line);
           bounds = bounds ? bounds.extend(line.getBounds()) : line.getBounds();
         }
@@ -1049,13 +1049,13 @@ async function checkHealth() {
     const dot = document.querySelector('.server-dot i');
     if (res.criticalLowDisk) {
       $('#healthText').textContent = `磁盘仅剩 ${fmtBytes(res.freeBytes)}，告警！`;
-      dot.style.background = '#d95d58';
+      dot.style.background = '#E0685F';
     } else if (res.warnLowDisk) {
       $('#healthText').textContent = `磁盘剩余 ${fmtBytes(res.freeBytes)}（偏低）`;
-      dot.style.background = '#ef9c2f';
+      dot.style.background = '#F0A23B';
     } else {
       $('#healthText').textContent = `服务器运行正常 · 磁盘剩余 ${fmtBytes(res.freeBytes)}`;
-      dot.style.background = '#30b987';
+      dot.style.background = '#0E9F8A';
     }
   } catch { $('#healthText').textContent = '服务器健康检查失败'; }
 }
