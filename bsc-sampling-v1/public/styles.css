@@ -270,3 +270,7 @@ dialog::backdrop{background:rgba(13,34,38,.45)}
 /* 删除操作（v1.3.1） */
 .btn-danger{background:var(--c-danger);border-color:var(--c-danger);color:#fff}
 .btn-danger:hover{background:#C24A45;border-color:#C24A45;color:#fff}
+
+/* 复选框列表容器改 div 后的标题样式（避免外层 label 误触发全选） */
+.form-grid .field-block{display:grid;gap:6px}
+.form-label{font-size:13px;color:var(--c-ink-2);font-weight:600}

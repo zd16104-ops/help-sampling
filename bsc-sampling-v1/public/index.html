@@ -136,9 +136,9 @@
         </label>
         <input id="latitude" type="hidden">
         <input id="longitude" type="hidden">
-        <label class="wide field">样品类型（可多选）
+        <div class="wide field-block"><span class="form-label">样品类型（可多选）</span>
           <div class="type-checkboxes" id="siteTypes"></div>
-        </label>
+        </div>
         <label class="wide field">现场示例图片（可选，建议上传）
           <input id="referenceImageFile" type="file" accept="image/jpeg,image/png,image/webp">
           <small>供村民在现场对照找点；不上传也可以保存并使用该点位。</small>
@@ -174,9 +174,9 @@
       <div id="taskFields" class="form-grid">
         <label class="wide field">计划采样日期<input id="plannedDate" type="date" required></label>
         <label class="wide field">采样人员<select id="taskVillager" required></select></label>
-        <label class="wide field">选择固定采样点（可多选，每个点位按其样品类型生成任务）
+        <div class="wide field-block"><span class="form-label">选择固定采样点（可多选，每个点位按其样品类型生成任务）</span>
           <div id="taskSiteList" class="site-pick-list"><label class="site-pick select-all"><input type="checkbox" id="taskSiteAll"> <strong>全选 / 全不选</strong></label></div>
-        </label>
+        </div>
         <label class="wide field">样品类型按点位自身设置生效（点位列表括号内为各点位类型；要改某点类型请到"点位管理"编辑该点）</label>
       </div>
       <section id="labelResult" class="label-result hidden">
