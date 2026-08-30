@@ -977,18 +977,21 @@ $('#createTask').addEventListener('click', async () => {
   const villagerLabel = villager ? `${villager.display_name}（${villager.username}）` : '所选采样员';
   try {
     const created = [];
+    const createdItems = [];
     for (const siteId of siteIds) {
       const res = await post('/api/v1/admin/tasks', {
         siteId, villagerId: Number($('#taskVillager').value),
         plannedDate: $('#plannedDate').value
       });
+      const siteName = state.sites.find(s => s.id === siteId)?.name || `点位${siteId}`;
+      for (const c of (res.codes || [])) createdItems.push({ code: c, name: siteName });
       created.push(...(res.codes || []));
     }
     if (!created.length) return alert('没有生成任何任务：所选点位都未设置样品类型，请先在点位管理里为点位设置类型。');
     const after = await api(`/api/v1/admin/tasks?projectId=${state.projectId}`);
     state.tasks = after.tasks;
     state.lastCreatedTaskIds = after.tasks.filter(t => created.includes(t.sample_code)).map(t => t.id);
-    $('#labelCodes').innerHTML = created.map(c => `<div class="label-code-item">${esc(c)}</div>`).join('') + `<p class="dialog-tip">已为 ${esc(villagerLabel)} 生成 ${created.length} 个任务</p>`;
+    $('#labelCodes').innerHTML = createdItems.map(x => `<div class="label-code-item">${esc(x.name)} · ${esc(x.code)}</div>`).join('') + `<p class="dialog-tip">已为 ${esc(villagerLabel)} 生成 ${created.length} 个任务</p>`;
     $('#labelResult').classList.remove('hidden');
     $('#printLabel').classList.remove('hidden');
     $('#createTask').classList.add('hidden');

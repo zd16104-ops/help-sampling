@@ -781,6 +781,7 @@ Android 单元测试：
 46. **标签打印改版 60 枚/页（用户要求）**：标签页由 5 列×8 行（40 枚）改为 **5 列×12 行（60 枚）A4 满铺无缝**（每格 42mm×24.75mm，A4 210×297mm 整除）；格内布局改为"左：正方形二维码 24.75×24.75mm（占满格高、防畸变保扫码），右：上=点位编号（历史序号加粗）、下=样品类型（大号加粗深绿）"；完整瓶号编码在二维码内容内（扫码即得）；同址多任务"⚠ N 个采样点"改为右上角红色 ×N 角标；二维码生成清晰度 240→300px；打印按钮文案改为"60枚/页"；E2E 断言同步更新。附：修复下发/点位弹窗复选框列表外层 label 误触发"全选"（改 div+标题，消除 label 激活行为）。
 47. **删除点位后历史序号可复用（用户反馈修复）**：软删除的点位行仍占用 `sites(project_id, code)` 唯一约束，导致删除后新建同序号点位报 422"历史序号已存在"。修复：删除事务内把该行 `code` 改名为 `原序号-DEL{id}`（释放唯一约束），新点位可立即复用原序号；审计仍记录原始序号；删除提示文案说明"历史序号已释放"。测试新增"删除后同序号新建 201 + 新行使用原序号"断言。已知取舍：被删点位的历史记录中点位序号会显示为改名形式（仅历史展示），如需保留原样展示可后续改为部分唯一索引方案。
 48. **批量删除某日期全部任务（用户要求）**：新增 `POST /api/v1/admin/tasks/batch-delete`（入参 `projectId+plannedDate`，审计留痕）：删除该日期**无采样记录**的全部任务（事务内清关联标签打印/实时位置/轨迹/行程），**有记录的任务保留**并返回 `skipped` 计数；返回 `{deleted, skipped}`。网页端：左侧选中具体日期时顶栏出现红色"删除本日期全部任务"按钮（"待采样"入口下隐藏），确认框显示可删/保留数量，完成后提示并自动刷新。测试新增"2 删 1 留"断言；E2E 顶栏信息点数量断言 7→8。附：下发按钮提示文案 40 枚/页→60 枚/页。
+49. **生成结果与打印标签增加点位名称（用户要求）**：下发任务生成编号结果区每个编号前增加"点位名称 ·"（如"采样点5 · 260830-R-5-01"）；标签打印页每格右侧在序号与类型之间增加一行点位名称（3mm 字号，自动换行）；标签接口查询补充 `s.name site_name`。测试新增"标签包含点位名称"断言。
 
 ### 28.2 未完成，不得宣称已可上线
 
@@ -843,7 +844,7 @@ Android 单元测试：
 
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-30T16:55:45.655Z  
+> 生成时间：2026-08-30T17:30:09.158Z  
 > 文件数：80  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
@@ -2585,7 +2586,7 @@ SHA-256: `993a539bcb81926555f283a0b763e207c022a0f0c4b2757a54c4d260cd876e71`
 
 #### `bsc-sampling-v1/public/app.js`
 
-SHA-256: `9c281b6d3dfd3e7adac6a17a78b79461b4b6c12299ad3987861c1e4a40c60ab4`
+SHA-256: `c78c8b4c786f6a34a3c8593d390079a3c3ffe04cf94e931c83657979d7c6281e`
 
 ~~~~javascript
 'use strict';
@@ -3567,18 +3568,21 @@ $('#createTask').addEventListener('click', async () => {
   const villagerLabel = villager ? `${villager.display_name}（${villager.username}）` : '所选采样员';
   try {
     const created = [];
+    const createdItems = [];
     for (const siteId of siteIds) {
       const res = await post('/api/v1/admin/tasks', {
         siteId, villagerId: Number($('#taskVillager').value),
         plannedDate: $('#plannedDate').value
       });
+      const siteName = state.sites.find(s => s.id === siteId)?.name || `点位${siteId}`;
+      for (const c of (res.codes || [])) createdItems.push({ code: c, name: siteName });
       created.push(...(res.codes || []));
     }
     if (!created.length) return alert('没有生成任何任务：所选点位都未设置样品类型，请先在点位管理里为点位设置类型。');
     const after = await api(`/api/v1/admin/tasks?projectId=${state.projectId}`);
     state.tasks = after.tasks;
     state.lastCreatedTaskIds = after.tasks.filter(t => created.includes(t.sample_code)).map(t => t.id);
-    $('#labelCodes').innerHTML = created.map(c => `<div class="label-code-item">${esc(c)}</div>`).join('') + `<p class="dialog-tip">已为 ${esc(villagerLabel)} 生成 ${created.length} 个任务</p>`;
+    $('#labelCodes').innerHTML = createdItems.map(x => `<div class="label-code-item">${esc(x.name)} · ${esc(x.code)}</div>`).join('') + `<p class="dialog-tip">已为 ${esc(villagerLabel)} 生成 ${created.length} 个任务</p>`;
     $('#labelResult').classList.remove('hidden');
     $('#printLabel').classList.remove('hidden');
     $('#createTask').classList.add('hidden');
@@ -4596,7 +4600,7 @@ module.exports = { recordsCsv, sitesGeoJson, recordsGeoJson, gpx, zipStore, RISK
 
 #### `bsc-sampling-v1/src/labels.js`
 
-SHA-256: `e63719e3422eee111ef9ca880927daa0e652ff23a7144085e117f8166718ecd5`
+SHA-256: `ba79a9d215ea99dae2a5c0717605c1aec9284b7539be46cb390e20d1ebfd2f5f`
 
 ~~~~javascript
 'use strict';
@@ -4622,6 +4626,7 @@ function renderLabelPage(tasks) {
         <img class="qr" alt="二维码" src="${task.qr_data_url}">
         <div class="side">
           <div class="site">${escapeHtml(task.site_code)}</div>
+          <div class="name">${escapeHtml(task.site_name || '')}</div>
           <div class="type">${escapeHtml(TYPE_NAMES[task.sample_type] || task.sample_type)}</div>
         </div>
         ${task.co_sited > 1 ? `<div class="multi">×${task.co_sited}</div>` : ''}
@@ -4642,6 +4647,7 @@ function renderLabelPage(tasks) {
   .qr { width: 24.75mm; height: 24.75mm; flex: none; }
   .side { min-width: 0; flex: 1; padding: 0 1.2mm; display: flex; flex-direction: column; justify-content: center; gap: 1mm; }
   .site { font-size: 5mm; font-weight: 900; word-break: break-all; }
+  .name { font-size: 3mm; color: #333; word-break: break-all; }
   .type { font-size: 6.5mm; font-weight: 900; color: #0b5b45; word-break: break-all; }
   .multi { position: absolute; top: 0; right: 0; font-size: 2.6mm; font-weight: 900; color: #a02020; background: #ffe3e0; border: 0.3mm solid #c0392b; border-radius: 0 0 0 1mm; padding: .3mm .6mm; }
 </style>
@@ -5062,7 +5068,7 @@ module.exports = { hashPin, verifyPin, safeEqual, signToken, verifyToken, totp, 
 
 #### `bsc-sampling-v1/src/server.js`
 
-SHA-256: `2a9527206606d9c50d2879816e70fe647684d33e026ec6b133d8f460a4f2bb15`
+SHA-256: `e13359e2b1bdcd6b48ede56447351a78440e1dc1369b172cf9d6dd44d33d93ee`
 
 ~~~~javascript
 'use strict';
@@ -5190,7 +5196,7 @@ async function adminApi(req, res, url) {
   if (m && req.method === 'POST') { const id = Number(m[1]); if (!db.prepare('SELECT id FROM tasks WHERE id=?').get(id)) throw error(404, '任务不存在'); db.prepare("UPDATE tasks SET locked_device_id=NULL,locked_at=NULL,journey_id=NULL,status='assigned',updated_at=CURRENT_TIMESTAMP WHERE id=?").run(id); audit(db, 'admin', 'admin', 'unlock_task', 'task', id, {}, ipOf(req)); return output(res, 200, { ok: true }); }
   m = /^\/api\/v1\/admin\/tasks\/(\d+)\/delete$/.exec(url.pathname);
   if (m && req.method === 'DELETE') { const id = Number(m[1]); const task = db.prepare('SELECT * FROM tasks WHERE id=?').get(id); if (!task) throw error(404, '任务不存在'); if (db.prepare('SELECT id FROM records WHERE task_id=? LIMIT 1').get(id)) throw error(422, '已提交记录，不能删除；可取消此任务'); transaction(() => { db.prepare('DELETE FROM label_prints WHERE task_id=?').run(id); db.prepare('DELETE FROM live_locations WHERE task_id=?').run(id); db.prepare('DELETE FROM track_points WHERE journey_id IN (SELECT journey_id FROM tasks WHERE id=?)').run(id); db.prepare('DELETE FROM journeys WHERE id IN (SELECT journey_id FROM tasks WHERE id=?)').run(id); db.prepare('DELETE FROM tasks WHERE id=?').run(id); }); audit(db, 'admin', 'admin', 'delete_task', 'task', id, { sample_code: task.sample_code }, ipOf(req)); return output(res, 200, { ok: true }); }
-  if (url.pathname === '/api/v1/admin/labels' && req.method === 'GET') { const ids = String(url.searchParams.get('taskIds') || '').split(',').map(Number).filter(Number.isFinite); if (!ids.length) throw error(400, '请选择任务'); const tasks = ids.map(id => db.prepare(`SELECT t.id,t.sample_code,t.qr_token,t.sample_type,t.planned_date,s.code site_code,s.latitude,s.longitude,p.code project_code,p.id project_id FROM tasks t JOIN sites s ON s.id=t.site_id JOIN projects p ON p.id=t.project_id WHERE t.id=?`).get(id)).filter(Boolean); const coSite = new Map(); for (const t of tasks) { const key = `${t.latitude}:${t.longitude}`; if (!coSite.has(key)) coSite.set(key, db.prepare('SELECT COUNT(*) c FROM sites WHERE project_id=? AND latitude=? AND longitude=? AND deleted_at IS NULL').get(t.project_id, t.latitude, t.longitude).c); } const withQr = []; for (const t of tasks) withQr.push({ ...t, co_sited: coSite.get(`${t.latitude}:${t.longitude}`) || 1, qr_value: `BSC-SAMPLE|${t.sample_code}|${t.qr_token}`, qr_data_url: await QRCode.toDataURL(`BSC-SAMPLE|${t.sample_code}|${t.qr_token}`, { width: 300, margin: 1 }) }); const print = db.prepare('INSERT INTO label_prints(task_id,sample_code) VALUES(?,?)'); transaction(() => tasks.forEach(t => print.run(t.id, t.sample_code))); audit(db, 'admin', 'admin', 'print_labels', 'task', ids.join(','), { count: tasks.length }, ipOf(req)); const html = renderLabelPage(withQr); res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': Buffer.byteLength(html), 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY' }); return res.end(html); }
+  if (url.pathname === '/api/v1/admin/labels' && req.method === 'GET') { const ids = String(url.searchParams.get('taskIds') || '').split(',').map(Number).filter(Number.isFinite); if (!ids.length) throw error(400, '请选择任务'); const tasks = ids.map(id => db.prepare(`SELECT t.id,t.sample_code,t.qr_token,t.sample_type,t.planned_date,s.code site_code,s.name site_name,s.latitude,s.longitude,p.code project_code,p.id project_id FROM tasks t JOIN sites s ON s.id=t.site_id JOIN projects p ON p.id=t.project_id WHERE t.id=?`).get(id)).filter(Boolean); const coSite = new Map(); for (const t of tasks) { const key = `${t.latitude}:${t.longitude}`; if (!coSite.has(key)) coSite.set(key, db.prepare('SELECT COUNT(*) c FROM sites WHERE project_id=? AND latitude=? AND longitude=? AND deleted_at IS NULL').get(t.project_id, t.latitude, t.longitude).c); } const withQr = []; for (const t of tasks) withQr.push({ ...t, co_sited: coSite.get(`${t.latitude}:${t.longitude}`) || 1, qr_value: `BSC-SAMPLE|${t.sample_code}|${t.qr_token}`, qr_data_url: await QRCode.toDataURL(`BSC-SAMPLE|${t.sample_code}|${t.qr_token}`, { width: 300, margin: 1 }) }); const print = db.prepare('INSERT INTO label_prints(task_id,sample_code) VALUES(?,?)'); transaction(() => tasks.forEach(t => print.run(t.id, t.sample_code))); audit(db, 'admin', 'admin', 'print_labels', 'task', ids.join(','), { count: tasks.length }, ipOf(req)); const html = renderLabelPage(withQr); res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': Buffer.byteLength(html), 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY' }); return res.end(html); }
   m = /^\/api\/v1\/admin\/records\/(\d+)\/review$/.exec(url.pathname);
   if (m && req.method === 'POST') { const p = await body(req); if (!['approved','rejected','suspicious','pending'].includes(p.status)) throw error(422, '审核状态无效'); db.prepare('UPDATE records SET review_status=?,review_note=? WHERE id=?').run(p.status, String(p.note || ''), Number(m[1])); audit(db, 'admin', 'admin', 'review', 'record', m[1], p, ipOf(req)); return output(res, 200, { ok: true }); }
   m = /^\/api\/v1\/admin\/records\/(\d+)\/backfill-weather$/.exec(url.pathname);
@@ -5400,7 +5406,7 @@ module.exports = { backfillWeather };
 
 #### `bsc-sampling-v1/test/api.test.js`
 
-SHA-256: `6bfacf5602f4fcabd07791023f07cab45f1e7ba90737d605993ab32c8842efef`
+SHA-256: `d9b09fe68c7cf6d45f9ec25215d3683462fbc3f6511e84680c6e79c5ca12ab56`
 
 ~~~~javascript
 'use strict';
@@ -5812,6 +5818,7 @@ test('labels page renders 60-per-page A4 grid', async () => {
   assert.equal((html.match(/<div class="page">/g) || []).length, 1, 'two labels share one page');
   assert.match(html, /grid-template-columns: repeat\(5, 42mm\)/, '5列×12行60枚/页满铺网格');
   assert.match(html, /width: 24\.75mm/, '二维码 24.75mm 占满格高（防畸变）');
+  assert.match(html, /采样点5/, '标签包含点位名称');
   assert.match(html, /河流水|支流|土壤|植物|雨水|湖水/, '样品类型大号文字');
   assert.match(html, /data:image\/png;base64,/, 'qr codes embedded as data URLs');
 });

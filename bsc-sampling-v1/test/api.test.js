@@ -407,6 +407,7 @@ test('labels page renders 60-per-page A4 grid', async () => {
   assert.equal((html.match(/<div class="page">/g) || []).length, 1, 'two labels share one page');
   assert.match(html, /grid-template-columns: repeat\(5, 42mm\)/, '5列×12行60枚/页满铺网格');
   assert.match(html, /width: 24\.75mm/, '二维码 24.75mm 占满格高（防畸变）');
+  assert.match(html, /采样点5/, '标签包含点位名称');
   assert.match(html, /河流水|支流|土壤|植物|雨水|湖水/, '样品类型大号文字');
   assert.match(html, /data:image\/png;base64,/, 'qr codes embedded as data URLs');
 });

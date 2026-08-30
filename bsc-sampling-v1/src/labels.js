@@ -21,6 +21,7 @@ function renderLabelPage(tasks) {
         <img class="qr" alt="二维码" src="${task.qr_data_url}">
         <div class="side">
           <div class="site">${escapeHtml(task.site_code)}</div>
+          <div class="name">${escapeHtml(task.site_name || '')}</div>
           <div class="type">${escapeHtml(TYPE_NAMES[task.sample_type] || task.sample_type)}</div>
         </div>
         ${task.co_sited > 1 ? `<div class="multi">×${task.co_sited}</div>` : ''}
@@ -41,6 +42,7 @@ function renderLabelPage(tasks) {
   .qr { width: 24.75mm; height: 24.75mm; flex: none; }
   .side { min-width: 0; flex: 1; padding: 0 1.2mm; display: flex; flex-direction: column; justify-content: center; gap: 1mm; }
   .site { font-size: 5mm; font-weight: 900; word-break: break-all; }
+  .name { font-size: 3mm; color: #333; word-break: break-all; }
   .type { font-size: 6.5mm; font-weight: 900; color: #0b5b45; word-break: break-all; }
   .multi { position: absolute; top: 0; right: 0; font-size: 2.6mm; font-weight: 900; color: #a02020; background: #ffe3e0; border: 0.3mm solid #c0392b; border-radius: 0 0 0 1mm; padding: .3mm .6mm; }
 </style>
