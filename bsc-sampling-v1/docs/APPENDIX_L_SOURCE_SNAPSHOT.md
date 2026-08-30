@@ -1,6 +1,6 @@
 ## 附录 L：当前源码快照
 
-> 生成时间：2026-08-29T17:13:11.990Z  
+> 生成时间：2026-08-30T09:27:36.219Z  
 > 文件数：79  
 > 本附录是交给 AI Agent 的一体化源码快照，不代替仓库中的真实文件。修改时应编辑仓库源文件，再重新生成本附录。
 
@@ -1727,7 +1727,7 @@ SHA-256: `993a539bcb81926555f283a0b763e207c022a0f0c4b2757a54c4d260cd876e71`
 
 #### `bsc-sampling-v1/public/app.js`
 
-SHA-256: `1135ecc6492a971a6af5c5d8b455e4cd4ad17926acaf716409f6165f77bdc8af`
+SHA-256: `0cdf091a11f7f2db9d5d1b6b6cd4bf2b634656e355192334929ead37049e356d`
 
 ~~~~javascript
 'use strict';
@@ -2102,7 +2102,7 @@ function initMap() {
 }
 
 // 采样点标记：水滴外形轮廓 SVG，状态色填充（灰=待采样 橙=待审核 绿=已通过 红=异常/退回）。
-const MARKER_COLORS = { gray: '#7f8d8c', amber: '#ef9c2f', green: '#16a27a', red: '#d95d58' };
+const MARKER_COLORS = { gray: '#9AA8A5', amber: '#F0A23B', green: '#0E9F8A', red: '#E0685F' };
 function dropSvg(color) {
   return `<svg width="26" height="34" viewBox="0 0 26 34" xmlns="http://www.w3.org/2000/svg"><path d="M13 1C13 1 2 13.6 2 22.2a11 11 0 0 0 22 0C24 13.6 13 1 13 1Z" fill="${color}" stroke="#ffffff" stroke-width="2.5"/></svg>`;
 }
@@ -2174,7 +2174,7 @@ async function renderMap(tasks) {
       bounds.push([lat, lng]);
     });
     const first = group[0];
-    const circle = L.circle([first.target_latitude, first.target_longitude], { radius: first.normal_radius_m || 30, color: '#16a27a', weight: 1.4, fillOpacity: 0.05, keyboard: false }).addTo(state.map);
+    const circle = L.circle([first.target_latitude, first.target_longitude], { radius: first.normal_radius_m || 30, color: '#0E9F8A', weight: 1.4, fillOpacity: 0.05, keyboard: false }).addTo(state.map);
     state.markers.push(circle);
   }
   if (bounds.length) state.map.fitBounds(bounds, { padding: [65, 65], maxZoom: 16, animate: false });
@@ -2183,7 +2183,7 @@ async function renderMap(tasks) {
   trackTasks.forEach((task, index) => {
     const track = trackResults[index];
     if (track && Array.isArray(track.points) && track.points.length) {
-      const line = L.polyline(track.points.map(p => [p.latitude, p.longitude]), { color: '#326fcb', weight: 3, opacity: 0.65 }).addTo(state.map);
+      const line = L.polyline(track.points.map(p => [p.latitude, p.longitude]), { color: '#2E7CB8', weight: 3, opacity: 0.65 }).addTo(state.map);
       state.trackPolylines.push(line);
     }
   });
@@ -2258,7 +2258,7 @@ async function showDetail(task) {
         if (!segs.length) segs.push(track.points.map(p => [p.latitude, p.longitude]));
         let bounds = null;
         for (const seg of segs) {
-          const line = L.polyline(seg, { color: '#326fcb', weight: 4, opacity: 0.8 }).addTo(state.map);
+          const line = L.polyline(seg, { color: '#2E7CB8', weight: 4, opacity: 0.8 }).addTo(state.map);
           state.trackPolylines.push(line);
           bounds = bounds ? bounds.extend(line.getBounds()) : line.getBounds();
         }
@@ -2781,13 +2781,13 @@ async function checkHealth() {
     const dot = document.querySelector('.server-dot i');
     if (res.criticalLowDisk) {
       $('#healthText').textContent = `磁盘仅剩 ${fmtBytes(res.freeBytes)}，告警！`;
-      dot.style.background = '#d95d58';
+      dot.style.background = '#E0685F';
     } else if (res.warnLowDisk) {
       $('#healthText').textContent = `磁盘剩余 ${fmtBytes(res.freeBytes)}（偏低）`;
-      dot.style.background = '#ef9c2f';
+      dot.style.background = '#F0A23B';
     } else {
       $('#healthText').textContent = `服务器运行正常 · 磁盘剩余 ${fmtBytes(res.freeBytes)}`;
-      dot.style.background = '#30b987';
+      dot.style.background = '#0E9F8A';
     }
   } catch { $('#healthText').textContent = '服务器健康检查失败'; }
 }
@@ -2827,7 +2827,7 @@ SHA-256: `56ea901d1568162180fb0187726da544ff446b0ccc6fba614cd913e472cbe7a1`
 
 #### `bsc-sampling-v1/public/index.html`
 
-SHA-256: `5111400d5ce5460ec0e5fb98c2db3c052618bcecd06850683614d617b064e19d`
+SHA-256: `f7b157db68fabf8f052cf9ea3d61d879149290cf18a03781c4406927b3bab6e6`
 
 ~~~~html
 <!doctype html>
@@ -2843,14 +2843,14 @@ SHA-256: `5111400d5ce5460ec0e5fb98c2db3c052618bcecd06850683614d617b064e19d`
 <body>
   <section id="login" class="login-shell">
     <div class="login-card">
-      <div class="brand-mark">水</div>
+      <div class="brand-mark"><svg viewBox="0 0 24 24" width="22" height="22" fill="none"><path d="M12 2.5C12 2.5 4.5 10.8 4.5 16.3a7.5 7.5 0 0 0 15 0C19.5 10.8 12 2.5 12 2.5Z" fill="#fff"/></svg></div>
       <p class="eyebrow">WGS84 · 离线采集 · 真实性审核</p>
       <h1>水样采集管理系统</h1>
       <p class="muted">管理员登录后可以设置采样点、下发任务并审核现场记录。</p>
       <form id="loginForm">
-        <label>管理员密码<input id="password" type="password" autocomplete="current-password"></label>
-        <label>TOTP 动态验证码（可选）<input id="totp" inputmode="numeric" maxlength="6" placeholder="未启用请留空"></label>
-        <button class="primary" type="submit">进入管理平台</button>
+        <label class="field">管理员密码<input id="password" type="password" autocomplete="current-password"></label>
+        <label class="field">TOTP 动态验证码（可选）<input id="totp" inputmode="numeric" maxlength="6" placeholder="未启用请留空"></label>
+        <button class="btn btn-primary" type="submit">进入管理平台</button>
         <p id="loginError" class="error"></p>
       </form>
     </div>
@@ -2858,7 +2858,7 @@ SHA-256: `5111400d5ce5460ec0e5fb98c2db3c052618bcecd06850683614d617b064e19d`
 
   <div id="app" class="app hidden">
     <aside class="sidebar">
-      <div class="brand"><span class="brand-mark small">水</span><div><strong>水样采集</strong><small>管理平台</small></div></div>
+      <div class="brand"><span class="brand-mark small"><svg viewBox="0 0 24 24" width="16" height="16" fill="none"><path d="M12 2.5C12 2.5 4.5 10.8 4.5 16.3a7.5 7.5 0 0 0 15 0C19.5 10.8 12 2.5 12 2.5Z" fill="#fff"/></svg></span><div><strong>水样采集</strong><small>管理平台</small></div></div>
       <p class="section-label">项目</p>
       <div id="projectList" class="project-list"></div>
       <button id="newProjectButton" class="side-action">＋ 新建项目</button>
@@ -2944,13 +2944,13 @@ SHA-256: `5111400d5ce5460ec0e5fb98c2db3c052618bcecd06850683614d617b064e19d`
     <form id="projectForm" method="dialog">
       <div class="dialog-head"><div><small>项目</small><h3 id="projectDialogTitle">新建项目</h3></div><button value="cancel" formnovalidate>×</button></div>
       <div class="form-grid">
-        <label>项目编码<input id="projectCode" required placeholder="例如：BSC2"></label>
-        <label>项目名称<input id="projectName" required placeholder="例如：巴松措正式采样"></label>
-        <label class="wide">描述<input id="projectDescription" placeholder="可选"></label>
+        <label class="field">项目编码<input id="projectCode" required placeholder="例如：BSC2"></label>
+        <label class="field">项目名称<input id="projectName" required placeholder="例如：巴松措正式采样"></label>
+        <label class="wide field">描述<input id="projectDescription" placeholder="可选"></label>
         <label class="wide checkbox-line"><input type="checkbox" id="projectIsTest"> 测试项目（不参与正式统计）</label>
         <label class="wide checkbox-line" id="projectEnabledLine"><input type="checkbox" id="projectEnabled" checked> 启用（停用后不再显示新任务）</label>
       </div>
-      <div class="dialog-actions"><span></span><button value="cancel" formnovalidate class="ghost">取消</button><button id="saveProject" type="button" class="primary">保存项目</button></div>
+      <div class="dialog-actions"><span></span><button value="cancel" formnovalidate class="btn btn-ghost">取消</button><button id="saveProject" type="button" class="btn btn-primary">保存项目</button></div>
     </form>
   </dialog>
 
@@ -2958,33 +2958,33 @@ SHA-256: `5111400d5ce5460ec0e5fb98c2db3c052618bcecd06850683614d617b064e19d`
     <form id="siteForm" method="dialog">
       <div class="dialog-head"><div><small>WGS84坐标</small><h3 id="siteDialogTitle">设置采样点</h3></div><button value="cancel" formnovalidate>×</button></div>
       <div class="form-grid">
-        <label>排序编号<input name="sort_order" id="siteSortOrder" type="number" placeholder="例如：6"></label>
-        <label>历史序号<input name="code" id="siteCode" required placeholder="例如：5.1（保持原格式）"></label>
-        <label>点位名称<input name="name" id="siteName" required placeholder="例如：河流采样点12"></label>
-        <label>海拔（米）<input name="altitude_m" id="siteAltitude" type="number" step="1"></label>
-        <label class="wide">经纬度(WGS84)
+        <label class="field">排序编号<input name="sort_order" id="siteSortOrder" type="number" placeholder="例如：6"></label>
+        <label class="field">历史序号<input name="code" id="siteCode" required placeholder="例如：5.1（保持原格式）"></label>
+        <label class="field">点位名称<input name="name" id="siteName" required placeholder="例如：河流采样点12"></label>
+        <label class="field">海拔（米）<input name="altitude_m" id="siteAltitude" type="number" step="1"></label>
+        <label class="wide field">经纬度(WGS84)
           <input id="siteCoords" placeholder="【WGS84】29.66579301°N，94.34286257°E（也可直接粘贴 29.66579301, 94.34286257）">
           <small>支持"度分秒"以外的十进制格式：带 °N/°E 的 WGS84 文本，或"纬度, 经度"两个数字；也可点击"在地图上选点"或直接在地图上点右键。</small>
         </label>
         <input id="latitude" type="hidden">
         <input id="longitude" type="hidden">
-        <label class="wide">样品类型（可多选）
+        <label class="wide field">样品类型（可多选）
           <div class="type-checkboxes" id="siteTypes"></div>
         </label>
-        <label class="wide">现场示例图片（可选，建议上传）
+        <label class="wide field">现场示例图片（可选，建议上传）
           <input id="referenceImageFile" type="file" accept="image/jpeg,image/png,image/webp">
           <small>供村民在现场对照找点；不上传也可以保存并使用该点位。</small>
         </label>
         <div id="referenceImagePreviewBox" class="wide reference-upload hidden">
           <img id="referenceImagePreview" alt="现场示例图片预览"><span>示例图片预览</span>
         </div>
-        <label class="wide">采样说明<textarea name="instructions" id="siteInstructions" rows="3" placeholder="告诉村民如何到达、如何拍照"></textarea></label>
-        <label class="wide">风险提醒<textarea name="risk_note" id="siteRiskNote" rows="2" placeholder="例如：雨季河岸湿滑"></textarea></label>
-        <label class="wide">备注<input name="remarks" id="siteRemarks" placeholder="例如：土，植无水"></label>
+        <label class="wide field">采样说明<textarea name="instructions" id="siteInstructions" rows="3" placeholder="告诉村民如何到达、如何拍照"></textarea></label>
+        <label class="wide field">风险提醒<textarea name="risk_note" id="siteRiskNote" rows="2" placeholder="例如：雨季河岸湿滑"></textarea></label>
+        <label class="wide field">备注<input name="remarks" id="siteRemarks" placeholder="例如：土，植无水"></label>
         <label class="wide checkbox-line"><input type="checkbox" id="siteEnabled" checked> 启用该点位（停用后不再下发新任务，历史数据保留）</label>
       </div>
       <p class="dialog-tip">点击“在地图上选点”，再点击地图中的实际位置；保存前可以拖动地图上的标记微调坐标。坐标支持 8 位小数（约 1 厘米精度）。</p>
-      <div class="dialog-actions"><button id="pickMap" type="button" class="secondary">⌖ 在地图上选点</button><span></span><button value="cancel" formnovalidate class="ghost">取消</button><button id="saveSite" type="button" class="primary">保存采样点</button></div>
+      <div class="dialog-actions"><button id="pickMap" type="button" class="btn btn-secondary">⌖ 在地图上选点</button><span></span><button value="cancel" formnovalidate class="btn btn-ghost">取消</button><button id="saveSite" type="button" class="btn btn-primary">保存采样点</button></div>
     </form>
   </dialog>
 
@@ -2996,7 +2996,7 @@ SHA-256: `5111400d5ce5460ec0e5fb98c2db3c052618bcecd06850683614d617b064e19d`
       <p class="dialog-tip">“编号”是排序编号，“序号”是历史序号（可用 5.1、5.2 等小数形式，原样保留）。经纬度必须是 WGS84。导入后即可使用，可再补传参考图。</p>
       <input id="csvFile" class="file-input" type="file" accept=".csv,text/csv">
       <div id="importResult" class="import-result"></div>
-      <div class="dialog-actions"><span></span><button value="cancel" formnovalidate class="ghost">关闭</button><button id="runImport" type="button" class="primary">开始导入</button></div>
+      <div class="dialog-actions"><span></span><button value="cancel" formnovalidate class="btn btn-ghost">关闭</button><button id="runImport" type="button" class="btn btn-primary">开始导入</button></div>
     </form>
   </dialog>
 
@@ -3004,18 +3004,18 @@ SHA-256: `5111400d5ce5460ec0e5fb98c2db3c052618bcecd06850683614d617b064e19d`
     <form id="taskForm" method="dialog">
       <div class="dialog-head"><div><small>临时下发</small><h3>创建采样任务和瓶子标签</h3></div><button value="cancel" formnovalidate>×</button></div>
       <div id="taskFields" class="form-grid">
-        <label class="wide">计划采样日期<input id="plannedDate" type="date" required></label>
-        <label class="wide">采样人员<select id="taskVillager" required></select></label>
-        <label class="wide">选择固定采样点（可多选，每个点位按其样品类型生成任务）
+        <label class="wide field">计划采样日期<input id="plannedDate" type="date" required></label>
+        <label class="wide field">采样人员<select id="taskVillager" required></select></label>
+        <label class="wide field">选择固定采样点（可多选，每个点位按其样品类型生成任务）
           <div id="taskSiteList" class="site-pick-list"><label class="site-pick select-all"><input type="checkbox" id="taskSiteAll"> <strong>全选 / 全不选</strong></label></div>
         </label>
-        <label class="wide">样品类型按点位自身设置生效（点位列表括号内为各点位类型；要改某点类型请到"点位管理"编辑该点）</label>
+        <label class="wide field">样品类型按点位自身设置生效（点位列表括号内为各点位类型；要改某点类型请到"点位管理"编辑该点）</label>
       </div>
       <section id="labelResult" class="label-result hidden">
         <div id="labelCodes" class="label-codes"></div>
         <p>已生成任务与二维码。使用 A4 不干胶打印，二维码与文字编号必须同时贴在瓶身。</p>
       </section>
-      <div class="dialog-actions"><span></span><button value="cancel" formnovalidate class="ghost">关闭</button><button id="printLabel" type="button" class="secondary hidden">打印标签（40枚/页）</button><button id="createTask" type="button" class="primary">生成任务和二维码</button></div>
+      <div class="dialog-actions"><span></span><button value="cancel" formnovalidate class="btn btn-ghost">关闭</button><button id="printLabel" type="button" class="btn btn-secondary hidden">打印标签（40枚/页）</button><button id="createTask" type="button" class="btn btn-primary">生成任务和二维码</button></div>
     </form>
   </dialog>
 
@@ -3026,7 +3026,7 @@ SHA-256: `5111400d5ce5460ec0e5fb98c2db3c052618bcecd06850683614d617b064e19d`
       <div class="vill-new">
         <input id="newVillagerUser" placeholder="账号（字母数字，如 cmy02）">
         <input id="newVillagerName" placeholder="姓名">
-        <button type="button" id="addVillager" class="primary">＋ 新建采样员</button>
+        <button type="button" id="addVillager" class="btn btn-primary">＋ 新建采样员</button>
       </div>
       <div id="villagerList" class="vill-list"></div>
       <div id="activationResult" class="activation-result hidden">
@@ -3035,10 +3035,10 @@ SHA-256: `5111400d5ce5460ec0e5fb98c2db3c052618bcecd06850683614d617b064e19d`
           <small>激活二维码（24 小时有效）</small>
           <code id="activationValue" class="activation-value"></code>
           <p id="activationExpires" class="muted"></p>
-          <button type="button" id="copyActivation" class="secondary">复制激活内容</button>
+          <button type="button" id="copyActivation" class="btn btn-secondary">复制激活内容</button>
         </div>
       </div>
-      <div class="dialog-actions"><span></span><button value="cancel" formnovalidate class="ghost">关闭</button></div>
+      <div class="dialog-actions"><span></span><button value="cancel" formnovalidate class="btn btn-ghost">关闭</button></div>
     </form>
   </dialog>
 
@@ -3050,13 +3050,13 @@ SHA-256: `5111400d5ce5460ec0e5fb98c2db3c052618bcecd06850683614d617b064e19d`
         <select id="logLevel"><option value="">全部级别</option><option value="info">info</option><option value="warning">warning</option><option value="error">error</option></select>
         <input id="logDevice" placeholder="设备ID（可选）">
         <input id="logFrom" type="date"><span class="muted">至</span><input id="logTo" type="date">
-        <button id="exportLogsCsv" type="button" class="secondary">导出日志CSV</button>
+        <button id="exportLogsCsv" type="button" class="btn btn-secondary">导出日志CSV</button>
       </div>
       <div class="logs-table-wrap"><table class="logs-table">
         <thead><tr><th>时间</th><th>级别</th><th>设备</th><th>消息</th></tr></thead>
         <tbody id="logsBody"></tbody>
       </table></div>
-      <div class="dialog-actions"><button id="refreshLogs" type="button" class="secondary">刷新</button><span></span><button value="cancel" formnovalidate class="ghost">关闭</button></div>
+      <div class="dialog-actions"><button id="refreshLogs" type="button" class="btn btn-secondary">刷新</button><span></span><button value="cancel" formnovalidate class="btn btn-ghost">关闭</button></div>
     </form>
   </dialog>
 
@@ -3095,7 +3095,7 @@ SHA-256: `15c86461400dd919267ef3ce2d9838a553d252d0f47efcd6484a230c5e30c9ea`
 
 #### `bsc-sampling-v1/public/styles.css`
 
-SHA-256: `a606800971f985dd40eda21ad5002e786326c508cc4a2095e7e157439157cd7c`
+SHA-256: `e0253b382434110d41e17910f28576a30aeb155642087390610ae1961c175150`
 
 ~~~~css
 :root{--ink:#17343a;--muted:#708187;--line:#dbe5e4;--soft:#f3f7f6;--green:#16a27a;--green-dark:#087557;--aqua:#dff6ef;--amber:#ef9c2f;--red:#d95d58;--blue:#3a84c6;--shadow:0 16px 48px rgba(25,54,58,.13)}
@@ -3209,6 +3209,163 @@ dialog{width:min(680px,calc(100% - 28px));border:0;border-radius:18px;padding:0;
 .reference{display:block;padding:10px 12px;border:1px solid var(--line);border-radius:12px;margin:12px 0}
 .reference small{color:var(--muted);font-size:11px;line-height:1.45}
 @media(max-width:650px){.compare-grid{grid-template-columns:1fr}}
+
+/* ===== Task 1: 设计令牌与基础组件层（山水青绿换肤） ===== */
+:root{
+  --c-primary:#0E9F8A;--c-primary-strong:#0B7F6E;--c-accent:#2E7CB8;--c-bg:#F4F8F7;--c-card:#FFFFFF;
+  --c-ink:#17343A;--c-ink-2:#5A6B6E;--c-line:#DDE8E5;--c-danger:#D95D58;--c-amber:#EF9C2F;--c-green:#16A27A;
+  --radius:12px;--radius-sm:8px;--shadow-soft:0 2px 10px rgba(23,52,58,.06);--shadow-pop:0 10px 40px rgba(23,52,58,.14);
+  --font:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:var(--font);background:var(--c-bg);color:var(--c-ink);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+.hidden{display:none!important}
+h1,h2,h3{margin:0;line-height:1.25}
+button{font-family:var(--font)}
+/* 基础组件 */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 16px;border:1px solid var(--c-line);
+  border-radius:var(--radius-sm);background:#fff;color:var(--c-ink);font-size:13.5px;font-weight:600;cursor:pointer;transition:all .15s ease}
+.btn:hover{border-color:var(--c-primary);color:var(--c-primary)}
+.btn-primary,.primary{background:var(--c-primary);border-color:var(--c-primary);color:#fff}
+.btn-primary:hover,.primary:hover{background:var(--c-primary-strong);color:#fff}
+.btn-secondary,.secondary{background:#EAF6F3;border-color:transparent;color:var(--c-primary-strong)}
+.btn-secondary:hover,.secondary:hover{background:#D8EFEA}
+.btn-ghost,.ghost{background:transparent;border-color:transparent;color:var(--c-ink-2)}
+.btn-ghost:hover,.ghost:hover{background:#EFF4F3;color:var(--c-ink)}
+.field input,.field select,.field textarea,input[type=text],input[type=password],input[type=number],input[type=date],select,textarea{
+  width:100%;padding:10px 12px;border:1px solid var(--c-line);border-radius:var(--radius-sm);background:#fff;color:var(--c-ink);
+  font:inherit;transition:border-color .15s ease}
+.field input:focus,input:focus,select:focus,textarea:focus{outline:none;border-color:var(--c-primary);box-shadow:0 0 0 3px rgba(14,159,138,.15)}
+/* 登录页 */
+.login-shell{min-height:100vh;display:grid;place-items:center;padding:24px;
+  background:linear-gradient(160deg,#EAF7F4 0%,#F4F8F7 55%,#E8F1F6 100%)}
+.login-card{width:min(400px,100%);background:var(--c-card);border-radius:20px;box-shadow:var(--shadow-pop);padding:36px 32px;text-align:center}
+.brand-mark{width:56px;height:56px;margin:0 auto 14px;display:grid;place-items:center;border-radius:16px;font-size:26px;font-weight:700;
+  color:#fff;background:linear-gradient(135deg,var(--c-primary),var(--c-accent))}
+.login-card h1{font-size:21px;margin-bottom:6px}
+.eyebrow{font-size:12px;letter-spacing:.12em;color:var(--c-accent);font-weight:700}
+.muted{color:var(--c-ink-2)}
+.login-card form{display:grid;gap:12px;margin-top:22px;text-align:left}
+.login-card label{display:grid;gap:6px;font-size:13px;color:var(--c-ink-2);font-weight:600}
+.error{color:var(--c-danger);font-size:13px;min-height:18px;margin:0}
+/* 打印（原样保留，勿改） */
+@media print{body *{visibility:hidden}#labelResult,#labelResult *{visibility:visible}#labelResult{position:absolute;left:20mm;top:20mm;width:85mm;border:1px solid #222;background:#fff}.label-result p{display:none}}
+
+/* 应用壳 */
+.app{display:grid;grid-template-columns:230px minmax(0,1fr);height:100vh;background:var(--c-bg)}
+.app.side-collapsed{grid-template-columns:64px minmax(0,1fr)}
+.sidebar{background:linear-gradient(180deg,#FDFEFE,#EFF7F5);border-right:1px solid var(--c-line);display:flex;flex-direction:column;gap:6px;padding:16px 12px;overflow:auto}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 8px 14px}
+.brand .brand-mark.small{width:36px;height:36px;margin:0;font-size:18px;border-radius:10px}
+.brand strong{font-size:15px}.brand small{display:block;color:var(--c-ink-2);font-size:11px}
+.section-label{font-size:11px;color:var(--c-ink-2);letter-spacing:.1em;margin:10px 8px 2px}
+.side-action{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;border:0;border-radius:var(--radius-sm);
+  background:transparent;color:var(--c-ink);font-size:13.5px;cursor:pointer;text-align:left}
+.side-action:hover{background:#E3F2EE;color:var(--c-primary-strong)}
+.side-action.active{background:var(--c-primary);color:#fff}
+.date-list,.project-list{display:flex;flex-direction:column;gap:4px}
+#dateList button,#projectList button{border:0;border-radius:var(--radius-sm);background:transparent;color:var(--c-ink);font-size:13px;padding:8px 12px;text-align:left;cursor:pointer}
+#dateList button:hover,#projectList button:hover{background:#E3F2EE}
+#dateList button.active,#projectList button.active{background:var(--c-primary);color:#fff}
+.sidebar-bottom{margin-top:auto;display:grid;gap:6px;padding-top:10px;border-top:1px solid var(--c-line)}
+.server-dot{display:flex;align-items:center;gap:8px;color:var(--c-ink-2);font-size:12px;padding:4px 8px}
+.server-dot i{width:8px;height:8px;border-radius:50%;background:var(--c-green)}
+/* 顶栏 */
+.main{min-width:0;display:flex;flex-direction:column;padding:18px 22px;gap:16px;overflow:auto}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.topbar-title{display:flex;align-items:center;gap:10px}
+.crumb{font-size:12px;color:var(--c-ink-2)}
+.topbar h2{font-size:24px;font-weight:800}
+.menu-button{display:none;border:0;background:transparent;font-size:20px;cursor:pointer}
+.top-actions{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+/* 统计卡 */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.stats article{display:flex;align-items:center;gap:12px;background:var(--c-card);border:1px solid var(--c-line);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow-soft)}
+.stats small{color:var(--c-ink-2);font-size:12px}
+.stats strong{font-size:22px;display:block}
+.stat-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:10px;font-weight:700;color:#fff}
+.stat-icon.blue{background:var(--c-accent)}.stat-icon.green{background:var(--c-green)}
+.stat-icon.amber{background:var(--c-amber)}.stat-icon.gray{background:#9AA8A5}
+/* 表格视图 */
+.task-table-wrap{background:var(--c-card);border:1px solid var(--c-line);border-radius:var(--radius);box-shadow:var(--shadow-soft);overflow:hidden}
+.task-table-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 14px;border-bottom:1px solid var(--c-line);background:#FBFDFC}
+.task-table-tools select,.task-table-tools input{width:auto;min-width:150px}
+.task-table-scroll{overflow:auto;max-height:60vh}
+.task-table{width:100%;border-collapse:collapse;font-size:13px}
+.task-table th{position:sticky;top:0;background:#F0F7F5;color:var(--c-ink-2);font-size:12px;text-align:left;padding:10px 12px}
+.task-table td{padding:10px 12px;border-top:1px solid var(--c-line)}
+.task-table tbody tr:hover{background:#F2F9F7}
+.row-check{accent-color:var(--c-primary)}
+/* 兜底：移动端侧栏抽屉红线——≤650px 时 #menuButton 必须可见（与 Task 5 响应式块一致，提前补齐以保住 e2e 红线） */
+@media(max-width:650px){.menu-button{display:block}}
+
+/* ===== Task 3: 地图面板 + 详情审核侧栏 + 状态配色常量 ===== */
+/* 地图面板 */
+.map-panel{background:var(--c-card);border:1px solid var(--c-line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow-soft);position:relative;min-height:0}
+.map-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-bottom:1px solid var(--c-line);background:#FBFDFC}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--c-ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.pin{width:10px;height:10px;border-radius:50%;display:inline-block}
+.pin.gray{background:#9AA8A5}.pin.amber{background:#F0A23B}.pin.green{background:#0E9F8A}.pin.red{background:#E0685F}
+.map-action{padding:7px 12px;border:1px solid var(--c-line);border-radius:var(--radius-sm);background:#fff;font-size:12.5px;font-weight:600;cursor:pointer}
+.map-action:hover{border-color:var(--c-primary);color:var(--c-primary)}
+.map-fallback{position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:6px;color:var(--c-ink-2);background:#F4F8F7}
+/* 详情侧栏 */
+.detail{position:fixed;right:0;top:0;bottom:0;width:430px;background:var(--c-card);box-shadow:var(--shadow-pop);z-index:1400;overflow:auto;padding:18px 20px;display:flex;flex-direction:column;gap:14px}
+.detail-head{display:flex;align-items:flex-start;justify-content:space-between;border-bottom:1px solid var(--c-line);padding-bottom:12px}
+.detail-head small{color:var(--c-accent);font-weight:700;letter-spacing:.06em}
+.detail-head button{border:0;background:transparent;font-size:22px;cursor:pointer;color:var(--c-ink-2)}
+.record-photo{width:100%;border-radius:var(--radius);border:1px solid var(--c-line)}
+.compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.review-actions{display:flex;flex-wrap:wrap;gap:8px}
+.review-actions button[data-status=approved]{background:var(--c-green);border-color:var(--c-green);color:#fff}
+.review-actions button[data-status=rejected]{background:var(--c-danger);border-color:var(--c-danger);color:#fff}
+.cancel-note{background:#FDF3EC;border:1px solid #F5D9C4;border-radius:var(--radius-sm);padding:10px 12px;color:#9A5B2D;font-size:13px}
+
+/* ===== Task 4: 全部弹窗与表单组件换肤 ===== */
+/* 弹窗 */
+dialog{border:0;border-radius:16px;box-shadow:var(--shadow-pop);padding:0;background:var(--c-card);max-width:560px;width:calc(100vw - 48px)}
+dialog::backdrop{background:rgba(13,34,38,.45)}
+.dialog-head{display:flex;align-items:flex-start;justify-content:space-between;padding:18px 20px 12px;border-bottom:1px solid var(--c-line)}
+.dialog-head small{color:var(--c-accent);font-weight:700;letter-spacing:.06em;font-size:11.5px}
+.dialog-head button{border:0;background:transparent;font-size:22px;cursor:pointer;color:var(--c-ink-2)}
+.dialog-actions{display:flex;gap:10px;justify-content:flex-end;align-items:center;padding:14px 20px;border-top:1px solid var(--c-line);background:#FBFDFC;border-radius:0 0 16px 16px}
+.dialog-actions span{flex:1}
+.dialog-tip{font-size:12.5px;color:var(--c-ink-2);background:#EFF7F5;border-radius:var(--radius-sm);padding:10px 12px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px;padding:18px 20px}
+.form-grid label{display:grid;gap:6px;font-size:13px;color:var(--c-ink-2);font-weight:600}
+.form-grid .wide{grid-column:1/-1}
+.type-checkboxes,.site-pick-list{display:grid;gap:6px;max-height:220px;overflow:auto;border:1px solid var(--c-line);border-radius:var(--radius-sm);padding:10px}
+.site-pick{border:1px solid var(--c-line);border-radius:var(--radius-sm);padding:8px 10px;background:#fff}
+.site-pick:hover{border-color:var(--c-primary)}
+.checkbox-line{display:flex!important;align-items:center;gap:8px;font-weight:500!important}
+.checkbox-line input{width:auto;accent-color:var(--c-primary)}
+/* 标签结果与激活 */
+.label-result{background:#EFF7F5;border-radius:var(--radius);padding:12px 14px}
+.label-codes{display:flex;flex-wrap:wrap;gap:6px}
+.label-code-item{background:#fff;border:1px dashed var(--c-primary);color:var(--c-primary-strong);border-radius:var(--radius-sm);padding:4px 10px;font-size:12px;font-weight:700}
+.vill-new{display:flex;gap:8px;padding:0 20px 12px}
+.vill-new input{flex:1}
+.vill-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 20px;border-top:1px solid var(--c-line)}
+.vill-row small{color:var(--c-ink-2)}
+.activation-result{display:flex;gap:16px;padding:12px 20px;align-items:center}
+.activation-qr{background:#fff;border:1px solid var(--c-line);border-radius:var(--radius);padding:10px}
+.activation-value{font-size:11.5px;color:var(--c-ink-2);word-break:break-all}
+.logs-filters{display:flex;flex-wrap:wrap;gap:10px;padding:12px 20px}
+.logs-filters input,.logs-filters select{width:auto}
+.logs-table-wrap{max-height:50vh;overflow:auto;margin:0 20px;border:1px solid var(--c-line);border-radius:var(--radius-sm)}
+.logs-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.logs-table th{position:sticky;top:0;background:#F0F7F5;padding:8px 10px;text-align:left;color:var(--c-ink-2)}
+.logs-table td{padding:8px 10px;border-top:1px solid var(--c-line)}
+.file-input{border:1px dashed var(--c-line);border-radius:var(--radius-sm);padding:14px;width:100%;margin:0 0 12px}
+.import-result{font-size:13px;padding:0 20px 12px}
+/* 兜底：≤650px 表单仍为单列（等价旧 @media 规则，防止末尾 .form-grid 两列覆盖移动端） */
+@media(max-width:650px){.form-grid{grid-template-columns:1fr}.form-grid .wide{grid-column:auto}}
+/* ===== Task 5: 响应式收尾（覆盖旧 L10 行为，山水青绿换肤） ===== */
+@media(max-width:900px){.app{grid-template-columns:200px minmax(0,1fr)}.stats{grid-template-columns:1fr 1fr}.map-panel{height:calc(100vh - 280px)}.legend{display:none}}
+@media(max-width:650px){.app{display:block;overflow:auto}.menu-button{display:block}.sidebar{position:fixed;top:0;left:0;bottom:0;width:270px;z-index:1300;transform:translateX(-105%);transition:transform .22s ease;box-shadow:18px 0 50px rgba(17,43,47,.16);overflow:auto;display:block}.sidebar.open{transform:translateX(0)}.sidebar-backdrop{display:block;position:fixed;inset:0;z-index:1250;background:rgba(13,34,38,.42)}.main{padding:14px}.topbar{align-items:flex-start;gap:12px}.top-actions{display:grid}.topbar h2{font-size:21px}.stats{grid-template-columns:1fr 1fr}.map-panel{height:70vh}.form-grid{grid-template-columns:1fr}.form-grid .wide{grid-column:auto}.record-grid{grid-template-columns:1fr}.detail{width:100%}.top-action-wrap .info-tip{display:none}}
+@media(max-width:400px){.stats{grid-template-columns:1fr}.stat-icon{display:none}.dialog-actions{grid-template-columns:1fr 1fr}.activation-result{flex-direction:column}}
 ~~~~
 
 #### `bsc-sampling-v1/README.md`
@@ -4325,7 +4482,7 @@ module.exports = { backfillWeather };
 
 #### `bsc-sampling-v1/test/api.test.js`
 
-SHA-256: `9ce7eed1c8a871ec61264cd8632f5ef554530cd3528c5a0466b4253ebbbcd08a`
+SHA-256: `554b54b921ed5a735a3b56254373569ead3177876a48aabf235e29c7b3a2f23b`
 
 ~~~~javascript
 'use strict';
@@ -4951,7 +5108,7 @@ test('app-version endpoint returns latest version', async () => {
   const res = await call('GET', '/api/v1/mobile/app-version', null, null);
   assert.equal(res.status, 200);
   assert.ok(res.json.versionCode >= 107, `versionCode=${res.json.versionCode}`);
-  assert.equal(res.json.versionName, '1.2.6');
+  assert.equal(res.json.versionName, '1.2.7');
 });
 
 test('captured time in the future adds risk flag', async () => {
