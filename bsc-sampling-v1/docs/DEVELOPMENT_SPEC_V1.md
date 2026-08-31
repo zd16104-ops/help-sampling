@@ -169,7 +169,7 @@ YYMMDD-类型-历史序号-两位顺序
 
 | 字母 | 样品类型 |
 |---|---|
-| R | 河流水 |
+| R | 河水 |
 | T | 支流水 |
 | S | 土壤 |
 | P | 植物 |
@@ -754,7 +754,7 @@ Android 单元测试：
 19. **参考图传不到手机的问题修复**：根因是旧库 25 个种子点位写入了 `/sample-reference.svg` 占位图（SVG 格式，安卓 `BitmapFactory` 无法解码，永远不显示，也没有报错日志）。服务器迁移清空该占位（新库种子也不再写），管理员在管理站上传真实 JPG 后即可在任务详情顶部看到；APP 端参考图无值或下载/解码失败时隐藏灰色占位框。
 20. 管理站审核详情：村民照片上已有水印，**移除重复叠加的 `watermark-preview` 文字层**；"定位精度"显示取整（`±2 米`，不再显示 `±2.700000047683716 米`）。
 21. 管理站全页面**响应式自适应**：≤650px 宽时侧栏变为抽屉（顶栏 ☰ 按钮展开、遮罩关闭、点击侧栏项自动收起），审核详情全宽、详情网格/统计卡改单列、表单单列、触摸提示气泡隐藏；≤900px 侧栏收窄、统计两列；≤400px 统计单列。
-22. **瓶子标签改版**：样品类型（如"河流水"）单独一行**加粗放大**（4.6mm 深绿粗体），编号、历史序号·日期、项目码分行显示，村民远看即可分辨。
+22. **瓶子标签改版**：样品类型（如"河水"）单独一行**加粗放大**（4.6mm 深绿粗体），编号、历史序号·日期、项目码分行显示，村民远看即可分辨。
 23. Android "我的任务"列表状态一目了然：**待采样=淡红底色、已采样=淡绿底色、已取消=浅灰底色**，状态文字加粗同色，不再只靠文字区分；地图标记颜色沿用绿/灰/蓝/橙四色。
 24. Playwright CLI 真浏览器验收（管理站登录、地图、坐标解析等）通过；E2E 新增响应式抽屉、无水印叠加、精度取整等断言。
 25. **已取消任务不再下发手机（用户要求）**：`/syncData` 过滤 `canceled_at IS NULL`；手机端同步后自动删除本地已取消任务（有本地采样记录或正在记录轨迹的任务保留，绝不丢数据）。原"取消后提交仍进入审核"逻辑保留（只对取消前已缓存任务的离线提交生效）。
@@ -2596,7 +2596,7 @@ SHA-256: `c78c8b4c786f6a34a3c8593d390079a3c3ffe04cf94e931c83657979d7c6281e`
 
 const $ = s => document.querySelector(s);
 const TOKEN_KEY = 'bscAdminToken';
-const TYPE_NAMES = { R: '河流水', T: '支流', S: '土壤', P: '植物', Y: '雨水', L: '湖水' };
+const TYPE_NAMES = { R: '河水', T: '支流', S: '土壤', P: '植物', Y: '雨水', L: '湖水' };
 const RISK_NAMES = {
   distance_30_80m: '距目标 30–80 米',
   distance_80_300m: '距目标 80–300 米',
@@ -4611,7 +4611,7 @@ SHA-256: `ba79a9d215ea99dae2a5c0717605c1aec9284b7539be46cb390e20d1ebfd2f5f`
 // the site code (top, bold) and the Chinese sample type (bottom, enlarged).
 // The complete sample code is encoded inside the QR (BSC-SAMPLE|code|token).
 
-const TYPE_NAMES = { R: '河流水', T: '支流', S: '土壤', P: '植物', Y: '雨水', L: '湖水' };
+const TYPE_NAMES = { R: '河水', T: '支流', S: '土壤', P: '植物', Y: '雨水', L: '湖水' };
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -5819,7 +5819,7 @@ test('labels page renders 60-per-page A4 grid', async () => {
   assert.match(html, /grid-template-columns: repeat\(5, 42mm\)/, '5列×12行60枚/页满铺网格');
   assert.match(html, /width: 24\.75mm/, '二维码 24.75mm 占满格高（防畸变）');
   assert.match(html, /采样点5/, '标签包含点位名称');
-  assert.match(html, /河流水|支流|土壤|植物|雨水|湖水/, '样品类型大号文字');
+  assert.match(html, /河水|支流|土壤|植物|雨水|湖水/, '样品类型大号文字');
   assert.match(html, /data:image\/png;base64,/, 'qr codes embedded as data URLs');
 });
 

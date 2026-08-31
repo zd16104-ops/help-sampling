@@ -1752,7 +1752,7 @@ SHA-256: `c78c8b4c786f6a34a3c8593d390079a3c3ffe04cf94e931c83657979d7c6281e`
 
 const $ = s => document.querySelector(s);
 const TOKEN_KEY = 'bscAdminToken';
-const TYPE_NAMES = { R: '河流水', T: '支流', S: '土壤', P: '植物', Y: '雨水', L: '湖水' };
+const TYPE_NAMES = { R: '河水', T: '支流', S: '土壤', P: '植物', Y: '雨水', L: '湖水' };
 const RISK_NAMES = {
   distance_30_80m: '距目标 30–80 米',
   distance_80_300m: '距目标 80–300 米',
@@ -3767,7 +3767,7 @@ SHA-256: `ba79a9d215ea99dae2a5c0717605c1aec9284b7539be46cb390e20d1ebfd2f5f`
 // the site code (top, bold) and the Chinese sample type (bottom, enlarged).
 // The complete sample code is encoded inside the QR (BSC-SAMPLE|code|token).
 
-const TYPE_NAMES = { R: '河流水', T: '支流', S: '土壤', P: '植物', Y: '雨水', L: '湖水' };
+const TYPE_NAMES = { R: '河水', T: '支流', S: '土壤', P: '植物', Y: '雨水', L: '湖水' };
 
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -4975,7 +4975,7 @@ test('labels page renders 60-per-page A4 grid', async () => {
   assert.match(html, /grid-template-columns: repeat\(5, 42mm\)/, '5列×12行60枚/页满铺网格');
   assert.match(html, /width: 24\.75mm/, '二维码 24.75mm 占满格高（防畸变）');
   assert.match(html, /采样点5/, '标签包含点位名称');
-  assert.match(html, /河流水|支流|土壤|植物|雨水|湖水/, '样品类型大号文字');
+  assert.match(html, /河水|支流|土壤|植物|雨水|湖水/, '样品类型大号文字');
   assert.match(html, /data:image\/png;base64,/, 'qr codes embedded as data URLs');
 });
 

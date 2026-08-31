@@ -213,6 +213,13 @@ function migrate(db) {
   // 旧库种子点位曾写入 /sample-reference.svg 占位参考图（SVG，安卓端无法解码，
   // 造成"参考图传不到手机"的假象）。清空后由管理员在管理站上传真实照片。
   db.prepare("UPDATE sites SET reference_image='' WHERE reference_image='/sample-reference.svg'").run();
+  // v1.3.1 以前软删除的点位仍占用 (project_id, code) 唯一约束。
+  // 为旧数据补上唯一墓碑后缀，使历史序号可以重新用于新位置。
+  const deletedSites = db.prepare('SELECT id,code FROM sites WHERE deleted_at IS NOT NULL').all();
+  for (const site of deletedSites) {
+    const suffix = `-DEL${site.id}`;
+    if (!String(site.code).endsWith(suffix)) db.prepare('UPDATE sites SET code=?,updated_at=CURRENT_TIMESTAMP WHERE id=?').run(`${site.code}${suffix}`, site.id);
+  }
   // 旧库补建标签打印记录表；并登记当前 APP 版本供手机端检查更新。
   db.exec('CREATE TABLE IF NOT EXISTS label_prints (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, sample_code TEXT NOT NULL, printed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(107, '1.2.6', '同步按钮点击必有反馈（进行中提示+完成Toast显示任务数），同步完成自动刷新任务页');

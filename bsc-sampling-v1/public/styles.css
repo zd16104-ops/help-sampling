@@ -210,6 +210,8 @@ button{font-family:var(--font)}
 .pin.gray{background:#9AA8A5}.pin.amber{background:#F0A23B}.pin.green{background:#0E9F8A}.pin.red{background:#E0685F}
 .map-action{padding:7px 12px;border:1px solid var(--c-line);border-radius:var(--radius-sm);background:#fff;font-size:12.5px;font-weight:600;cursor:pointer}
 .map-action:hover{border-color:var(--c-primary);color:var(--c-primary)}
+.map-toolbar-actions{display:flex;gap:8px}
+.map-panel:fullscreen{width:100vw;height:100vh;min-height:0;border:0;border-radius:0}
 .map-fallback{position:absolute;inset:0;display:grid;place-items:center;align-content:center;gap:6px;color:var(--c-ink-2);background:#F4F8F7}
 /* 详情侧栏 */
 .detail{position:fixed;right:0;top:0;bottom:0;width:430px;background:var(--c-card);box-shadow:var(--shadow-pop);z-index:1400;overflow:auto;padding:18px 20px;display:flex;flex-direction:column;gap:14px}

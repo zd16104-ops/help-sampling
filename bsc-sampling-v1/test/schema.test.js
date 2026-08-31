@@ -39,6 +39,17 @@ test('initialize is idempotent (no duplicate seed)', () => {
   assert.equal(db.prepare('SELECT COUNT(*) c FROM sites').get().c, 25);
 });
 
+test('migration releases codes held by legacy soft-deleted sites', () => {
+  const db = new DatabaseSync(':memory:');
+  initialize(db);
+  const old = db.prepare("SELECT id,project_id FROM sites WHERE code='9.5'").get();
+  db.prepare('UPDATE sites SET deleted_at=CURRENT_TIMESTAMP WHERE id=?').run(old.id);
+  initialize(db);
+  assert.notEqual(db.prepare('SELECT code FROM sites WHERE id=?').get(old.id).code, '9.5');
+  assert.doesNotThrow(() => db.prepare("INSERT INTO sites(project_id,code,name,latitude,longitude,sample_types) VALUES(?,?,?,?,?,'[]')")
+    .run(old.project_id, '9.5', '新9.5', 30, 94));
+});
+
 test('migration adds server weather columns to legacy records table', () => {
   const db = new DatabaseSync(':memory:');
   // Simulate a database created before the server weather backfill existed:

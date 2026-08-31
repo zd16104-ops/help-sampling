@@ -398,18 +398,14 @@ test('task cancel rules and unlock', async () => {
   assert.equal(afterUnlock.status, 200, 'unlocked task can be claimed by another device');
 });
 
-test('labels page renders 60-per-page A4 grid', async () => {
+test('labels endpoint downloads a PDF file', async () => {
   const ids = await Promise.all([adminCreateTask(), adminCreateTask()]);
   const res = await fetch(`${BASE}/api/v1/admin/labels?taskIds=${ids.join(',')}`, { headers: { Authorization: `Bearer ${adminToken}` } });
   assert.equal(res.status, 200);
-  const html = await res.text();
-  assert.equal((html.match(/<div class="label">/g) || []).length, 2);
-  assert.equal((html.match(/<div class="page">/g) || []).length, 1, 'two labels share one page');
-  assert.match(html, /grid-template-columns: repeat\(5, 42mm\)/, '5列×12行60枚/页满铺网格');
-  assert.match(html, /width: 24\.75mm/, '二维码 24.75mm 占满格高（防畸变）');
-  assert.match(html, /采样点5/, '标签包含点位名称');
-  assert.match(html, /河流水|支流|土壤|植物|雨水|湖水/, '样品类型大号文字');
-  assert.match(html, /data:image\/png;base64,/, 'qr codes embedded as data URLs');
+  assert.match(res.headers.get('content-type') || '', /^application\/pdf/);
+  assert.match(res.headers.get('content-disposition') || '', /attachment; filename="bsc-labels-.*\.pdf"/);
+  const pdf = Buffer.from(await res.arrayBuffer());
+  assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
 });
 
 test('villager management (create/duplicate/activate-no-pin/disable)', async () => {
@@ -751,6 +747,8 @@ test('delete site cancels its unsampled tasks and hides the site', async () => {
   assert.equal(t.canceled_reason, '点位已删除');
   const sync = await syncTask(mobileA, taskId);
   assert.equal(sync, undefined, '已取消任务不再下发手机');
+  const label = await call('GET', `/api/v1/admin/labels?taskIds=${taskId}`, null, adminToken);
+  assert.equal(label.status, 422, '已删除点位的旧任务不得再生成标签');
   const sites = await call('GET', '/api/v1/admin/sites?projectId=1', null, adminToken);
   assert.equal(sites.json.sites.some(s => s.id === siteId), false, '已删除点位不再返回');
   const again = await call('DELETE', `/api/v1/admin/sites/${siteId}`, null, adminToken);

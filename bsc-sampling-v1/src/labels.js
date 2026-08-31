@@ -1,56 +1,117 @@
 'use strict';
 
-// A4 bottle label print page: 5 columns × 12 rows = 60 labels per page,
-// the grid fills the whole 210×297mm sheet with no gaps between labels.
-// Each label: square QR (24.75mm, full cell height) on the left; on the right
-// the site code (top, bold) and the Chinese sample type (bottom, enlarged).
-// The complete sample code is encoded inside the QR (BSC-SAMPLE|code|token).
+const fs = require('node:fs');
+const path = require('node:path');
+const PDFDocument = require('pdfkit');
 
-const TYPE_NAMES = { R: '河流水', T: '支流', S: '土壤', P: '植物', Y: '雨水', L: '湖水' };
+const MM = 72 / 25.4;
+const PAGE_WIDTH = 210 * MM;
+const PAGE_HEIGHT = 297 * MM;
+const COLUMNS = 5;
+const ROWS = 12;
+const LABELS_PER_PAGE = COLUMNS * ROWS;
+const CELL_WIDTH = PAGE_WIDTH / COLUMNS;
+const CELL_HEIGHT = PAGE_HEIGHT / ROWS;
+const TYPE_NAMES = { R: '河水', T: '支流', S: '土壤', P: '植物', Y: '雨水', L: '湖水' };
 
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function labelFontPath() {
+  const windows = process.env.WINDIR || 'C:/Windows';
+  const candidates = [
+    process.env.LABEL_FONT_PATH,
+    path.join(windows, 'Fonts', 'simhei.ttf'),
+    path.join(windows, 'Fonts', 'msyh.ttc'),
+    path.join(windows, 'Fonts', 'simsun.ttc')
+  ].filter(Boolean);
+  const font = candidates.find(file => fs.existsSync(file));
+  if (!font) throw new Error('生成标签 PDF 需要中文字体，请设置 LABEL_FONT_PATH');
+  return font;
 }
 
-// tasks: [{ sample_code, qr_value, qr_data_url, site_code, sample_type, planned_date, project_code }]
-function renderLabelPage(tasks) {
-  const pages = [];
-  for (let i = 0; i < tasks.length; i += 60) {
-    const cells = tasks.slice(i, i + 60).map(task => `
-      <div class="label">
-        <img class="qr" alt="二维码" src="${task.qr_data_url}">
-        <div class="side">
-          <div class="site">${escapeHtml(task.site_code)}</div>
-          <div class="name">${escapeHtml(task.site_name || '')}</div>
-          <div class="type">${escapeHtml(TYPE_NAMES[task.sample_type] || task.sample_type)}</div>
-        </div>
-        ${task.co_sited > 1 ? `<div class="multi">×${task.co_sited}</div>` : ''}
-      </div>`).join('');
-    pages.push(`<div class="page">${cells}</div>`);
+function labelText(task) {
+  return {
+    code: String(task.sample_code || ''),
+    type: String(TYPE_NAMES[task.sample_type] || task.sample_type || ''),
+    site: `${String(task.site_code || '')} · ${String(task.site_name || '')}`
+  };
+}
+
+function truncateToWidth(doc, value, width) {
+  const text = String(value || '');
+  if (doc.widthOfString(text) <= width) return text;
+  const suffix = '…';
+  let low = 0;
+  let high = text.length;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (doc.widthOfString(text.slice(0, middle) + suffix) <= width) low = middle;
+    else high = middle - 1;
   }
-  return `<!doctype html>
-<html lang="zh-CN">
-<head>
-<meta charset="utf-8">
-<title>瓶子标签 ${tasks.length} 枚</title>
-<style>
-  @page { size: A4 portrait; margin: 0; }
-  html, body { margin: 0; padding: 0; background: #fff; font-family: "Microsoft YaHei", sans-serif; }
-  .page { width: 210mm; height: 297mm; page-break-after: always; display: grid; grid-template-columns: repeat(5, 42mm); grid-auto-rows: 24.75mm; box-sizing: border-box; }
-  .page:last-child { page-break-after: auto; }
-  .label { position: relative; box-sizing: border-box; border: 0.35mm solid #555; display: flex; align-items: center; }
-  .qr { width: 24.75mm; height: 24.75mm; flex: none; }
-  .side { min-width: 0; flex: 1; padding: 0 1.2mm; display: flex; flex-direction: column; justify-content: center; gap: 1mm; }
-  .site { font-size: 5mm; font-weight: 900; word-break: break-all; }
-  .name { font-size: 3mm; color: #333; word-break: break-all; }
-  .type { font-size: 6.5mm; font-weight: 900; color: #0b5b45; word-break: break-all; }
-  .multi { position: absolute; top: 0; right: 0; font-size: 2.6mm; font-weight: 900; color: #a02020; background: #ffe3e0; border: 0.3mm solid #c0392b; border-radius: 0 0 0 1mm; padding: .3mm .6mm; }
-</style>
-</head>
-<body>
-${pages.join('\n')}
-</body>
-</html>`;
+  return text.slice(0, low) + suffix;
 }
 
-module.exports = { renderLabelPage, TYPE_NAMES };
+function fittedLine(doc, value, x, y, width, maxSize, minSize, options = {}) {
+  doc.fontSize(maxSize);
+  const measured = doc.widthOfString(String(value || '')) || 1;
+  const size = Math.max(minSize, Math.min(maxSize, maxSize * width * 0.96 / measured));
+  doc.fontSize(size);
+  const text = truncateToWidth(doc, value, width * 0.96);
+  doc.text(text, x, y, { width, height: options.height || size * 1.25, lineBreak: false, align: options.align || 'left' });
+}
+
+function drawLabel(doc, task, x, y) {
+  const border = 0.35 * MM;
+  const qrSize = 21.8 * MM;
+  const qrX = x + 1 * MM;
+  const qrY = y + (CELL_HEIGHT - qrSize) / 2;
+  const sideX = x + 23.2 * MM;
+  const sideWidth = CELL_WIDTH - (sideX - x) - 1.2 * MM;
+  const text = labelText(task);
+
+  doc.save().lineWidth(border).strokeColor('#555555').rect(x, y, CELL_WIDTH, CELL_HEIGHT).stroke().restore();
+  const qr = String(task.qr_data_url || '').replace(/^data:image\/png;base64,/, '');
+  if (qr) doc.image(Buffer.from(qr, 'base64'), qrX, qrY, { width: qrSize, height: qrSize });
+
+  doc.font('LabelFont').fillColor('#111111');
+  const badgeWidth = Number(task.co_sited || 1) > 1 ? 5 * MM : 0;
+  fittedLine(doc, text.code, sideX, y + 3.1 * MM, sideWidth - badgeWidth, 8.2, 4.2, { height: 3.5 * MM });
+
+  if (badgeWidth) {
+    const badgeX = x + CELL_WIDTH - 5 * MM;
+    doc.save().roundedRect(badgeX, y + 1 * MM, 4 * MM, 3.2 * MM, 1 * MM).fill('#FDE4E2').restore();
+    doc.fillColor('#9F332E').fontSize(5.4).text(`×${task.co_sited}`, badgeX, y + 1.55 * MM, { width: 4 * MM, align: 'center', lineBreak: false });
+  }
+
+  doc.fillColor('#0B7F6E');
+  fittedLine(doc, text.type, sideX, y + 8.7 * MM, sideWidth, 15.5, 9.5, { height: 6.2 * MM });
+
+  doc.fillColor('#333333').fontSize(6.2);
+  doc.text(text.site, sideX, y + 16.6 * MM, { width: sideWidth, height: 6 * MM, lineGap: 0, ellipsis: true });
+}
+
+function renderLabelPdf(tasks) {
+  if (!Array.isArray(tasks) || !tasks.length) throw new Error('没有可生成的标签');
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const doc = new PDFDocument({ autoFirstPage: false, size: [PAGE_WIDTH, PAGE_HEIGHT], margin: 0, compress: true,
+      info: { Title: `瓶子标签 ${tasks.length} 枚`, Creator: '水样采集管理系统' } });
+    doc.on('data', chunk => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+    try {
+      doc.registerFont('LabelFont', labelFontPath());
+      tasks.forEach((task, index) => {
+        if (index % LABELS_PER_PAGE === 0) doc.addPage({ size: [PAGE_WIDTH, PAGE_HEIGHT], margin: 0 });
+        const pageIndex = index % LABELS_PER_PAGE;
+        const column = pageIndex % COLUMNS;
+        const row = Math.floor(pageIndex / COLUMNS);
+        drawLabel(doc, task, column * CELL_WIDTH, row * CELL_HEIGHT);
+      });
+      doc.end();
+    } catch (error) {
+      doc.removeAllListeners();
+      reject(error);
+    }
+  });
+}
+
+module.exports = { renderLabelPdf, labelText, TYPE_NAMES, LABELS_PER_PAGE };

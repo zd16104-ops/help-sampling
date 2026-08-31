@@ -93,7 +93,7 @@
       <section class="map-panel">
         <div class="map-toolbar">
           <div class="legend"><span><i class="pin gray"></i>待采样</span><span><i class="pin amber"></i>待审核</span><span><i class="pin green"></i>已通过</span><span><i class="pin red"></i>异常/退回</span><span id="tileZoomNote" class="tile-note hidden"></span></div>
-          <button id="fitMap" class="map-action">◎ 显示全部</button>
+          <div class="map-toolbar-actions"><button id="fitMap" class="map-action">◎ 显示全部</button><button id="fullscreenMap" class="map-action">⛶ 全屏地图</button></div>
         </div>
         <div id="map"></div>
         <div id="mapFallback" class="map-fallback hidden">
@@ -184,7 +184,7 @@
         <div id="labelCodes" class="label-codes"></div>
         <p>已生成任务与二维码。使用 A4 不干胶打印，二维码与文字编号必须同时贴在瓶身。</p>
       </section>
-      <div class="dialog-actions"><span></span><button value="cancel" formnovalidate class="btn btn-ghost">关闭</button><button id="printLabel" type="button" class="btn btn-secondary hidden">打印标签（60枚/页）</button><button id="createTask" type="button" class="btn btn-primary">生成任务和二维码</button></div>
+      <div class="dialog-actions"><span></span><button value="cancel" formnovalidate class="btn btn-ghost">关闭</button><button id="printLabel" type="button" class="btn btn-secondary hidden">下载标签 PDF（60枚/页）</button><button id="createTask" type="button" class="btn btn-primary">生成任务和二维码</button></div>
     </form>
   </dialog>
 

@@ -5,7 +5,7 @@
 
 const $ = s => document.querySelector(s);
 const TOKEN_KEY = 'bscAdminToken';
-const TYPE_NAMES = { R: '河流水', T: '支流', S: '土壤', P: '植物', Y: '雨水', L: '湖水' };
+const TYPE_NAMES = { R: '河水', T: '支流', S: '土壤', P: '植物', Y: '雨水', L: '湖水' };
 const RISK_NAMES = {
   distance_30_80m: '距目标 30–80 米',
   distance_80_300m: '距目标 80–300 米',
@@ -67,6 +67,16 @@ function formatTime(value) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
   return new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(d);
+}
+function compareSiteCode(a, b) {
+  const left = String(a.code || '').trim();
+  const right = String(b.code || '').trim();
+  const leftNumber = /^\d+(?:\.\d+)?$/.test(left) ? Number(left) : null;
+  const rightNumber = /^\d+(?:\.\d+)?$/.test(right) ? Number(right) : null;
+  if (leftNumber !== null && rightNumber !== null && leftNumber !== rightNumber) return leftNumber - rightNumber;
+  if (leftNumber !== null && rightNumber === null) return -1;
+  if (leftNumber === null && rightNumber !== null) return 1;
+  return left.localeCompare(right, 'zh-CN');
 }
 function reviewName(value) {
   return ({ approved: '已通过', pending: '待审核', suspicious: '可疑', rejected: '退回重采' })[value] || '待审核';
@@ -475,6 +485,17 @@ async function renderMap(tasks) {
 }
 
 $('#fitMap').addEventListener('click', () => renderMap(state.siteMode ? state.sites : currentTasks()));
+const mapPanel = document.querySelector('.map-panel');
+$('#fullscreenMap').addEventListener('click', async () => {
+  try {
+    if (document.fullscreenElement === mapPanel) await document.exitFullscreen();
+    else await mapPanel.requestFullscreen();
+  } catch { alert('当前浏览器无法进入地图全屏'); }
+});
+document.addEventListener('fullscreenchange', () => {
+  $('#fullscreenMap').textContent = document.fullscreenElement === mapPanel ? '✕ 退出全屏' : '⛶ 全屏地图';
+  setTimeout(() => { if (state.map) state.map.invalidateSize(); }, 60);
+});
 // 左侧栏桌面端展开/收起（记忆状态）
 $('#sideToggle').addEventListener('click', () => {
   const app = document.getElementById('app');
@@ -955,7 +976,7 @@ $('#newTaskButton').addEventListener('click', async () => {
   $('#printLabel').classList.add('hidden');
   $('#plannedDate').value = new Date().toISOString().slice(0, 10);
   $('#taskVillager').innerHTML = state.villagers.filter(v => v.enabled).map(v => `<option value="${v.id}">${esc(v.display_name)}（${esc(v.username)}）</option>`).join('');
-  const enabled = state.sites.filter(s => s.enabled);
+  const enabled = state.sites.filter(s => s.enabled).sort(compareSiteCode);
   $('#taskSiteList').innerHTML = `<label class="site-pick select-all"><input type="checkbox" id="taskSiteAll"> <strong>全选 / 全不选</strong></label>` +
     (enabled.length
       ? enabled.map(s => `<label class="site-pick"><input type="checkbox" value="${s.id}"> ${esc(s.code)} · ${esc(s.name)}（${(s.sample_types || []).map(t => TYPE_NAMES[t] || t).join('/')}）</label>`).join('')
@@ -1005,14 +1026,7 @@ $('#createTask').addEventListener('click', async () => {
 
 $('#printLabel').addEventListener('click', async () => {
   if (!state.lastCreatedTaskIds.length) return alert('没有可打印的任务');
-  try {
-    const html = await api(`/api/v1/admin/labels?taskIds=${state.lastCreatedTaskIds.join(',')}`);
-    const win = window.open('', '_blank');
-    if (!win) return alert('浏览器拦截了弹出窗口，请允许弹窗后重试');
-    win.document.write(html._text ?? html);
-    win.document.close();
-    win.focus();
-  } catch (error) { alert(error.message); }
+  await downloadFile(`/api/v1/admin/labels?taskIds=${state.lastCreatedTaskIds.join(',')}`, `bsc-labels-${$('#plannedDate').value}.pdf`);
 });
 
 // ---------- 设备激活与采样员管理 ----------

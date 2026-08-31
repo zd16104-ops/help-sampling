@@ -2,11 +2,12 @@
 
 // 管理站前端端到端验证（无头 Chromium）：
 //   npm run test:e2e   （需要本机已启动 npm start 服务器）
-// 覆盖：登录 → 项目/日期导航 → 地图标记 → 详情与审核 → 任务下发与标签打印弹窗
+// 覆盖：登录 → 项目/日期导航 → 地图标记 → 详情与审核 → 任务下发与标签 PDF 下载
 // → 设备激活二维码 → 诊断日志 → 磁盘健康。
 
 const { chromium } = require('playwright');
 const sharp = require('sharp');
+const fs = require('node:fs');
 
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:3100';
 const PASSWORD = process.env.ADMIN_PASSWORD || 'ChangeMe-2608!';
@@ -111,6 +112,7 @@ async function main() {
   check('磁盘健康状态显示', (await page.locator('#healthText').textContent()).includes('磁盘'));
 
   // 3. 地图标记渲染
+  await page.locator('#dateList button').filter({ hasText: '年' }).first().click();
   await page.waitForSelector('.sample-marker', { timeout: 10000 });
   const markerCount = await page.locator('.sample-marker').count();
   check('地图任务标记渲染', markerCount >= 1, `count=${markerCount}`);
@@ -236,15 +238,23 @@ async function main() {
   check('下发后左栏自动出现计划日期并切换', await page.locator('#dateList button').filter({ hasText: tomorrowLabel }).count() === 1);
   await page.waitForSelector('.sample-marker', { timeout: 10000 });
   check('下发后地图立即显示新任务', await page.locator('.sample-marker').count() >= 1);
-  const popupPromise = page.waitForEvent('popup');
+  check('地图提供全屏按钮', await page.locator('#fullscreenMap').isVisible());
+  const listedCodes = await page.locator('#taskSiteList .site-pick:not(.select-all)').evaluateAll(labels => labels.map(label => label.textContent.trim().split(' · ')[0]));
+  const sortedCodes = [...listedCodes].sort((left, right) => {
+    const a = /^\d+(?:\.\d+)?$/.test(left) ? Number(left) : null;
+    const b = /^\d+(?:\.\d+)?$/.test(right) ? Number(right) : null;
+    if (a !== null && b !== null && a !== b) return a - b;
+    if (a !== null && b === null) return -1;
+    if (a === null && b !== null) return 1;
+    return left.localeCompare(right, 'zh-CN');
+  });
+  check('下发列表按历史序号升序', JSON.stringify(listedCodes) === JSON.stringify(sortedCodes), listedCodes.join(','));
+  const downloadPromise = page.waitForEvent('download');
   await page.click('#printLabel');
-  const popup = await popupPromise;
-  await popup.waitForLoadState('domcontentloaded');
-  const popupTitle = await popup.title();
-  check('标签打印页打开（60枚/页）', popupTitle.includes('瓶子标签'), `title=${popupTitle}`);
-  const labelCount = await popup.locator('.label').count();
-  check('标签页包含标签', labelCount >= 1, `count=${labelCount}`);
-  await popup.close();
+  const download = await downloadPromise;
+  check('标签直接下载 PDF（60枚/页）', download.suggestedFilename().endsWith('.pdf'), download.suggestedFilename());
+  const pdfPath = await download.path();
+  check('下载文件是有效 PDF', fs.readFileSync(pdfPath).subarray(0, 5).toString() === '%PDF-');
   await page.click('#taskDialog button[value=cancel]');
 
   // 6. 设备激活二维码
