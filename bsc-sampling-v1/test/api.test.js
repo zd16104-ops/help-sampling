@@ -175,7 +175,7 @@ test('task code generation sequential and concurrent uniqueness', async () => {
   for (const c of concurrentCodes) assert.match(c, new RegExp(`^${base.replace('.', '\\.')}\\d{2}$`));
 });
 
-test('first-device lock blocks second device (423), expiry releases after 12h', async () => {
+test('same sampler can use multiple activated devices without task lockout', async () => {
   mobileB = await newDeviceToken('test-device-B');
   const taskId = await adminCreateTask();
   const task = await syncTask(mobileA, taskId);
@@ -183,11 +183,7 @@ test('first-device lock blocks second device (423), expiry releases after 12h', 
   assert.equal(startA.status, 200);
   assert.equal(startA.json.weakEvidence, true);
   const startB = await call('POST', `/api/v1/mobile/tasks/${taskId}/start`, { latitude: 30.07534404, longitude: 94.14583272, accuracyM: 3 }, mobileB);
-  assert.equal(startB.status, 423, 'locked to device A');
-  // Simulate a lock older than 12 hours, then the lock must expire.
-  rawDb.prepare("UPDATE tasks SET locked_at=datetime('now','-13 hours') WHERE id=?").run(taskId);
-  const startB2 = await call('POST', `/api/v1/mobile/tasks/${taskId}/start`, { latitude: 30.07534404, longitude: 94.14583272, accuracyM: 3 }, mobileB);
-  assert.equal(startB2.status, 200, 'expired lock released');
+  assert.equal(startB.status, 200, 'second activated device for same sampler may sample');
   assert.ok(task.qr_token, 'sync payload carries qr token');
 });
 
@@ -387,15 +383,15 @@ test('task cancel rules and unlock', async () => {
   assert.equal(cancel.status, 200);
   const cancelAgain = await call('POST', `/api/v1/admin/tasks/${plain}/cancel`, { reason: 'again' }, adminToken);
   assert.equal(cancelAgain.status, 422, 'double cancel rejected');
-  // Lock a task with device A, then unlock from admin, then device B may start.
+  // 同一采样员的多台已激活设备均可接续；管理员仍可清理旧锁信息。
   const lockTask = await adminCreateTask();
   await call('POST', `/api/v1/mobile/tasks/${lockTask}/start`, { latitude: 30.07534404, longitude: 94.14583272, accuracyM: 3 }, mobileA);
   const blocked = await call('POST', `/api/v1/mobile/tasks/${lockTask}/start`, { latitude: 30.07534404, longitude: 94.14583272, accuracyM: 3 }, mobileB);
-  assert.equal(blocked.status, 423);
+  assert.equal(blocked.status, 200);
   const unlock = await call('POST', `/api/v1/admin/tasks/${lockTask}/unlock`, {}, adminToken);
   assert.equal(unlock.status, 200);
   const afterUnlock = await call('POST', `/api/v1/mobile/tasks/${lockTask}/start`, { latitude: 30.07534404, longitude: 94.14583272, accuracyM: 3 }, mobileB);
-  assert.equal(afterUnlock.status, 200, 'unlocked task can be claimed by another device');
+  assert.equal(afterUnlock.status, 200, 'task remains usable after an administrative unlock');
 });
 
 test('labels endpoint downloads a PDF file', async () => {
@@ -418,6 +414,7 @@ test('villager management (create/duplicate/activate-no-pin/disable)', async () 
   const [, , user, raw] = String(act.json.value).split('|');
   const activate = await call('POST', '/api/v1/mobile/activate', { username: user, activationToken: raw, deviceUuid: 'e2ev-device', appVersion: '1.0.0' });
   assert.equal(activate.status, 200, 'activation works without PIN');
+  assert.equal(act.json.activationKey, raw, 'admin may copy the raw activation key for manual login');
   const disable = await call('PUT', `/api/v1/admin/villagers/${vid}`, { displayName: '测试村民', enabled: false }, adminToken);
   assert.equal(disable.status, 200);
   const syncBlocked = await call('GET', '/api/v1/mobile/sync', null, activate.json.token);
@@ -433,8 +430,10 @@ test('project CRUD and task reschedule', async () => {
   assert.equal(dup.status, 422, 'duplicate project code rejected');
   const updated = await call('PUT', `/api/v1/admin/projects/${pid}`, { code: 'E2EP', name: '测试项目Y', description: 'x', isTest: true, enabled: false }, adminToken);
   assert.equal(updated.status, 200);
+  const site = await call('POST', '/api/v1/admin/sites', { projectId: pid, sortOrder: 1, code: '1', name: '待删除点位', latitude: 30, longitude: 94, sampleTypes: ['R'] }, adminToken);
+  assert.equal(site.status, 201);
   const del = await call('DELETE', `/api/v1/admin/projects/${pid}`, null, adminToken);
-  assert.equal(del.status, 200, 'empty project deletable');
+  assert.equal(del.status, 200, 'project with sites but no tasks is deletable');
   const delMain = await call('DELETE', '/api/v1/admin/projects/1', null, adminToken);
   assert.equal(delMain.status, 422, 'project with tasks cannot be deleted');
   // 改期：重新生成编号与二维码密钥，旧标签作废；有记录的任务不能改期。
@@ -619,8 +618,8 @@ test('activation code messages distinguish used vs invalid', async () => {
 test('app-version endpoint returns latest version', async () => {
   const res = await call('GET', '/api/v1/mobile/app-version', null, null);
   assert.equal(res.status, 200);
-  assert.ok(res.json.versionCode >= 107, `versionCode=${res.json.versionCode}`);
-  assert.equal(res.json.versionName, '1.3.1');
+  assert.ok(res.json.versionCode >= 110, `versionCode=${res.json.versionCode}`);
+  assert.equal(res.json.versionName, '1.3.2');
   assert.equal(res.json.mandatory, 0, 'mandatory 字段应下发（默认0）');
 });
 

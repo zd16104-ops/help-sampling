@@ -196,6 +196,7 @@ async function main() {
   await page.click('#tableViewButton');
   await page.waitForSelector('#taskTableWrap:not(.hidden)', { timeout: 5000 });
   check('表格视图渲染行', (await page.locator('#taskTableBody tr').count()) >= 1);
+  check('已有任务提供重复下载标签入口', (await page.locator('#taskTableBody .row-label').count()) >= 1);
   const reviewableCount = await page.locator('#taskTableBody .row-check').count();
   check('表格批量审核功能就绪', await page.locator('#batchApprove').isVisible());
   if (reviewableCount) {
@@ -252,7 +253,7 @@ async function main() {
   const downloadPromise = page.waitForEvent('download');
   await page.click('#printLabel');
   const download = await downloadPromise;
-  check('标签直接下载 PDF（60枚/页）', download.suggestedFilename().endsWith('.pdf'), download.suggestedFilename());
+  check('标签直接下载 PDF（90枚/页）', download.suggestedFilename().endsWith('.pdf'), download.suggestedFilename());
   const pdfPath = await download.path();
   check('下载文件是有效 PDF', fs.readFileSync(pdfPath).subarray(0, 5).toString() === '%PDF-');
   await page.click('#taskDialog button[value=cancel]');
@@ -263,7 +264,7 @@ async function main() {
   await page.locator('#villagerList button[data-act]').first().click();
   await page.waitForSelector('#activationResult:not(.hidden)', { timeout: 8000 });
   const activationValue = await page.locator('#activationValue').textContent();
-  check('激活二维码内容生成', activationValue.startsWith('BSC-ACT|'), activationValue);
+  check('激活密钥内容生成', activationValue.length >= 20 && !activationValue.includes('|'), activationValue);
   check('二维码图形渲染', await page.locator('#qrcode img, #qrcode canvas').count() >= 1);
   const newUser = `e2e${Date.now()}`;
   await page.fill('#newVillagerUser', newUser);

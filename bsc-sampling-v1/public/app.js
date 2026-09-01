@@ -329,12 +329,16 @@ function renderTable(tasks) {
       <td>${esc(t.villager_name || '')}</td>
       <td>${t.distance_m != null ? Math.round(Number(t.distance_m)) + ' 米' : '-'}</td>
       <td>${t.record_id ? reviewName(t.review_status) : (t.canceled_at ? '已取消' : '待采样')}</td>
-      <td><button class="ghost row-open">查看</button>${cancellable ? `<button class="ghost row-cancel" data-task="${t.id}">取消</button><button class="ghost-danger row-delete" data-task="${t.id}">删除</button>` : ''}</td>
+      <td><button class="ghost row-open">查看</button>${!t.canceled_at ? `<button class="ghost row-label" data-task="${t.id}">标签PDF</button>` : ''}${cancellable ? `<button class="ghost row-cancel" data-task="${t.id}">取消</button><button class="ghost-danger row-delete" data-task="${t.id}">删除</button>` : ''}</td>
     </tr>`;
   }).join('');
   document.querySelectorAll('#taskTableBody .row-open').forEach(b => b.addEventListener('click', () => {
     const t = state.tasks.find(x => x.id === Number(b.closest('tr').dataset.id));
     if (t) showDetail(t);
+  }));
+  document.querySelectorAll('#taskTableBody .row-label').forEach(b => b.addEventListener('click', () => {
+    const task = state.tasks.find(t => t.id === Number(b.dataset.task));
+    if (task) downloadFile(`/api/v1/admin/labels?taskIds=${task.id}`, `bsc-label-${task.base_sample_code || task.sample_code}.pdf`);
   }));
   document.querySelectorAll('#taskTableBody .row-cancel').forEach(b => b.addEventListener('click', async () => {
     const id = Number(b.dataset.task);
@@ -580,7 +584,7 @@ async function showDetail(task) {
     const statusLine = task.canceled_at
       ? `<div class="status-line canceled">状态：已取消（${formatTime(task.canceled_at)}）</div>`
       : task.locked_device_id
-        ? `<div class="status-line active">状态：进行中（设备已锁定）</div>`
+        ? `<div class="status-line active">状态：进行中（已记录最近使用设备）</div>`
         : `<div class="status-line pending">状态：待采样</div>`;
     body.innerHTML = `
       ${task.reference_image ? `<img class="record-photo" src="${esc(task.reference_image)}" alt="现场参考图">` : ''}
@@ -590,11 +594,12 @@ async function showDetail(task) {
       <p>${esc(task.instructions || '暂无采样说明')}</p>
       <p>正常范围 ${task.normal_radius_m || 30}m · 异常上限 ${task.exception_radius_m || 80}m · 硬上限 300m</p>
       ${task.canceled_at ? `<p class="cancel-note">取消原因：${esc(task.canceled_reason || '未填写')}（记录保留，供审计）</p>` : ''}</div>
-      ${task.locked_device_id ? `<p class="dialog-tip">已被设备锁定（${formatTime(task.locked_at)}）</p><button class="ghost-danger" id="unlockTask">人工解锁设备</button>` : ''}
-      ${!task.canceled_at ? `<div class="detail-actions"><button class="ghost-danger" id="cancelTask">取消此任务</button>${!task.record_id ? `<button class="ghost-danger" id="deleteTask">删除此任务</button>` : ''}<button class="secondary" id="rescheduleTask">改期（重新编号）</button></div>` : ''}
+      ${task.locked_device_id ? `<p class="dialog-tip">最近使用设备开始于 ${formatTime(task.locked_at)}</p><button class="ghost-danger" id="unlockTask">清除进行中状态</button>` : ''}
+      ${!task.canceled_at ? `<div class="detail-actions"><button class="secondary" id="downloadTaskLabel">下载标签 PDF</button><button class="ghost-danger" id="cancelTask">取消此任务</button>${!task.record_id ? `<button class="ghost-danger" id="deleteTask">删除此任务</button>` : ''}<button class="secondary" id="rescheduleTask">改期（重新编号）</button></div>` : ''}
       ${task.journey_id ? `<a class="secondary gpx-link" href="#" id="exportGpx">导出本任务轨迹 GPX</a>` : ''}
       ${task.journey_id ? trackInfo : ''}`;
     if (task.journey_id && $('#exportGpx')) $('#exportGpx').addEventListener('click', e => { e.preventDefault(); downloadFile(`/api/v1/admin/exports/gpx?journeyId=${task.journey_id}`, `journey-${task.journey_id}.gpx`); });
+    if ($('#downloadTaskLabel')) $('#downloadTaskLabel').addEventListener('click', () => downloadFile(`/api/v1/admin/labels?taskIds=${task.id}`, `bsc-label-${task.base_sample_code || task.sample_code}.pdf`));
     if ($('#cancelTask')) $('#cancelTask').addEventListener('click', async () => {
       const reason = prompt('请输入取消原因（会保留记录，供审计）：', '管理员取消');
       if (reason === null) return;
@@ -657,6 +662,7 @@ async function showDetail(task) {
       <div class="review-actions"><button class="approve" data-status="approved">✓ 审核通过</button><button class="suspicious" data-status="suspicious">! 标记可疑</button><button class="reject" data-status="rejected">↩ 退回重采</button><button data-status="pending">稍后审核</button></div>
     </div>
     <div class="detail-actions">
+      <button id="downloadTaskLabel" class="secondary">下载标签 PDF</button>
       ${task.server_weather_status !== 'complete' ? `<button id="backfillWeather" class="secondary">补齐服务器天气</button>` : ''}
       ${task.journey_id ? `<button id="exportGpx2" class="secondary">导出轨迹 GPX</button>` : ''}
       <a class="secondary" href="${esc(task.photo_path)}" target="_blank" download>下载原图</a>
@@ -669,6 +675,7 @@ async function showDetail(task) {
       showDetail(state.tasks.find(t => t.id === task.id));
     } catch (error) { alert(error.message); }
   }));
+  $('#downloadTaskLabel').addEventListener('click', () => downloadFile(`/api/v1/admin/labels?taskIds=${task.id}`, `bsc-label-${task.base_sample_code || task.sample_code}.pdf`));
   if ($('#backfillWeather')) $('#backfillWeather').addEventListener('click', async () => {
     try { await post(`/api/v1/admin/records/${task.record_id}/backfill-weather`, {}); await loadAll(); render(); showDetail(state.tasks.find(t => t.id === task.id)); }
     catch (error) { alert(error.message); }
@@ -1041,7 +1048,7 @@ function renderVillagerList() {
     <div class="vill-row">
       <div><strong>${esc(v.display_name)}</strong><small>${esc(v.username)}${v.enabled ? '' : '（已停用）'}</small></div>
       <div class="vill-actions">
-        <button type="button" data-act="${v.id}" ${v.enabled ? '' : 'disabled'} class="secondary">生成激活二维码</button>
+        <button type="button" data-act="${v.id}" ${v.enabled ? '' : 'disabled'} class="secondary">设备激活</button>
         <button type="button" data-toggle="${v.id}" class="ghost">${v.enabled ? '停用' : '启用'}</button>
       </div>
     </div>`).join('');
@@ -1049,7 +1056,8 @@ function renderVillagerList() {
     try {
       const res = await post(`/api/v1/admin/villagers/${button.dataset.act}/activation`, {});
       $('#activationResult').classList.remove('hidden');
-      $('#activationValue').textContent = res.value;
+      $('#activationValue').textContent = res.activationKey;
+      $('#activationAccount').textContent = res.username;
       $('#activationExpires').textContent = `有效期至 ${formatTime(res.expiresAt)}（一次性使用）`;
       $('#qrcode').innerHTML = '';
       if (window.QRCode) new QRCode($('#qrcode'), { text: res.value, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M });
@@ -1083,7 +1091,7 @@ $('#addVillager').addEventListener('click', async () => {
   } catch (error) { alert(error.message); }
 });
 $('#copyActivation').addEventListener('click', async () => {
-  try { await navigator.clipboard.writeText($('#activationValue').textContent); alert('已复制到剪贴板'); }
+  try { await navigator.clipboard.writeText($('#activationValue').textContent); alert('激活密钥已复制到剪贴板'); }
   catch { window.prompt('复制以下内容：', $('#activationValue').textContent); }
 });
 

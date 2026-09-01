@@ -3,6 +3,10 @@
   <ImageView android:layout_width="88dp" android:layout_height="88dp" android:src="@drawable/ic_launcher" android:contentDescription="水滴图标"/><TextView android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="巴松措采样" android:textSize="30sp" android:textStyle="bold" android:textColor="@color/ink" android:layout_marginTop="12dp"/>
   <TextView android:id="@+id/loginHint" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="首次使用：扫描管理员生成的设备激活二维码\n扫码后自动激活并登录，之后打开无需再登录" android:gravity="center" android:textSize="17sp" android:layout_marginTop="10dp"/>
   <com.google.android.material.button.MaterialButton android:id="@+id/scanActivation" android:layout_width="match_parent" android:layout_height="64dp" android:text="扫描设备激活二维码" android:textSize="20sp" android:layout_marginTop="28dp"/>
+  <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:text="或输入管理员提供的账号和激活密钥" android:gravity="center" android:layout_marginTop="18dp"/>
+  <EditText android:id="@+id/activationUser" android:layout_width="match_parent" android:layout_height="56dp" android:hint="采样员账号" android:inputType="text" android:singleLine="true"/>
+  <EditText android:id="@+id/activationKey" android:layout_width="match_parent" android:layout_height="56dp" android:hint="一次性激活密钥" android:inputType="textVisiblePassword" android:singleLine="true"/>
+  <com.google.android.material.button.MaterialButton android:id="@+id/loginWithKey" android:layout_width="match_parent" android:layout_height="60dp" android:text="使用激活密钥登录" android:textSize="18sp" android:layout_marginTop="8dp"/>
   <TextView android:id="@+id/loginError" android:layout_width="match_parent" android:layout_height="wrap_content" android:gravity="center" android:textColor="@color/red" android:layout_marginTop="12dp"/>
   <com.google.android.material.button.MaterialButton android:id="@+id/copyLog" style="@style/Widget.Material3.Button.TextButton" android:layout_width="wrap_content" android:layout_height="52dp" android:text="复制诊断日志"/>
 </LinearLayout></ScrollView>

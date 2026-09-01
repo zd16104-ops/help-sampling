@@ -7,11 +7,12 @@ const PDFDocument = require('pdfkit');
 const MM = 72 / 25.4;
 const PAGE_WIDTH = 210 * MM;
 const PAGE_HEIGHT = 297 * MM;
-const COLUMNS = 5;
-const ROWS = 12;
+const COLUMNS = 6;
+const ROWS = 15;
 const LABELS_PER_PAGE = COLUMNS * ROWS;
-const CELL_WIDTH = PAGE_WIDTH / COLUMNS;
-const CELL_HEIGHT = PAGE_HEIGHT / ROWS;
+const CELL_WIDTH = 33.6 * MM;
+const CELL_HEIGHT = 19.8 * MM;
+const PAGE_LEFT = (PAGE_WIDTH - COLUMNS * CELL_WIDTH) / 2;
 const TYPE_NAMES = { R: '河水', T: '支流', S: '土壤', P: '植物', Y: '雨水', L: '湖水' };
 
 function labelFontPath() {
@@ -29,7 +30,7 @@ function labelFontPath() {
 
 function labelText(task) {
   return {
-    code: String(task.sample_code || ''),
+    code: String(task.base_sample_code || String(task.sample_code || '').replace(/-\d{2}$/, '')),
     type: String(TYPE_NAMES[task.sample_type] || task.sample_type || ''),
     site: `${String(task.site_code || '')} · ${String(task.site_name || '')}`
   };
@@ -60,11 +61,11 @@ function fittedLine(doc, value, x, y, width, maxSize, minSize, options = {}) {
 
 function drawLabel(doc, task, x, y) {
   const border = 0.35 * MM;
-  const qrSize = 21.8 * MM;
-  const qrX = x + 1 * MM;
+  const qrSize = 16.35 * MM;
+  const qrX = x + 0.8 * MM;
   const qrY = y + (CELL_HEIGHT - qrSize) / 2;
-  const sideX = x + 23.2 * MM;
-  const sideWidth = CELL_WIDTH - (sideX - x) - 1.2 * MM;
+  const sideX = x + 18 * MM;
+  const sideWidth = CELL_WIDTH - (sideX - x) - 0.8 * MM;
   const text = labelText(task);
 
   doc.save().lineWidth(border).strokeColor('#555555').rect(x, y, CELL_WIDTH, CELL_HEIGHT).stroke().restore();
@@ -73,19 +74,19 @@ function drawLabel(doc, task, x, y) {
 
   doc.font('LabelFont').fillColor('#111111');
   const badgeWidth = Number(task.co_sited || 1) > 1 ? 5 * MM : 0;
-  fittedLine(doc, text.code, sideX, y + 3.1 * MM, sideWidth - badgeWidth, 8.2, 4.2, { height: 3.5 * MM });
+  fittedLine(doc, text.code, sideX, y + 2.3 * MM, sideWidth - badgeWidth, 7.2, 4, { height: 3.2 * MM });
 
   if (badgeWidth) {
-    const badgeX = x + CELL_WIDTH - 5 * MM;
-    doc.save().roundedRect(badgeX, y + 1 * MM, 4 * MM, 3.2 * MM, 1 * MM).fill('#FDE4E2').restore();
-    doc.fillColor('#9F332E').fontSize(5.4).text(`×${task.co_sited}`, badgeX, y + 1.55 * MM, { width: 4 * MM, align: 'center', lineBreak: false });
+    const badgeX = x + CELL_WIDTH - 4.5 * MM;
+    doc.save().roundedRect(badgeX, y + 0.8 * MM, 3.7 * MM, 2.8 * MM, 0.8 * MM).fill('#FDE4E2').restore();
+    doc.fillColor('#9F332E').fontSize(4.8).text(`×${task.co_sited}`, badgeX, y + 1.25 * MM, { width: 3.7 * MM, align: 'center', lineBreak: false });
   }
 
   doc.fillColor('#0B7F6E');
-  fittedLine(doc, text.type, sideX, y + 8.7 * MM, sideWidth, 15.5, 9.5, { height: 6.2 * MM });
+  fittedLine(doc, text.type, sideX, y + 6.7 * MM, sideWidth, 12.5, 8.5, { height: 5.2 * MM });
 
-  doc.fillColor('#333333').fontSize(6.2);
-  doc.text(text.site, sideX, y + 16.6 * MM, { width: sideWidth, height: 6 * MM, lineGap: 0, ellipsis: true });
+  doc.fillColor('#333333').fontSize(5.4);
+  doc.text(text.site, sideX, y + 13.2 * MM, { width: sideWidth, height: 5.4 * MM, lineGap: 0, ellipsis: true });
 }
 
 function renderLabelPdf(tasks) {
@@ -104,7 +105,7 @@ function renderLabelPdf(tasks) {
         const pageIndex = index % LABELS_PER_PAGE;
         const column = pageIndex % COLUMNS;
         const row = Math.floor(pageIndex / COLUMNS);
-        drawLabel(doc, task, column * CELL_WIDTH, row * CELL_HEIGHT);
+        drawLabel(doc, task, PAGE_LEFT + column * CELL_WIDTH, row * CELL_HEIGHT);
       });
       doc.end();
     } catch (error) {

@@ -8,11 +8,11 @@ const { renderLabelPdf, labelText, TYPE_NAMES, LABELS_PER_PAGE } = require('../s
 test('label text follows code, type, site order and uses 河水', () => {
   assert.equal(TYPE_NAMES.R, '河水');
   assert.deepEqual(labelText({
-    sample_code: '260822-S-1-01', sample_type: 'R', site_code: '001', site_name: '巴河1'
-  }), { code: '260822-S-1-01', type: '河水', site: '001 · 巴河1' });
+    base_sample_code: '260902-S-01', sample_code: '260902-S-01-01', sample_type: 'R', site_code: '001', site_name: '巴河1'
+  }), { code: '260902-S-01', type: '河水', site: '001 · 巴河1' });
 });
 
-test('label PDF is A4 and starts a new page after 60 labels', async () => {
+test('label PDF uses 80% label size and starts a new page after 90 labels', async () => {
   const qr = await QRCode.toDataURL('BSC-SAMPLE|260822-R-001-01|test', { width: 120, margin: 1 });
   const tasks = Array.from({ length: LABELS_PER_PAGE + 1 }, (_, index) => ({
     sample_code: `260822-R-123456789-${String(index + 1).padStart(2, '0')}`,

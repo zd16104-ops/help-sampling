@@ -54,7 +54,7 @@
           <span class="top-action-wrap"><button id="exportAudit" class="secondary">审计记录</button><i class="info-badge">!</i><span class="info-tip">导出全部管理员操作审计日志 CSV（登录、点位/项目修改、任务下发/取消/改期、审核等），只追加不可删除。</span></span>
           <span class="top-action-wrap"><button id="importButton" class="secondary">导入Excel/CSV</button><i class="info-badge">!</i><span class="info-tip">把现有点位表格另存为 CSV（UTF-8）后批量导入，列名：编号,序号,经纬度,海拔,备注（可选点位名称/采样说明/风险提醒/样品类型）。"编号"是排序号，"序号"是历史序号（5.1 等小数保留）；坐标必须是 WGS84。导入点位默认启用，可再补传参考图。</span></span>
           <span class="top-action-wrap"><button id="deleteDateTasks" class="btn btn-danger hidden">删除本日期全部任务</button><i class="info-badge">!</i><span class="info-tip">删除左侧所选日期的全部采样任务：无采样记录的任务将被永久删除；已有采样记录的任务会保留（证据链保护）。</span></span>
-          <span class="top-action-wrap"><button id="newTaskButton" class="secondary">＋ 下发采样任务</button><i class="info-badge">!</i><span class="info-tip">选择计划采样日期、采样员和一个或多个点位、样品类型，系统为每个"点位×类型"生成独立任务、瓶子编号与二维码，并可打印 60 枚/页 A4 不干胶标签。</span></span>
+          <span class="top-action-wrap"><button id="newTaskButton" class="secondary">＋ 下发采样任务</button><i class="info-badge">!</i><span class="info-tip">选择计划采样日期、采样员和一个或多个点位、样品类型，系统为每个"点位×类型"生成独立任务、瓶子编号与二维码，并可打印 90 枚/页 A4 不干胶标签。</span></span>
           <span class="top-action-wrap"><button id="addSiteButton" class="primary">＋ 设置采样点</button><i class="info-badge">!</i><span class="info-tip">新建/编辑固定采样点：历史序号（5.1 等格式保留）、WGS84 坐标（可在地图上点选并拖动微调）、样品类型多选、可选现场参考图、采样说明与风险提醒。</span></span>
         </div>
       </header>
@@ -184,14 +184,14 @@
         <div id="labelCodes" class="label-codes"></div>
         <p>已生成任务与二维码。使用 A4 不干胶打印，二维码与文字编号必须同时贴在瓶身。</p>
       </section>
-      <div class="dialog-actions"><span></span><button value="cancel" formnovalidate class="btn btn-ghost">关闭</button><button id="printLabel" type="button" class="btn btn-secondary hidden">下载标签 PDF（60枚/页）</button><button id="createTask" type="button" class="btn btn-primary">生成任务和二维码</button></div>
+      <div class="dialog-actions"><span></span><button value="cancel" formnovalidate class="btn btn-ghost">关闭</button><button id="printLabel" type="button" class="btn btn-secondary hidden">下载标签 PDF（90枚/页）</button><button id="createTask" type="button" class="btn btn-primary">生成任务和二维码</button></div>
     </form>
   </dialog>
 
   <dialog id="villagerDialog">
     <form method="dialog">
-      <div class="dialog-head"><div><small>设备激活</small><h3>生成设备激活二维码</h3></div><button value="cancel" formnovalidate>×</button></div>
-      <p class="dialog-tip">扫码即激活并自动登录（无 PIN）。激活码一次性使用，24 小时过期。村民首次打开 APP 扫码完成设备绑定，之后打开无需再登录。</p>
+      <div class="dialog-head"><div><small>设备激活</small><h3>生成设备激活二维码或密钥</h3></div><button value="cancel" formnovalidate>×</button></div>
+      <p class="dialog-tip">手机可扫码或输入账号与激活密钥登录。每台设备单独激活；同一采样员可绑定多台设备。密钥一次性使用，24 小时过期。</p>
       <div class="vill-new">
         <input id="newVillagerUser" placeholder="账号（字母数字，如 cmy02）">
         <input id="newVillagerName" placeholder="姓名">
@@ -201,10 +201,10 @@
       <div id="activationResult" class="activation-result hidden">
         <div class="activation-qr"><div id="qrcode"></div></div>
         <div>
-          <small>激活二维码（24 小时有效）</small>
+          <small>登录账号：<strong id="activationAccount"></strong>　激活密钥（24 小时有效）</small>
           <code id="activationValue" class="activation-value"></code>
           <p id="activationExpires" class="muted"></p>
-          <button type="button" id="copyActivation" class="btn btn-secondary">复制激活内容</button>
+          <button type="button" id="copyActivation" class="btn btn-secondary">复制激活密钥</button>
         </div>
       </div>
       <div class="dialog-actions"><span></span><button value="cancel" formnovalidate class="btn btn-ghost">关闭</button></div>

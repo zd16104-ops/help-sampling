@@ -41,7 +41,12 @@ Copy-Item "$serverRoot\deploy\config.example.json" "$staging\bsc-server\config.e
 Write-Host 'installing production dependencies...'
 Push-Location "$staging\bsc-server"
 npm install --omit=dev --no-audit --no-fund | Out-Null
+if ($LASTEXITCODE -ne 0) { throw "生产依赖安装失败（npm exit $LASTEXITCODE），已停止打包，避免生成缺依赖的无效部署包" }
 Pop-Location
+
+foreach ($module in @('pdfkit','qrcode','sharp')) {
+  if (-not (Test-Path (Join-Path "$staging\bsc-server\node_modules" $module))) { throw "打包自检失败：缺少生产依赖 $module" }
+}
 
 # 4. 部署脚本与手册
 Copy-Item "$serverRoot\deploy" "$staging\deploy" -Recurse
