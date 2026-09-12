@@ -253,6 +253,7 @@ function migrate(db) {
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(109, '1.3.1', '点位删除（自动取消名下未采样任务）、任务删除（限无记录）、新版本定期强提醒通知');
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(110, '1.3.2', '支持激活密钥登录和同一采样员多设备；到达后可直接扫码采样，轨迹记录改为可选');
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(111, '1.4.0', '单采样员单有效设备治理；支持换机、设备失效、离线补传和轨迹分段显示');
+  db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(112, '1.4.1', '采样点样品类型新增地下水（G）');
   ensureSingleActiveDeviceIndex(db);
 }
 

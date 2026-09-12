@@ -667,8 +667,8 @@ test('activation code messages distinguish used vs invalid', async () => {
 test('app-version endpoint returns latest version', async () => {
   const res = await call('GET', '/api/v1/mobile/app-version', null, null);
   assert.equal(res.status, 200);
-  assert.ok(res.json.versionCode >= 111, `versionCode=${res.json.versionCode}`);
-  assert.equal(res.json.versionName, '1.4.0');
+  assert.ok(res.json.versionCode >= 112, `versionCode=${res.json.versionCode}`);
+  assert.equal(res.json.versionName, '1.4.1');
   assert.equal(res.json.mandatory, 0, 'mandatory 字段应下发（默认0）');
 });
 
@@ -777,6 +777,20 @@ test('task creation without sampleTypes uses the site own types', async () => {
   }, adminToken);
   assert.equal(res.status, 201, JSON.stringify(res.json));
   assert.ok(res.json.codes.length >= 2, `按点位类型生成任务: ${JSON.stringify(res.json.codes)}`);
+});
+
+test('地下水样品类型可配置并生成任务编号', async () => {
+  const code = `GW${Date.now()}`;
+  const site = await call('POST', '/api/v1/admin/sites', {
+    projectId: 1, code, name: '地下水测试点', latitude: 30.2, longitude: 94.2, sampleTypes: ['G'], enabled: true
+  }, adminToken);
+  assert.equal(site.status, 201, `create groundwater site: ${JSON.stringify(site.json)}`);
+  const task = await call('POST', '/api/v1/admin/tasks', {
+    siteId: site.json.id, villagerId, plannedDate: tomorrow
+  }, adminToken);
+  assert.equal(task.status, 201, `create groundwater task: ${JSON.stringify(task.json)}`);
+  assert.equal(task.json.codes.length, 1);
+  assert.match(task.json.codes[0], /-G-/);
 });
 
 test('delete site cancels its unsampled tasks and hides the site', async () => {

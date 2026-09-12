@@ -5,7 +5,7 @@
 
 const $ = s => document.querySelector(s);
 const TOKEN_KEY = 'bscAdminToken';
-const TYPE_NAMES = { R: '河水', T: '支流', S: '土壤', P: '植物', Y: '雨水', L: '湖水' };
+const TYPE_NAMES = { R: '河水', T: '支流', S: '土壤', P: '植物', Y: '雨水', L: '湖水', G: '地下水' };
 const RISK_NAMES = {
   distance_30_80m: '距目标 30–80 米',
   distance_80_300m: '距目标 80–300 米',
