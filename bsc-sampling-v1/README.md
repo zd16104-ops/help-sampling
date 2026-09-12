@@ -10,14 +10,14 @@ npm start            # node src/server.js，监听 127.0.0.1:3100
 ```
 
 - 数据目录：`data/v1/`（数据库 `bsc-v1.sqlite`、照片 `uploads/`、参考图 `reference/`、配置 `config.json`、备份 `backups/`）。
-- 首次启动自动建库并写入种子数据：2 个项目、25 个正式点位（含 `5.1`、`9.5`、`9.6` 等历史序号）、采样员 `cmy01`（扫码激活即登录，无 PIN）。
+- 首次启动自动建库并写入种子数据：2 个项目、25 个正式点位（含 `5.1`、`9.5`、`9.6` 等历史序号）、采样员 `cmy01`（账号 + 8 位一次性密钥为主，扫码为辅助）。
 - 默认管理员密码 `ChangeMe-2608!`：正式部署必须通过 `data/v1/config.json` 或环境变量 `ADMIN_PASSWORD`/`SESSION_SECRET` 修改，建议配置 `ADMIN_TOTP_SECRET` 启用动态验证码。
-- 环境变量：`HOST`、`PORT`、`DATA_DIR`、`PUBLIC_BASE_URL`（激活二维码中的服务器地址）。
+- 环境变量：`HOST`、`PORT`、`DATA_DIR`、`PUBLIC_BASE_URL`（激活二维码中的服务器地址）、`LABEL_FONT_PATH`（标签汉文字体）、`LABEL_TIBETAN_FONT_PATH`（标签藏文字体）。生产部署必须显式配置两种标签字体，不能依赖开发机系统字体。
 
 ## 接口
 
 - 移动端（Android APP）：`/api/v1/mobile/*` —— 激活、登录、同步、开始行程、轨迹批量上传、实时位置、幂等采样记录（照片 Base64 单包上传）、结束行程、诊断日志。
-- 管理端：`/api/v1/admin/*` —— 登录（密码+可选 TOTP）、bootstrap、点位查询/新建/编辑（审计）、参考图上传压缩、设备激活二维码、任务创建/查询（按日期或待采样）、取消/解锁、40 枚/页 A4 标签打印页、审核、导出（CSV/GeoJSON/GPX/照片 ZIP/审计 CSV）、日志、健康检查（含磁盘余量）、天气补齐。
+- 管理端：`/api/v1/admin/*` —— 登录（密码+可选 TOTP）、bootstrap、点位双语查询/新建/编辑（审计）、参考图上传压缩、设备激活二维码（自动或管理员设置 8 位密钥）、任务创建/查询（按日期或待采样）、取消/解锁、90 枚/页 A4 图形化双语标签 PDF、审核、导出（CSV/GeoJSON/GPX/照片 ZIP/审计 CSV）、日志、健康检查（含磁盘余量）、天气补齐。
 - 静态：管理站页面由 `/` 提供；照片 `/uploads/`、参考图 `/reference/`。
 
 HTTP 语义：422 业务拒绝（超 300 m、二维码不匹配、异常原因缺失等），401/403 身份失败，429 登录/激活限速（5 次失败锁定 10 分钟窗口），413 过大。同一采样员可绑定多台设备，移动端记录上传以 `client_record_id` 幂等。
@@ -26,7 +26,7 @@ HTTP 语义：422 业务拒绝（超 300 m、二维码不匹配、异常原因�
 
 ```powershell
 npm run check      # 全部 JS 语法检查
-npm test           # 52 项自动化测试（安全单元、数据库迁移、API 集成、备份回归、轨迹平滑）
+npm test           # 64 项自动化测试（安全单元、数据库迁移、API 集成、标签、备份回归、轨迹平滑）
 npm run smoke      # 30 项端到端冒烟（需要本机已启动服务器）
 npm run test:e2e   # 无头浏览器端到端（Playwright，断言数随数据量动态变化，需要 npm start 运行中）
 npm run backup     # 日常备份：node tools/backup.js --photos --keep 14
@@ -39,7 +39,7 @@ node tools/restore.js data/v1/backups/backup-<时间戳>   # 恢复演练
 
 ## 管理站前端
 
-`public/index.html` + `public/app.js` 已全部对接 `/api/v1`：项目/拍摄日期导航、卫星地图状态色标记、点位管理（选点/CSV 导入/编辑/参考图）、任务下发与 40 枚/页标签打印、审核详情（照片/参考图/轨迹/风险标志/审核意见）、取消/解锁、天气补齐、导出、设备激活二维码、诊断日志与磁盘健康。Leaflet 1.9.4 与 qrcodejs 本地托管在 `public/vendor/`，不依赖 CDN。
+`public/index.html` + `public/app.js` 已全部对接 `/api/v1`：项目/拍摄日期导航、卫星地图状态色标记、点位双语管理（选点/CSV 导入/编辑/参考图）、图标化任务下发与 90 枚/页双语标签 PDF、审核详情（照片/参考图/轨迹/风险标志/审核意见）、取消/解锁、天气补齐、导出、设备激活二维码、诊断日志与磁盘健康。管理站功能图标和七种样本图标来自固定版本的 Material Symbols Rounded，并随 `public/icons.js` 本地提供；Leaflet 1.9.4 与 qrcodejs 同样本地托管在 `public/vendor/`，运行时不依赖 CDN。
 
 ## 文档
 

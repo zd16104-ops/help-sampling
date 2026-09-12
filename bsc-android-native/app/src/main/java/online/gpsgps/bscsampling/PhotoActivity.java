@@ -51,6 +51,8 @@ public final class PhotoActivity extends AppCompatActivity {
         setContentView(R.layout.activity_photo);
         camera = findViewById(R.id.camera);
         shutter = findViewById(R.id.shutter);
+        shutter.setIcon(MaterialSymbols.drawable("photo_camera", 0xffffffff));
+        shutter.setIconTint(null);
         shutter.setOnClickListener(v -> shoot());
         camera.setOnTouchListener((v, ev) -> {
             if (ev.getAction() == MotionEvent.ACTION_DOWN && cam != null) {
@@ -87,7 +89,7 @@ public final class PhotoActivity extends AppCompatActivity {
                 cam = provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA,
                         preview, capture);
             } catch (Exception e) {
-                Toast.makeText(this, "相机启动失败", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "པར་ཆས་འགོ་སློང་མ་ཐུབ། / 相机启动失败", Toast.LENGTH_LONG).show();
             }
         }, ContextCompat.getMainExecutor(this));
     }
@@ -96,7 +98,7 @@ public final class PhotoActivity extends AppCompatActivity {
         if (capture == null || busy) return;
         busy = true;
         shutter.setEnabled(false);
-        shutter.setText("已拍摄，处理中…");
+        shutter.setText("པར་བླངས་ཟིན། སྒྲིག་བཞིན་པ།\n已拍摄，处理中…");
         File raw = new File(getCacheDir(), "raw-" + System.currentTimeMillis() + ".jpg");
         capture.takePicture(
                 new ImageCapture.OutputFileOptions.Builder(raw).build(),
@@ -131,7 +133,7 @@ public final class PhotoActivity extends AppCompatActivity {
                             runOnUiThread(() -> {
                                 busy = false;
                                 shutter.setEnabled(true);
-                                shutter.setText("拍照");
+                                shutter.setText(R.string.action_shutter);
                                 setResult(RESULT_OK, new Intent()
                                         .putExtra(PATH, out.getPath())
                                         .putExtra(AT, capturedAt)
@@ -143,7 +145,7 @@ public final class PhotoActivity extends AppCompatActivity {
                             runOnUiThread(() -> {
                                 busy = false;
                                 shutter.setEnabled(true);
-                                shutter.setText("重新拍照");
+                                shutter.setText("ཡང་བསྐྱར་པར་རྒྱོབ།\n重新拍照");
                                 Toast.makeText(PhotoActivity.this, e.getMessage(),
                                         Toast.LENGTH_LONG).show();
                             });
@@ -155,8 +157,8 @@ public final class PhotoActivity extends AppCompatActivity {
                         runOnUiThread(() -> {
                             busy = false;
                             shutter.setEnabled(true);
-                            shutter.setText("重新拍照");
-                            Toast.makeText(PhotoActivity.this, "照片拍摄失败，请重试",
+                            shutter.setText("ཡང་བསྐྱར་པར་རྒྱོབ།\n重新拍照");
+                            Toast.makeText(PhotoActivity.this, "པར་ལེན་མ་ཐུབ། ཡང་བསྐྱར་ཚོད་ལྟ་བྱོས། / 照片拍摄失败，请重试",
                                     Toast.LENGTH_SHORT).show();
                         });
                     }

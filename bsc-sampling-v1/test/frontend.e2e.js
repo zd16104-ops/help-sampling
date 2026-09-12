@@ -246,7 +246,7 @@ async function main() {
   await page.waitForSelector('.sample-marker', { timeout: 10000 });
   check('下发后地图立即显示新任务', await page.locator('.sample-marker').count() >= 1);
   check('地图提供全屏按钮', await page.locator('#fullscreenMap').isVisible());
-  const listedCodes = await page.locator('#taskSiteList .site-pick:not(.select-all)').evaluateAll(labels => labels.map(label => label.textContent.trim().split(' · ')[0]));
+  const listedCodes = await page.locator('#taskSiteList .site-pick:not(.select-all)').evaluateAll(labels => labels.map(label => label.dataset.siteCode));
   const sortedCodes = [...listedCodes].sort((left, right) => {
     const a = /^\d+(?:\.\d+)?$/.test(left) ? Number(left) : null;
     const b = /^\d+(?:\.\d+)?$/.test(right) ? Number(right) : null;
@@ -272,7 +272,7 @@ async function main() {
   else await page.locator('#villagerList button[data-replace]:not([disabled])').first().click();
   await page.waitForSelector('#activationResult:not(.hidden)', { timeout: 8000 });
   const activationValue = await page.locator('#activationValue').textContent();
-  check('激活密钥内容生成', activationValue.length >= 20 && !activationValue.includes('|'), activationValue);
+  check('8位数字激活密钥生成', /^\d{8}$/.test(activationValue), activationValue);
   check('二维码图形渲染', await page.locator('#qrcode img, #qrcode canvas').count() >= 1);
   const newUser = `e2e${Date.now()}`;
   await page.fill('#newVillagerUser', newUser);

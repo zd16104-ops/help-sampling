@@ -276,3 +276,36 @@ dialog::backdrop{background:rgba(13,34,38,.45)}
 /* 复选框列表容器改 div 后的标题样式（避免外层 label 误触发全选） */
 .form-grid .field-block{display:grid;gap:6px}
 .form-label{font-size:13px;color:var(--c-ink-2);font-weight:600}
+
+/* 藏汉双语业务内容与标签预览 */
+.bilingual-field{border-left:3px solid var(--c-line);padding-left:10px}
+.bilingual-field.bo-field{border-left-color:var(--c-primary);background:#f5fbf8;border-radius:8px;padding:8px 10px}
+.bilingual-field [lang="bo"],.sample-type-copy [lang="bo"],.site-pick-copy [lang="bo"],.label-preview [lang="bo"]{font-family:"Microsoft Himalaya","Noto Sans Tibetan",sans-serif;font-size:1.18em;line-height:1.55}
+.type-chip{display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid var(--c-line);border-radius:10px;background:#fff}
+.type-chip:has(input:checked){border-color:var(--c-primary);background:#eff8f5}
+.sample-type-copy,.site-pick-copy{display:grid;gap:1px}
+.sample-type-copy small,.site-pick-copy small{color:var(--c-ink-2);font-weight:500}
+.site-pick{display:flex;align-items:center;gap:9px}
+.label-preview{width:336px;max-width:100%;aspect-ratio:33.6/19.8;margin:12px 0;padding:12px;display:grid;grid-template-columns:45% 1fr;gap:10px;align-items:center;background:#fff;border:1px solid #555;border-radius:4px;box-sizing:border-box}
+.label-preview-qr{display:grid;place-items:center;aspect-ratio:1;background:repeating-conic-gradient(#111 0 25%,#fff 0 50%) 50%/12px 12px;border:7px solid #fff;outline:1px solid #111;color:#fff;font-size:12px;text-shadow:0 1px 2px #000}
+.label-preview-copy{display:grid;gap:1px;min-width:0}
+.label-preview-copy strong{color:var(--c-primary-strong);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.label-preview-copy b{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.label-preview-copy small{font-size:10px;color:var(--c-ink-2)}
+.activation-key-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px;margin:0 20px 14px;padding:12px 14px;border:1px solid var(--c-line);border-radius:var(--radius);background:#f8fbfa}
+.activation-key-options legend{padding:0 6px;color:var(--c-ink);font-weight:700}
+.activation-key-options label{display:flex;align-items:center;gap:7px;font-size:13px}
+.activation-key-options input[type="radio"]{width:auto;accent-color:var(--c-primary)}
+.activation-key-options #activationCustomKey{grid-column:1/-1;max-width:280px;font-size:18px;letter-spacing:.18em;font-variant-numeric:tabular-nums}
+.activation-key-options small{grid-column:1/-1;color:var(--c-ink-2)}
+@media(max-width:650px){.activation-key-options{grid-template-columns:1fr}.label-preview{width:100%}}
+
+/* Material Symbols Rounded 本地 SVG 图标 */
+.msr-icon{width:1.2em;height:1.2em;display:inline-block;flex:0 0 auto;vertical-align:-.2em;fill:currentColor}
+button>.msr-icon,a>.msr-icon{margin-right:6px}
+button[aria-label]>.msr-icon:only-child,.info-badge>.msr-icon:only-child,.stat-icon>.msr-icon:only-child{margin-right:0}
+.stat-icon .msr-icon{width:24px;height:24px}
+.info-badge .msr-icon{width:12px;height:12px}
+.type-chip>.msr-icon,.site-pick>.msr-icon{width:24px;height:24px;color:var(--c-primary-strong)}
+.label-preview-copy .msr-icon{width:18px;height:18px;margin-right:4px}
+.label-preview-qr .msr-icon{width:58%;height:58%;fill:#fff;filter:drop-shadow(0 1px 1px #000)}

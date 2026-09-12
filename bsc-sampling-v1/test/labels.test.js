@@ -5,11 +5,13 @@ const assert = require('node:assert/strict');
 const QRCode = require('qrcode');
 const { renderLabelPdf, labelText, TYPE_NAMES, LABELS_PER_PAGE } = require('../src/labels');
 
-test('label text follows code, type, site order and uses 河水', () => {
+test('label text uses full task code plus graphical Tibetan-first sample type', () => {
   assert.equal(TYPE_NAMES.R, '河水');
   assert.deepEqual(labelText({
     base_sample_code: '260902-S-01', sample_code: '260902-S-01-01', sample_type: 'R', site_code: '001', site_name: '巴河1'
-  }), { code: '260902-S-01', type: '河水', site: '001 · 巴河1' });
+  }), {
+    code: '260902-S-01-01', typeCode: 'R', typeBo: 'ཆུ་བོའི་ཆུ།', typeZh: '河水', icon: 'waves', siteCode: '001'
+  });
 });
 
 test('label PDF uses 80% label size and starts a new page after 90 labels', async () => {

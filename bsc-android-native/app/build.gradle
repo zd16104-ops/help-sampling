@@ -8,8 +8,8 @@ android {
         applicationId 'online.gpsgps.bscsampling'
         minSdk 29
         targetSdk 35
-        versionCode 112
-        versionName '1.4.1'
+        versionCode 113
+        versionName '1.5.0'
         buildConfigField 'String', 'DEFAULT_SERVER', '"https://bsc.gpsgps.online"'
     }
     buildFeatures { buildConfig true }

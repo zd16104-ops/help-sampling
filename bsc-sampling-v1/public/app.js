@@ -4,8 +4,24 @@
 // 依赖：本地托管的 Leaflet 1.9.4 与 qrcodejs（public/vendor/），不依赖 CDN。
 
 const $ = s => document.querySelector(s);
+const icon = (name, label = '') => window.msrIcon ? window.msrIcon(name, label) : '';
 const TOKEN_KEY = 'bscAdminToken';
-const TYPE_NAMES = { R: '河水', T: '支流', S: '土壤', P: '植物', Y: '雨水', L: '湖水', G: '地下水' };
+let TYPE_CATALOG = [
+  { code: 'R', nameZh: '河水', nameBo: 'ཆུ་བོའི་ཆུ།', icon: 'waves' },
+  { code: 'T', nameZh: '支流', nameBo: 'ཆུ་ལག', icon: 'alt_route' },
+  { code: 'S', nameZh: '土壤', nameBo: 'ས་རྒྱུ།', icon: 'compost' },
+  { code: 'P', nameZh: '植物', nameBo: 'རྩི་ཤིང་།', icon: 'potted_plant' },
+  { code: 'Y', nameZh: '雨水', nameBo: 'ཆར་ཆུ།', icon: 'rainy' },
+  { code: 'L', nameZh: '湖水', nameBo: 'མཚོ་ཆུ།', icon: 'landscape' },
+  { code: 'G', nameZh: '地下水', nameBo: 'ས་འོག་ཆུ།', icon: 'water_pump' }
+];
+let TYPE_NAMES = Object.fromEntries(TYPE_CATALOG.map(type => [type.code, type.nameZh]));
+function setTypeCatalog(types) {
+  if (!Array.isArray(types) || !types.length) return;
+  TYPE_CATALOG = types;
+  TYPE_NAMES = Object.fromEntries(types.map(type => [type.code, type.nameZh]));
+}
+function sampleType(code) { return TYPE_CATALOG.find(type => type.code === code) || { code, nameZh: code, nameBo: '', icon: '' }; }
 const RISK_NAMES = {
   distance_30_80m: '距目标 30–80 米',
   distance_80_300m: '距目标 80–300 米',
@@ -28,7 +44,7 @@ const SEVERE_RISKS = new Set(['distance_80_300m', 'manual_bottle_code', 'mock_lo
 const state = {
   projects: [], villagers: [], projectId: null, selectedDate: 'pending',
   tasks: [], sites: [], map: null, markers: [], siteMode: false, tableMode: false,
-  editingSiteId: null, editingProjectId: null, pickMarker: null, pickPending: false, lastCreatedTaskIds: [], trackPolylines: []
+  editingSiteId: null, editingProjectId: null, pickMarker: null, pickPending: false, lastCreatedTaskIds: [], trackPolylines: [], translationReview: null
 };
 
 function token() { return localStorage.getItem(TOKEN_KEY); }
@@ -124,6 +140,8 @@ async function init() {
     const boot = await api('/api/v1/admin/bootstrap');
     state.projects = boot.projects;
     state.villagers = boot.villagers;
+    setTypeCatalog(boot.sampleTypes);
+    state.translationReview = boot.translationReview || null;
     renderProjects();
     state.projectId = state.projectId || state.projects[0]?.id;
     if (!state.projectId) throw new Error('没有可用项目');
@@ -143,7 +161,7 @@ function renderProjects() {
     row.className = 'project-row';
     const button = document.createElement('button');
     button.className = 'project' + (project.id === state.projectId ? ' active' : '');
-    button.innerHTML = `<span>${project.is_test ? '🧪' : '💧'}</span><span>${esc(project.name)}${project.enabled ? '' : '（停用）'}</span>`;
+    button.innerHTML = `${icon(project.is_test ? 'description' : 'waves')}<span>${esc(project.name)}${project.enabled ? '' : '（停用）'}</span>`;
     button.addEventListener('click', async () => {
       state.projectId = project.id;
       state.selectedDate = 'pending';
@@ -154,12 +172,12 @@ function renderProjects() {
     });
     const editBtn = document.createElement('button');
     editBtn.className = 'project-tool';
-    editBtn.textContent = '✎';
+    editBtn.innerHTML = icon('edit', '编辑项目');
     editBtn.title = '编辑项目';
     editBtn.addEventListener('click', () => openProjectDialog(project));
     const delBtn = document.createElement('button');
     delBtn.className = 'project-tool';
-    delBtn.textContent = '✕';
+    delBtn.innerHTML = icon('delete', '删除项目');
     delBtn.title = '删除项目（有任务数据时只能停用）';
     delBtn.addEventListener('click', async () => {
       if (!confirm(`确认删除项目“${project.name}”？已有任务数据时会被拒绝，只能停用。`)) return;
@@ -177,6 +195,8 @@ async function refreshProjects() {
   const boot = await api('/api/v1/admin/bootstrap');
   state.projects = boot.projects;
   state.villagers = boot.villagers;
+  setTypeCatalog(boot.sampleTypes);
+  state.translationReview = boot.translationReview || null;
   if (!state.projects.some(p => p.id === state.projectId)) state.projectId = state.projects[0]?.id || null;
   renderProjects();
   if (state.projectId) await loadAll();
@@ -288,12 +308,12 @@ function render() {
   if (state.tableMode) {
     tableWrap.classList.remove('hidden');
     mapPanel.classList.add('hidden');
-    $('#tableViewButton').textContent = '⌖ 地图';
+    $('#tableViewButton').innerHTML = `${icon('map')}地图`;
     renderTable(tasks);
   } else {
     tableWrap.classList.add('hidden');
     mapPanel.classList.remove('hidden');
-    $('#tableViewButton').textContent = '▦ 表格';
+    $('#tableViewButton').innerHTML = `${icon('table_view')}表格`;
     renderMap(tasks);
   }
 }
@@ -328,9 +348,10 @@ function renderTable(tasks) {
       <td>${esc(t.villager_name || '')}</td>
       <td>${t.distance_m != null ? Math.round(Number(t.distance_m)) + ' 米' : '-'}</td>
       <td>${t.record_id ? reviewName(t.review_status) : (t.canceled_at ? '已取消' : '待采样')}</td>
-      <td><button class="ghost row-open">查看</button>${!t.canceled_at ? `<button class="ghost row-label" data-task="${t.id}">标签PDF</button>` : ''}${cancellable ? `<button class="ghost row-cancel" data-task="${t.id}">取消</button><button class="ghost-danger row-delete" data-task="${t.id}">删除</button>` : ''}</td>
+      <td><button class="ghost row-open" data-icon="description">查看</button>${!t.canceled_at ? `<button class="ghost row-label" data-icon="print" data-task="${t.id}">标签PDF</button>` : ''}${cancellable ? `<button class="ghost row-cancel" data-icon="block" data-task="${t.id}">取消</button><button class="ghost-danger row-delete" data-icon="delete" data-task="${t.id}">删除</button>` : ''}</td>
     </tr>`;
   }).join('');
+  window.decorateMaterialIcons?.($('#taskTableBody'));
   document.querySelectorAll('#taskTableBody .row-open').forEach(b => b.addEventListener('click', () => {
     const t = state.tasks.find(x => x.id === Number(b.closest('tr').dataset.id));
     if (t) showDetail(t);
@@ -500,7 +521,7 @@ $('#fullscreenMap').addEventListener('click', async () => {
   } catch { alert('当前浏览器无法进入地图全屏'); }
 });
 document.addEventListener('fullscreenchange', () => {
-  $('#fullscreenMap').textContent = document.fullscreenElement === mapPanel ? '✕ 退出全屏' : '⛶ 全屏地图';
+  $('#fullscreenMap').innerHTML = document.fullscreenElement === mapPanel ? `${icon('close')}退出全屏` : `${icon('fullscreen')}全屏地图`;
   setTimeout(() => { if (state.map) state.map.invalidateSize(); }, 60);
 });
 // 左侧栏桌面端展开/收起（记忆状态）
@@ -508,12 +529,12 @@ $('#sideToggle').addEventListener('click', () => {
   const app = document.getElementById('app');
   const collapsed = app.classList.toggle('side-collapsed');
   localStorage.setItem('bscSideCollapsed', collapsed ? '1' : '0');
-  $('#sideToggle').textContent = collapsed ? '◨ 侧栏' : '◧ 侧栏';
+  $('#sideToggle').innerHTML = `${icon('view_sidebar')}${collapsed ? '展开侧栏' : '收起侧栏'}`;
   setTimeout(() => { if (state.map) state.map.invalidateSize(); }, 60);
 });
 if (localStorage.getItem('bscSideCollapsed') === '1') {
   document.getElementById('app').classList.add('side-collapsed');
-  $('#sideToggle').textContent = '◨ 侧栏';
+  $('#sideToggle').innerHTML = `${icon('view_sidebar')}展开侧栏`;
 }
 // 表格视图：切换、筛选、批量审核通过、批量补齐天气
 $('#tableViewButton').addEventListener('click', () => { state.tableMode = !state.tableMode; render(); });
@@ -548,9 +569,9 @@ $('#closeDetail').addEventListener('click', () => {
 
 function riskBadges(task) {
   const flags = task.risk_flags || [];
-  if (!flags.length) return '<div class="risk risk-ok">✓ 无自动风险标志</div>';
+  if (!flags.length) return `<div class="risk risk-ok">${icon('check_circle')}无自动风险标志</div>`;
   const items = flags.map(f => `<span class="risk-badge ${SEVERE_RISKS.has(f) ? 'severe' : 'warn'}">${esc(RISK_NAMES[f] || f)}</span>`).join('');
-  return `<div class="risk"><div class="risk-title">⚠ 需要复核的证据（自动标记，不代表结论）</div><div class="risk-list">${items}</div></div>`;
+  return `<div class="risk"><div class="risk-title">${icon('warning')}需要复核的证据（自动标记，不代表结论）</div><div class="risk-list">${items}</div></div>`;
 }
 
 async function showDetail(task) {
@@ -598,10 +619,11 @@ async function showDetail(task) {
       <p>${esc(task.instructions || '暂无采样说明')}</p>
       <p>正常范围 ${task.normal_radius_m || 30}m · 异常上限 ${task.exception_radius_m || 80}m · 硬上限 300m</p>
       ${task.canceled_at ? `<p class="cancel-note">取消原因：${esc(task.canceled_reason || '未填写')}（记录保留，供审计）</p>` : ''}</div>
-      ${task.locked_device_id ? `<p class="dialog-tip">最近使用设备开始于 ${formatTime(task.locked_at)}</p><button class="ghost-danger" id="unlockTask">清除进行中状态</button>` : ''}
-      ${!task.canceled_at ? `<div class="detail-actions"><button class="secondary" id="downloadTaskLabel">下载标签 PDF</button><button class="ghost-danger" id="cancelTask">取消此任务</button>${!task.record_id ? `<button class="ghost-danger" id="deleteTask">删除此任务</button>` : ''}<button class="secondary" id="rescheduleTask">改期（重新编号）</button></div>` : ''}
+      ${task.locked_device_id ? `<p class="dialog-tip">最近使用设备开始于 ${formatTime(task.locked_at)}</p><button class="ghost-danger" id="unlockTask" data-icon="block">清除进行中状态</button>` : ''}
+      ${!task.canceled_at ? `<div class="detail-actions"><button class="secondary" id="downloadTaskLabel" data-icon="print">下载标签 PDF</button><button class="ghost-danger" id="cancelTask" data-icon="block">取消此任务</button>${!task.record_id ? `<button class="ghost-danger" id="deleteTask" data-icon="delete">删除此任务</button>` : ''}<button class="secondary" id="rescheduleTask" data-icon="restart_alt">改期（重新编号）</button></div>` : ''}
       ${task.journey_id ? `<a class="secondary gpx-link" href="#" id="exportGpx">导出本任务轨迹 GPX</a>` : ''}
       ${task.journey_id ? trackInfo : ''}`;
+    window.decorateMaterialIcons?.(body);
     if (task.journey_id && $('#exportGpx')) $('#exportGpx').addEventListener('click', e => { e.preventDefault(); downloadFile(`/api/v1/admin/exports/gpx?journeyId=${task.journey_id}`, `journey-${task.journey_id}.gpx`); });
     if ($('#downloadTaskLabel')) $('#downloadTaskLabel').addEventListener('click', () => downloadFile(`/api/v1/admin/labels?taskIds=${task.id}`, `bsc-label-${task.base_sample_code || task.sample_code}.pdf`));
     if ($('#cancelTask')) $('#cancelTask').addEventListener('click', async () => {
@@ -636,7 +658,7 @@ async function showDetail(task) {
     ? Math.max(0, Math.round((new Date(task.received_at) - new Date(task.captured_at)) / 60000))
     : null;
   const journeyMeta = task.start_distance_m != null
-    ? `<div class="record-grid"><div><small>开始时距目标</small><strong>${Number(task.start_distance_m).toFixed(1)} 米${Number(task.start_distance_m) < 300 ? '（弱证据）' : ''}</strong></div><div><small>轨迹状态</small><strong>${task.interrupted ? '⚠ 中断后恢复' : '连续记录'}</strong></div></div>`
+    ? `<div class="record-grid"><div><small>开始时距目标</small><strong>${Number(task.start_distance_m).toFixed(1)} 米${Number(task.start_distance_m) < 300 ? '（弱证据）' : ''}</strong></div><div><small>轨迹状态</small><strong>${task.interrupted ? `${icon('warning')}中断后恢复` : '连续记录'}</strong></div></div>`
     : '';
   body.innerHTML = `
     ${task.reference_image ? `<div class="compare-grid"><figure><img src="${esc(task.photo_path)}" alt="现场采样照片"><figcaption>现场照片</figcaption></figure><figure><img src="${esc(task.reference_image)}" alt="管理员参考图"><figcaption>管理员参考图</figcaption></figure></div>` : `<img class="record-photo" src="${esc(task.photo_path)}" alt="现场采样照片">`}
@@ -663,14 +685,15 @@ async function showDetail(task) {
     ${task.printed_count ? `<p class="dialog-tip">标签已打印 ${task.printed_count} 次${task.printed_last ? `（最近 ${formatTime(task.printed_last)}）` : ''}；改期后旧标签作废，需重新打印。</p>` : ''}
     <div class="review-block">
       <textarea id="reviewNote" rows="2" placeholder="追加审核意见（不修改原始记录，只追加）">${esc(task.review_note || '')}</textarea>
-      <div class="review-actions"><button class="approve" data-status="approved">✓ 审核通过</button><button class="suspicious" data-status="suspicious">! 标记可疑</button><button class="reject" data-status="rejected">↩ 退回重采</button><button data-status="pending">稍后审核</button></div>
+      <div class="review-actions"><button class="approve" data-status="approved" data-icon="check_circle">审核通过</button><button class="suspicious" data-status="suspicious" data-icon="warning">标记可疑</button><button class="reject" data-status="rejected" data-icon="restart_alt">退回重采</button><button data-status="pending" data-icon="pending">稍后审核</button></div>
     </div>
     <div class="detail-actions">
-      <button id="downloadTaskLabel" class="secondary">下载标签 PDF</button>
-      ${task.server_weather_status !== 'complete' ? `<button id="backfillWeather" class="secondary">补齐服务器天气</button>` : ''}
-      ${task.journey_id ? `<button id="exportGpx2" class="secondary">导出轨迹 GPX</button>` : ''}
+      <button id="downloadTaskLabel" class="secondary" data-icon="print">下载标签 PDF</button>
+      ${task.server_weather_status !== 'complete' ? `<button id="backfillWeather" class="secondary" data-icon="refresh">补齐服务器天气</button>` : ''}
+      ${task.journey_id ? `<button id="exportGpx2" class="secondary" data-icon="download">导出轨迹 GPX</button>` : ''}
       <a class="secondary" href="${esc(task.photo_path)}" target="_blank" download>下载原图</a>
     </div>`;
+  window.decorateMaterialIcons?.(body);
   document.querySelectorAll('.review-actions button').forEach(button => button.addEventListener('click', async () => {
     try {
       await post(`/api/v1/admin/records/${task.record_id}/review`, { status: button.dataset.status, note: $('#reviewNote').value });
@@ -697,10 +720,10 @@ $('#siteManageButton').addEventListener('click', () => {
 
 function typeCheckboxes(container, selected) {
   container.innerHTML = '';
-  Object.entries(TYPE_NAMES).forEach(([code, name]) => {
+  TYPE_CATALOG.forEach(type => {
     const label = document.createElement('label');
     label.className = 'type-chip';
-    label.innerHTML = `<input type="checkbox" value="${code}" ${selected.includes(code) ? 'checked' : ''}> ${code} ${name}`;
+    label.innerHTML = `<input type="checkbox" value="${type.code}" ${selected.includes(type.code) ? 'checked' : ''}>${icon(type.icon)}<span class="sample-type-copy"><strong lang="bo">${esc(type.nameBo)}</strong><small>${esc(type.nameZh)} · ${type.code}</small></span>`;
     container.append(label);
   });
 }
@@ -762,10 +785,13 @@ function openSiteDialog(site = null, coords = null) {
     $('#siteSortOrder').value = site.sort_order ?? '';
     $('#siteCode').value = site.code;
     $('#siteName').value = site.name;
+    $('#siteNameBo').value = site.name_bo || '';
     setCoordsFields(site.latitude, site.longitude);
     $('#siteAltitude').value = site.altitude_m ?? '';
     $('#siteInstructions').value = site.instructions || '';
+    $('#siteInstructionsBo').value = site.instructions_bo || '';
     $('#siteRiskNote').value = site.risk_note || '';
+    $('#siteRiskNoteBo').value = site.risk_note_bo || '';
     $('#siteRemarks').value = site.remarks || '';
     $('#siteEnabled').checked = Boolean(site.enabled);
     typeCheckboxes($('#siteTypes'), site.sample_types || []);
@@ -856,13 +882,16 @@ $('#saveSite').addEventListener('click', async () => {
     sortOrder: Number($('#siteSortOrder').value) || 0,
     code: $('#siteCode').value.trim(),
     name: $('#siteName').value.trim(),
+    nameBo: $('#siteNameBo').value.trim(),
     latitude: coords.latitude,
     longitude: coords.longitude,
     altitudeM: $('#siteAltitude').value === '' ? null : Number($('#siteAltitude').value),
     sampleTypes: checkedTypes($('#siteTypes')),
     remarks: $('#siteRemarks').value,
     instructions: $('#siteInstructions').value,
+    instructionsBo: $('#siteInstructionsBo').value,
     riskNote: $('#siteRiskNote').value,
+    riskNoteBo: $('#siteRiskNoteBo').value,
     referenceImage: state.editingSiteId ? undefined : '',
     enabled: $('#siteEnabled').checked
   };
@@ -991,7 +1020,7 @@ $('#newTaskButton').addEventListener('click', async () => {
   const enabled = state.sites.filter(s => s.enabled).sort(compareSiteCode);
   $('#taskSiteList').innerHTML = `<label class="site-pick select-all"><input type="checkbox" id="taskSiteAll"> <strong>全选 / 全不选</strong></label>` +
     (enabled.length
-      ? enabled.map(s => `<label class="site-pick"><input type="checkbox" value="${s.id}"> ${esc(s.code)} · ${esc(s.name)}（${(s.sample_types || []).map(t => TYPE_NAMES[t] || t).join('/')}）</label>`).join('')
+      ? enabled.map(s => `<label class="site-pick" data-site-code="${esc(s.code)}"><input type="checkbox" value="${s.id}">${(s.sample_types || []).map(t => icon(sampleType(t).icon)).join('')}<span class="site-pick-copy"><strong lang="bo">${esc(s.name_bo || '藏文名称待补充')}</strong><small>${esc(s.code)} · ${esc(s.name)}（${(s.sample_types || []).map(t => TYPE_NAMES[t] || t).join('/')}）</small></span></label>`).join('')
       : '<p class="dialog-tip">没有启用的点位，请先设置采样点。</p>');
   const all = $('#taskSiteAll');
   if (all) all.addEventListener('change', () => {
@@ -1026,6 +1055,11 @@ $('#createTask').addEventListener('click', async () => {
     state.tasks = after.tasks;
     state.lastCreatedTaskIds = after.tasks.filter(t => created.includes(t.sample_code)).map(t => t.id);
     $('#labelCodes').innerHTML = createdItems.map(x => `<div class="label-code-item">${esc(x.name)} · ${esc(x.code)}</div>`).join('') + `<p class="dialog-tip">已为 ${esc(villagerLabel)} 生成 ${created.length} 个任务</p>`;
+    const previewTask = after.tasks.find(t => created.includes(t.sample_code));
+    if (previewTask) {
+      const type = sampleType(previewTask.sample_type);
+      $('#labelPreview').innerHTML = `<span class="label-preview-qr" aria-hidden="true">${icon('qr_code_2')}</span><span class="label-preview-copy"><strong lang="bo">${icon(type.icon)}${esc(type.nameBo)}</strong><small>${esc(type.nameZh)}</small><b>${esc(previewTask.sample_code)}</b><small>点位 ${esc(previewTask.site_code)}</small></span>`;
+    }
     $('#labelResult').classList.remove('hidden');
     $('#printLabel').classList.remove('hidden');
     $('#createTask').classList.add('hidden');
@@ -1054,14 +1088,15 @@ function renderVillagerList() {
     <div class="vill-row">
       <div><strong>${esc(v.display_name)}</strong><small>${esc(v.username)}${v.enabled ? '' : '（已停用）'} · ${Number(v.active_device_count || 0) > 1 ? '多台有效设备，需处理' : Number(v.active_device_count || 0) === 1 ? `当前设备：${esc(v.active_device_name || '未命名')}` : '无有效设备'}</small></div>
       <div class="vill-actions">
-        <button type="button" data-devices="${v.id}" class="ghost">设备详情</button>
-        <button type="button" data-rename="${v.id}" class="ghost">设备改名</button>
-        <button type="button" data-revoke="${v.id}" ${v.enabled && Number(v.active_device_count || 0) === 1 ? '' : 'disabled'} class="btn btn-danger">立即失效</button>
-        <button type="button" data-act="${v.id}" ${v.enabled && !Number(v.active_device_count || 0) ? '' : 'disabled'} class="secondary">首次激活</button>
-        <button type="button" data-replace="${v.id}" ${v.enabled && Number(v.active_device_count || 0) === 1 ? '' : 'disabled'} class="secondary">更换设备</button>
-        <button type="button" data-toggle="${v.id}" class="ghost">${v.enabled ? '停用' : '启用'}</button>
+        <button type="button" data-devices="${v.id}" data-icon="devices" class="ghost">设备详情</button>
+        <button type="button" data-rename="${v.id}" data-icon="edit" class="ghost">设备改名</button>
+        <button type="button" data-revoke="${v.id}" data-icon="block" ${v.enabled && Number(v.active_device_count || 0) === 1 ? '' : 'disabled'} class="btn btn-danger">立即失效</button>
+        <button type="button" data-act="${v.id}" data-icon="phonelink_setup" ${v.enabled && !Number(v.active_device_count || 0) ? '' : 'disabled'} class="secondary">首次激活</button>
+        <button type="button" data-replace="${v.id}" data-icon="sync" ${v.enabled && Number(v.active_device_count || 0) === 1 ? '' : 'disabled'} class="secondary">更换设备</button>
+        <button type="button" data-toggle="${v.id}" data-icon="${v.enabled ? 'block' : 'check_circle'}" class="ghost">${v.enabled ? '停用' : '启用'}</button>
       </div>
     </div>`).join('');
+  window.decorateMaterialIcons?.($('#villagerList'));
   const showActivation = res => {
     $('#activationResult').classList.remove('hidden');
     $('#activationValue').textContent = res.activationKey;
@@ -1071,9 +1106,15 @@ function renderVillagerList() {
     if (window.QRCode) new QRCode($('#qrcode'), { text: res.value, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M });
     else $('#qrcode').textContent = '二维码组件未加载';
   };
+  const activationPayload = base => {
+    const manual = document.querySelector('input[name="activationKeyMode"]:checked')?.value === 'manual';
+    const activationKey = $('#activationCustomKey').value.trim();
+    if (manual && !/^\d{8}$/.test(activationKey)) throw new Error('管理员设置的激活密钥必须为8位数字');
+    return { ...base, activationKey: manual ? activationKey : '' };
+  };
   $('#villagerList').querySelectorAll('button[data-act]').forEach(button => button.addEventListener('click', async () => {
     try {
-      showActivation(await post(`/api/v1/admin/villagers/${button.dataset.act}/activation`, { mode: 'initial' }));
+      showActivation(await post(`/api/v1/admin/villagers/${button.dataset.act}/activation`, activationPayload({ mode: 'initial' })));
     } catch (error) { alert(error.message); }
   }));
   $('#villagerList').querySelectorAll('button[data-replace]').forEach(button => button.addEventListener('click', async () => {
@@ -1085,7 +1126,7 @@ function renderVillagerList() {
       const pending = Number(current.pending_track_count || 0) + Number(current.pending_record_count || 0);
       const warning = pending ? `\n服务器最近记录仍有约 ${pending} 条待传数据。` : '';
       if (!confirm(`确认生成“${details.villager.display_name}”的换机码？旧设备会在新设备成功扫码后失效。请先确认旧设备已同步。${warning}`)) return;
-      showActivation(await post(`/api/v1/admin/villagers/${id}/activation`, { mode: 'replace', currentDeviceId: current.id }));
+      showActivation(await post(`/api/v1/admin/villagers/${id}/activation`, activationPayload({ mode: 'replace', currentDeviceId: current.id })));
     } catch (error) { alert(error.message); }
   }));
   $('#villagerList').querySelectorAll('button[data-devices]').forEach(button => button.addEventListener('click', async () => {
@@ -1143,6 +1184,12 @@ $('#villagerButton').addEventListener('click', () => {
   renderVillagerList();
   $('#villagerDialog').showModal();
 });
+document.querySelectorAll('input[name="activationKeyMode"]').forEach(input => input.addEventListener('change', () => {
+  const manual = document.querySelector('input[name="activationKeyMode"]:checked')?.value === 'manual';
+  $('#activationCustomKey').disabled = !manual;
+  if (manual) $('#activationCustomKey').focus();
+  else $('#activationCustomKey').value = '';
+}));
 $('#addVillager').addEventListener('click', async () => {
   const username = $('#newVillagerUser').value.trim().toLowerCase();
   const displayName = $('#newVillagerName').value.trim();

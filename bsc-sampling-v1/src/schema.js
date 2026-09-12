@@ -23,6 +23,7 @@ function initialize(db) {
     sort_order INTEGER,
     code TEXT NOT NULL,
     name TEXT NOT NULL,
+    name_bo TEXT NOT NULL DEFAULT '',
     latitude REAL NOT NULL,
     longitude REAL NOT NULL,
     altitude_m REAL,
@@ -33,7 +34,9 @@ function initialize(db) {
     severe_radius_m INTEGER NOT NULL DEFAULT 300,
     reference_image TEXT,
     instructions TEXT NOT NULL DEFAULT '',
+    instructions_bo TEXT NOT NULL DEFAULT '',
     risk_note TEXT NOT NULL DEFAULT '',
+    risk_note_bo TEXT NOT NULL DEFAULT '',
     enabled INTEGER NOT NULL DEFAULT 1,
     deleted_at TEXT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -213,6 +216,10 @@ function initialize(db) {
 // Incremental migrations for databases created by earlier schema versions.
 // New columns use ALTER TABLE so existing deployments keep their data.
 function migrate(db) {
+  const siteColumns = db.prepare('PRAGMA table_info(sites)').all().map(c => c.name);
+  if (!siteColumns.includes('name_bo')) db.exec("ALTER TABLE sites ADD COLUMN name_bo TEXT NOT NULL DEFAULT ''");
+  if (!siteColumns.includes('instructions_bo')) db.exec("ALTER TABLE sites ADD COLUMN instructions_bo TEXT NOT NULL DEFAULT ''");
+  if (!siteColumns.includes('risk_note_bo')) db.exec("ALTER TABLE sites ADD COLUMN risk_note_bo TEXT NOT NULL DEFAULT ''");
   const taskColumns = db.prepare('PRAGMA table_info(tasks)').all().map(c => c.name);
   if (!taskColumns.includes('planned_time')) {
     db.exec("ALTER TABLE tasks ADD COLUMN planned_time TEXT NOT NULL DEFAULT ''");
@@ -254,6 +261,7 @@ function migrate(db) {
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(110, '1.3.2', '支持激活密钥登录和同一采样员多设备；到达后可直接扫码采样，轨迹记录改为可选');
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(111, '1.4.0', '单采样员单有效设备治理；支持换机、设备失效、离线补传和轨迹分段显示');
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(112, '1.4.1', '采样点样品类型新增地下水（G）');
+  db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(113, '1.5.0', '藏汉双语界面、统一图标、逐条上传状态、四步采样引导与管理员自定义激活密钥');
   ensureSingleActiveDeviceIndex(db);
 }
 

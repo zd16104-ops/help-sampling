@@ -3,6 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const PDFDocument = require('pdfkit');
+const { SAMPLE_TYPES, getSampleType } = require('./sample-types');
 
 const MM = 72 / 25.4;
 const PAGE_WIDTH = 210 * MM;
@@ -13,7 +14,7 @@ const LABELS_PER_PAGE = COLUMNS * ROWS;
 const CELL_WIDTH = 33.6 * MM;
 const CELL_HEIGHT = 19.8 * MM;
 const PAGE_LEFT = (PAGE_WIDTH - COLUMNS * CELL_WIDTH) / 2;
-const TYPE_NAMES = { R: '河水', T: '支流', S: '土壤', P: '植物', Y: '雨水', L: '湖水', G: '地下水' };
+const TYPE_NAMES = Object.fromEntries(Object.values(SAMPLE_TYPES).map(type => [type.code, type.nameZh]));
 
 function labelFontPath() {
   const windows = process.env.WINDIR || 'C:/Windows';
@@ -28,11 +29,27 @@ function labelFontPath() {
   return font;
 }
 
+function tibetanFontPath() {
+  const windows = process.env.WINDIR || 'C:/Windows';
+  const candidates = [
+    process.env.LABEL_TIBETAN_FONT_PATH,
+    path.join(__dirname, '..', 'assets', 'fonts', 'NotoSansTibetan-Regular.ttf'),
+    path.join(windows, 'Fonts', 'himalaya.ttf')
+  ].filter(Boolean);
+  const font = candidates.find(file => fs.existsSync(file));
+  if (!font) throw new Error('生成藏汉双语标签需要藏文字体，请设置 LABEL_TIBETAN_FONT_PATH');
+  return font;
+}
+
 function labelText(task) {
+  const type = getSampleType(task.sample_type) || { code: String(task.sample_type || ''), nameZh: String(task.sample_type || ''), nameBo: '', icon: '', iconPath: '' };
   return {
-    code: String(task.base_sample_code || String(task.sample_code || '').replace(/-\d{2}$/, '')),
-    type: String(TYPE_NAMES[task.sample_type] || task.sample_type || ''),
-    site: `${String(task.site_code || '')} · ${String(task.site_name || '')}`
+    code: String(task.sample_code || ''),
+    typeCode: type.code,
+    typeBo: type.nameBo,
+    typeZh: type.nameZh,
+    icon: type.icon,
+    siteCode: String(task.site_code || '')
   };
 }
 
@@ -59,12 +76,17 @@ function fittedLine(doc, value, x, y, width, maxSize, minSize, options = {}) {
   doc.text(text, x, y, { width, height: options.height || size * 1.25, lineBreak: false, align: options.align || 'left' });
 }
 
+function drawMaterialSymbol(doc, svgPath, x, y, size, color = '#0B7F6E') {
+  if (!svgPath) return;
+  doc.save().translate(x, y + size).scale(size / 960).path(svgPath).fill(color).restore();
+}
+
 function drawLabel(doc, task, x, y) {
   const border = 0.35 * MM;
-  const qrSize = 16.35 * MM;
+  const qrSize = 15.8 * MM;
   const qrX = x + 0.8 * MM;
   const qrY = y + (CELL_HEIGHT - qrSize) / 2;
-  const sideX = x + 18 * MM;
+  const sideX = x + 17.4 * MM;
   const sideWidth = CELL_WIDTH - (sideX - x) - 0.8 * MM;
   const text = labelText(task);
 
@@ -74,7 +96,16 @@ function drawLabel(doc, task, x, y) {
 
   doc.font('LabelFont').fillColor('#111111');
   const badgeWidth = Number(task.co_sited || 1) > 1 ? 5 * MM : 0;
-  fittedLine(doc, text.code, sideX, y + 2.3 * MM, sideWidth - badgeWidth, 7.2, 4, { height: 3.2 * MM });
+  drawMaterialSymbol(doc, getSampleType(text.typeCode)?.iconPath, sideX, y + 0.8 * MM, 3.7 * MM);
+
+  doc.font('LabelTibetan').fillColor('#0B7F6E');
+  fittedLine(doc, text.typeBo, sideX + 4.2 * MM, y + 0.45 * MM, sideWidth - 4.2 * MM - badgeWidth, 8.5, 7.5, { height: 4.2 * MM });
+
+  doc.font('LabelFont').fillColor('#285A52');
+  fittedLine(doc, text.typeZh, sideX + 4.2 * MM, y + 4.4 * MM, sideWidth - 4.2 * MM, 6.2, 5.5, { height: 2.8 * MM });
+
+  doc.fillColor('#111111');
+  fittedLine(doc, text.code, sideX, y + 8.3 * MM, sideWidth, 7.2, 5.6, { height: 3.2 * MM });
 
   if (badgeWidth) {
     const badgeX = x + CELL_WIDTH - 4.5 * MM;
@@ -82,11 +113,8 @@ function drawLabel(doc, task, x, y) {
     doc.fillColor('#9F332E').fontSize(4.8).text(`×${task.co_sited}`, badgeX, y + 1.25 * MM, { width: 3.7 * MM, align: 'center', lineBreak: false });
   }
 
-  doc.fillColor('#0B7F6E');
-  fittedLine(doc, text.type, sideX, y + 6.7 * MM, sideWidth, 12.5, 8.5, { height: 5.2 * MM });
-
-  doc.fillColor('#333333').fontSize(5.4);
-  doc.text(text.site, sideX, y + 13.2 * MM, { width: sideWidth, height: 5.4 * MM, lineGap: 0, ellipsis: true });
+  doc.fillColor('#333333').fontSize(5.5);
+  doc.text(`点位 ${text.siteCode}`, sideX, y + 13.2 * MM, { width: sideWidth, height: 3.2 * MM, lineBreak: false, ellipsis: true });
 }
 
 function renderLabelPdf(tasks) {
@@ -100,6 +128,7 @@ function renderLabelPdf(tasks) {
     doc.on('error', reject);
     try {
       doc.registerFont('LabelFont', labelFontPath());
+      doc.registerFont('LabelTibetan', tibetanFontPath());
       tasks.forEach((task, index) => {
         if (index % LABELS_PER_PAGE === 0) doc.addPage({ size: [PAGE_WIDTH, PAGE_HEIGHT], margin: 0 });
         const pageIndex = index % LABELS_PER_PAGE;

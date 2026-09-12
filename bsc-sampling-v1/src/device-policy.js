@@ -2,7 +2,6 @@
 
 const crypto = require('node:crypto');
 const { audit, ensureSingleActiveDeviceIndex } = require('./schema');
-const { randomToken } = require('./security');
 
 function policyError(status, message, code) {
   const e = new Error(message);
@@ -43,7 +42,27 @@ function listDevices(db, villagerId) {
   return { villager, devices, activeDevices: active, conflict: active.length > 1 };
 }
 
-function createActivation(db, { villagerId, mode = 'initial', currentDeviceId = null, actor = 'admin', ip = '' }) {
+function weakActivationKey(value) {
+  if (/^(\d)\1{7}$/.test(value)) return true;
+  if (['01234567', '12345678', '23456789', '98765432', '87654321', '76543210'].includes(value)) return true;
+  return ['00000000', '11111111', '12345678', '88888888'].includes(value);
+}
+
+function requestedActivationKey(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return '';
+  if (!/^\d{8}$/.test(text)) throw policyError(422, '激活密钥必须为8位数字', 'ACTIVATION_KEY_FORMAT');
+  if (weakActivationKey(text)) throw policyError(422, '激活密钥过于简单，请更换', 'ACTIVATION_KEY_WEAK');
+  return text;
+}
+
+function generatedActivationKey() {
+  let value = '';
+  do { value = crypto.randomInt(0, 100_000_000).toString().padStart(8, '0'); } while (weakActivationKey(value));
+  return value;
+}
+
+function createActivation(db, { villagerId, mode = 'initial', currentDeviceId = null, requestedKey = '', actor = 'admin', ip = '' }) {
   const purpose = mode === 'replace' ? 'replace' : 'initial';
   const result = transaction(db, () => {
     const villager = db.prepare('SELECT * FROM villagers WHERE id=?').get(villagerId);
@@ -55,8 +74,13 @@ function createActivation(db, { villagerId, mode = 'initial', currentDeviceId = 
       if (active.length !== 1) throw policyError(409, active.length ? '该采样员存在多台有效设备，请先选择唯一设备' : '该采样员没有可更换的有效设备', active.length ? 'DEVICE_CONFLICT' : 'ACTIVE_DEVICE_MISSING');
       if (Number(currentDeviceId) !== Number(active[0].id)) throw policyError(409, '当前设备状态已变化，请刷新后重新操作', 'ACTIVE_DEVICE_CHANGED');
     }
-    const raw = randomToken(24);
-    const hash = crypto.createHash('sha256').update(raw).digest('hex');
+    let raw = requestedActivationKey(requestedKey) || generatedActivationKey();
+    let hash = crypto.createHash('sha256').update(raw).digest('hex');
+    if (requestedKey && db.prepare('SELECT id FROM activation_codes WHERE token_hash=?').get(hash)) throw policyError(409, '该激活密钥已经使用过，请更换', 'ACTIVATION_KEY_DUPLICATE');
+    while (!requestedKey && db.prepare('SELECT id FROM activation_codes WHERE token_hash=?').get(hash)) {
+      raw = generatedActivationKey();
+      hash = crypto.createHash('sha256').update(raw).digest('hex');
+    }
     const expires = new Date(Date.now() + 24 * 3600_000).toISOString();
     const id = Number(db.prepare('INSERT INTO activation_codes(villager_id,token_hash,expires_at,purpose,current_device_id,created_by) VALUES(?,?,?,?,?,?)').run(villagerId, hash, expires, purpose, purpose === 'replace' ? active[0].id : null, actor).lastInsertRowid);
     audit(db, 'admin', actor, purpose === 'replace' ? 'create_device_replacement' : 'create_activation', 'villager', villagerId, { activationCodeId: id, purpose, currentDeviceId: purpose === 'replace' ? active[0].id : null, expiresAt: expires }, ip);

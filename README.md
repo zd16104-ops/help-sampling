@@ -52,7 +52,7 @@ npm start              # node src/server.js，监听 127.0.0.1:3100
 - 数据目录 `data/v1/`：数据库 `bsc-v1.sqlite`、照片 `uploads/`、参考图 `reference/`、配置 `config.json`、备份 `backups/`（该目录不入库）。
 - 首次启动自动建库并写入种子数据：2 个项目、25 个正式点位（含 `5.1`/`9.5`/`9.6` 等历史序号）、采样员 `cmy01`。
 - 默认管理员密码 `ChangeMe-2608!`，**正式部署必须修改** `data/v1/config.json`（或环境变量 `ADMIN_PASSWORD`/`SESSION_SECRET`）。登录为仅密码，可选启用 TOTP（`adminTotpSecret` 填 Base32 密钥）。
-- 环境变量：`HOST`、`PORT`、`DATA_DIR`、`PUBLIC_BASE_URL`（激活二维码中的服务器地址）。
+- 环境变量：`HOST`、`PORT`、`DATA_DIR`、`PUBLIC_BASE_URL`（激活二维码中的服务器地址）、`LABEL_FONT_PATH`（标签汉文字体）、`LABEL_TIBETAN_FONT_PATH`（标签藏文字体）。生产部署必须显式配置两种标签字体。
 
 浏览器打开 `http://127.0.0.1:3100` 即管理站。
 
@@ -82,22 +82,22 @@ node tools\gradle-with-proxy.js assembleDebug --no-daemon
 ```powershell
 cd bsc-sampling-v1
 npm run check      # 全部 JS 语法检查
-npm test           # 52 项自动化测试（安全单元 / 数据库迁移 / API 集成 / 备份回归 / 轨迹平滑）
+npm test           # 64 项自动化测试（安全单元 / 数据库迁移 / API 集成 / 标签 / 备份回归 / 轨迹平滑）
 npm run smoke      # 30 项端到端冒烟（需先 npm start）
 npm run test:e2e   # 无头浏览器端到端（Playwright，断言数随数据量动态变化，需 npm start）
 ```
 
-Android 单元测试：`cd bsc-android-native && node tools\gradle-with-proxy.js testDebugUnitTest`（`QrDataTest` 8 项）。
+Android 单元测试：`cd bsc-android-native && node tools\gradle-with-proxy.js testDebugUnitTest`（覆盖二维码、地图标记布局和七种样本目录）。
 
 ---
 
 ## 核心能力
 
-- **无 PIN 激活**：管理员一次性生成激活二维码（24 小时有效、绑定设备），村民扫码即激活并自动登录。
+- **双通道激活**：采样员账号 + 管理员设置或自动生成的 8 位一次性密钥为主，激活二维码为辅助；密钥 24 小时有效并绑定设备。
 - **防作弊证据链**：现场拍照（CameraX，暗色时间/天气/坐标水印）+ 每 10 秒轨迹 + 30 秒实时位置 + 服务器天气补齐（独立字段，不覆盖手机原文）。
-- **距离规则**：0–30 m 正常；30–80 m 必须选择原因；80–300 m 严重可疑；>300 m 禁止提交。
+- **距离规则**：0–30 m 正常；30–80 m 记录供审核；80–300 m 严重可疑；>300 m 禁止提交。
 - **离线可用**：SQLite 本地队列 + WorkManager 联网补传；记录上传以 `client_record_id` 幂等。
-- **管理站**：点位管理（地图选点/右键加点/CSV 导入）、任务下发（多点位 × 多类型批量 + 全选）、40 枚/页 A4 标签打印（含打印次数记录）、审核详情（现场/参考图并排对比、照片、轨迹、风险标志，含 EXIF 时间核对与时间防篡改标志）、**表格视图（筛选/搜索/批量审核通过/批量补齐天气）**、取消/改期、导出（CSV/GeoJSON/GPX/照片 ZIP/审计 CSV）、设备激活二维码、诊断日志与磁盘健康；`/uploads/`、`/reference/` 图片签名鉴权 + 全站安全响应头（CSP 等）。
+- **管理站**：点位双语管理（地图选点/右键加点/CSV 导入）、图标化任务下发（多点位 × 多类型批量 + 全选）、90 枚/页 A4 图形化双语标签 PDF（含打印次数记录）、审核详情（现场/参考图并排对比、照片、轨迹、风险标志，含 EXIF 时间核对与时间防篡改标志）、**表格视图（筛选/搜索/批量审核通过/批量补齐天气）**、取消/改期、导出（CSV/GeoJSON/GPX/照片 ZIP/审计 CSV）、设备激活二维码（自动或管理员设置 8 位密钥）、诊断日志与磁盘健康；`/uploads/`、`/reference/` 图片签名鉴权 + 全站安全响应头（CSP 等）。
 - **运维**：`VACUUM INTO` 一致快照备份 + 照片增量拷贝 + 恢复演练，支持 `--mirror` 异机镜像；每小时健康告警脚本（服务/磁盘/证书/备份新鲜度）；登录/PIN 限速与短时锁定；磁盘 <10 GB 告警。
 
 ---

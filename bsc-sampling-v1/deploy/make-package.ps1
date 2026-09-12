@@ -21,11 +21,12 @@ Copy-Item "$serverRoot\public" "$staging\bsc-server\public" -Recurse
 Copy-Item "$serverRoot\tools" "$staging\bsc-server\tools" -Recurse
 Copy-Item "$serverRoot\docs" "$staging\bsc-server\docs" -Recurse
 Copy-Item "$serverRoot\README.md" "$staging\bsc-server\README.md"
+Copy-Item "$serverRoot\THIRD_PARTY_NOTICES.md" "$staging\bsc-server\THIRD_PARTY_NOTICES.md"
 Copy-Item "$serverRoot\package.json" "$staging\bsc-server\package.json"
 Copy-Item "$serverRoot\package-lock.json" "$staging\bsc-server\package-lock.json"
 
 # 1b. 自检：核心文件必须已拷入，防止再次出现“缺 src”的残缺包。
-$must = @('src\server.js','src\schema.js','src\track.js','src\exif.js','public\app.js','public\index.html','package.json')
+$must = @('src\server.js','src\schema.js','src\sample-types.js','src\track.js','src\exif.js','public\app.js','public\icons.js','public\index.html','package.json','THIRD_PARTY_NOTICES.md')
 foreach ($f in $must) {
   if (-not (Test-Path (Join-Path "$staging\bsc-server" $f))) { throw "打包自检失败：缺少 $f，请检查本脚本编码（必须 UTF-8 BOM）" }
 }

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tibetan copy is a working draft and must be approved by local native speakers before production. -->
+    <string name="app_name">巴松措采样</string>
+    <string name="app_title_bilingual">བསམ་གཏན་མཚོའི་དཔེ་ཚད།\n巴松措采样</string>
+    <string name="nav_map">ས་ཁྲ།\n地图</string>
+    <string name="nav_tasks">ལས་འགན།\n任务</string>
+    <string name="nav_upload">ཡར་འཇུག\n上传</string>
+    <string name="nav_mine">ངའི།\n我的</string>
+    <string name="action_sync">མཉམ་སྒྲིག\n同步</string>
+    <string name="action_my_location">ངའི་གནས་ས།\n我的位置</string>
+    <string name="content_back">ཕྱིར་ལོག / 返回</string>
+    <string name="content_sample_type">དཔེ་ཚད་རིགས། / 样本类型</string>
+    <string name="login_hint">ཐོ་ཨང་དང་དོ་དམ་པས་སྤྲད་པའི་གསང་ལྡེ་འཇུག་རོགས།\n输入采样员账号和管理员提供的激活密钥</string>
+    <string name="activation_user_hint">ཐོ་ཨང་། / 采样员账号</string>
+    <string name="activation_key_hint">ཨང་གྲངས་ 8 ཀྱི་གསང་ལྡེ། / 8位激活密钥</string>
+    <string name="action_activate">ལག་ཐོགས་ཁ་པར་སྐུལ་སློང་།\n激活并登录</string>
+    <string name="action_scan_activation">རྩ་གཉིས་ཨང་རྟགས་བཤེར།\n扫描激活二维码（辅助）</string>
+    <string name="action_copy_log">ནད་བརྟག་ཟིན་ཐོ་འདྲ་བཤུས།\n复制诊断日志</string>
+    <string name="task_date_title">ཚེས་གྲངས།\n下发日期</string>
+    <string name="task_choose_date">ཚེས་གྲངས་འདེམས།\n请选择日期任务</string>
+    <string name="step_overview">1 ས་གནས་སུ་འགྲོ།　2 ཨང་རྟགས་བཤེར།　3 པར་རྒྱོབ།　4 ཉར་ཚགས།\n1 到点　→　2 扫码　→　3 拍照　→　4 保存</string>
+    <string name="action_start_route">1　ས་གནས་སུ་འགྲོ།（འདེམས་རུང་）\n开始前往（可选，记录轨迹）</string>
+    <string name="action_scan_bottle">2　ཤེལ་དམ་ཨང་རྟགས་བཤེར།\n扫描瓶子二维码</string>
+    <string name="action_no_water">ཆུ་མེད་པའམ་ཉེ་སར་འགྲོ་མི་ཐུབ།\n现场无水 / 无法靠近</string>
+    <string name="action_take_photo">3　ཤེལ་དམ་དང་ས་གནས་པར་རྒྱོབ།\n拍摄瓶子与现场环境</string>
+    <string name="action_save">4　ཉར་ཚགས་བྱེད།\n完成并保存，等待上传</string>
+    <string name="scan_step">2 / 4　ཨང་རྟགས་བཤེར།\n第2步 / 共4步　扫描二维码</string>
+    <string name="scan_hint">ཤེལ་དམ་གྱི་རྩ་གཉིས་ཨང་རྟགས་སྒྲོམ་ནང་འཇོག\n把瓶子二维码放入方框</string>
+    <string name="scan_working">ངོས་འཛིན་བྱེད་བཞིན་པ། / 识别中…</string>
+    <string name="scan_damaged">ཨང་རྟགས་ཆག་སྐྱོན།\n二维码损坏，手动填写</string>
+    <string name="photo_step">3 / 4　པར་རྒྱོབ།\n第3步 / 共4步　现场拍照</string>
+    <string name="photo_guide">ཤེལ་དམ་ཉེ་སར་འཇོག　·　ས་གནས་ངེས་པར་པར་ལེན།\n瓶子放近处约占1/4　·　后方拍到实际环境</string>
+    <string name="action_shutter">པར་རྒྱོབ།\n拍照</string>
+</resources>

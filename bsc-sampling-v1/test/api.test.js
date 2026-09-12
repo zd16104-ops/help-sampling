@@ -101,11 +101,15 @@ test('bootstrap and seeded data', async () => {
   const res = await call('GET', '/api/v1/admin/bootstrap', null, adminToken);
   assert.equal(res.status, 200);
   assert.ok(res.json.projects.length >= 2);
+  assert.equal(res.json.sampleTypes.length, 7);
+  assert.equal(res.json.sampleTypes.find(type => type.code === 'G').icon, 'water_pump');
+  assert.equal(res.json.translationReview.reviewed, false);
   villagerId = res.json.villagers.find(v => v.username === 'cmy01').id;
   assert.ok(villagerId);
   const sites = await call('GET', '/api/v1/admin/sites?projectId=1', null, adminToken);
   assert.equal(sites.status, 200);
   assert.equal(sites.json.sites.length, 25);
+  assert.ok(Object.hasOwn(sites.json.sites[0], 'name_bo'));
   site5Id = sites.json.sites.find(s => s.code === '5').id;
   assert.ok(site5Id);
 });
@@ -596,6 +600,22 @@ test('disabled device gets 403', async () => {
   rawDb.prepare('UPDATE devices SET enabled=1 WHERE id=?').run(deviceId);
 });
 
+test('admin may set a safe 8-digit activation key and weak keys are rejected', async () => {
+  const username = `manual${Date.now()}`;
+  const created = await call('POST', '/api/v1/admin/villagers', { username, displayName: '自定义密钥测试' }, adminToken);
+  const id = created.json.id;
+  const weak = await call('POST', `/api/v1/admin/villagers/${id}/activation`, { activationKey: '12345678' }, adminToken);
+  assert.equal(weak.status, 422);
+  const activationKey = '58302741';
+  const act = await call('POST', `/api/v1/admin/villagers/${id}/activation`, { activationKey }, adminToken);
+  assert.equal(act.status, 201);
+  assert.equal(act.json.activationKey, activationKey);
+  assert.match(act.json.value, new RegExp(`\\|${activationKey}$`));
+  const stored = rawDb.prepare('SELECT token_hash FROM activation_codes WHERE villager_id=? ORDER BY id DESC LIMIT 1').get(id);
+  assert.equal(stored.token_hash, crypto.createHash('sha256').update(activationKey).digest('hex'));
+  assert.notEqual(stored.token_hash, activationKey);
+});
+
 test('mobile login rate limiting locks after 5 failures', async () => {
   for (let i = 0; i < 5; i++) {
     const res = await call('POST', '/api/v1/mobile/login', { username: 'limittest', pin: '0000', deviceUuid: 'x' });
@@ -667,8 +687,8 @@ test('activation code messages distinguish used vs invalid', async () => {
 test('app-version endpoint returns latest version', async () => {
   const res = await call('GET', '/api/v1/mobile/app-version', null, null);
   assert.equal(res.status, 200);
-  assert.ok(res.json.versionCode >= 112, `versionCode=${res.json.versionCode}`);
-  assert.equal(res.json.versionName, '1.4.1');
+  assert.ok(res.json.versionCode >= 113, `versionCode=${res.json.versionCode}`);
+  assert.equal(res.json.versionName, '1.5.0');
   assert.equal(res.json.mandatory, 0, 'mandatory 字段应下发（默认0）');
 });
 
