@@ -12,6 +12,7 @@ const fs = require('node:fs');
 const BASE = process.env.BASE_URL || 'http://127.0.0.1:3100';
 const PASSWORD = process.env.ADMIN_PASSWORD || 'ChangeMe-2608!';
 const today = new Date().toISOString().slice(0, 10);
+const yesterday = new Date(Date.now() - 86400_000).toISOString().slice(0, 10);
 
 let passed = 0;
 let failed = 0;
@@ -38,7 +39,8 @@ async function seedRecord() {
   const villagerId = boot.json.villagers.find(v => v.username === 'cmy01').id;
   const sites = await call('GET', '/api/v1/admin/sites?projectId=1', null, admin);
   const site = sites.json.sites.find(s => s.code === '5');
-  const task = await call('POST', '/api/v1/admin/tasks', { siteId: site.id, villagerId, plannedDate: today, sampleTypes: ['R'] }, admin);
+  // 同点位创建两个任务，确保后面的重叠标记展开断言在全新数据库中也有稳定前置条件。
+  const task = await call('POST', '/api/v1/admin/tasks', { siteId: site.id, villagerId, plannedDate: today, sampleTypes: ['R', 'T'] }, admin);
   const taskId = task.json.ids[0];
   const act = await call('POST', `/api/v1/admin/villagers/${villagerId}/activation`, {}, admin);
   const [, , user, raw] = String(act.json.value).split('|');
@@ -55,13 +57,13 @@ async function seedRecord() {
   const freshTask = sync.json.tasks.find(t => t.id === taskId);
   const photo = await sharp({ create: { width: 480, height: 360, channels: 3, background: '#2e8b57' } }).jpeg().toBuffer();
   const record = await call('POST', `/api/v1/mobile/tasks/${taskId}/record`, {
-    clientRecordId: `e2e-${Date.now()}`, capturedAt: `${today}T09:30:00+08:00`,
+    clientRecordId: `e2e-${Date.now()}`, capturedAt: `${yesterday}T09:30:00+08:00`,
     latitude: Number(site.latitude), longitude: Number(site.longitude), accuracyM: 5, weatherText: '晴 12℃',
     noWater: false, manualCode: false, qrToken: freshTask.qr_token, exceptionCategory: '', exceptionDetail: '',
     mockLocation: false, offlineStart: false, photoDataUrl: `data:image/jpeg;base64,${photo.toString('base64')}`
   }, mobile);
   if (record.status !== 201) throw new Error(`record failed: ${JSON.stringify(record.json)}`);
-  return { sampleCode: freshTask.sample_code, siteCode: site.code, recordId: record.json.id };
+  return { sampleCode: freshTask.sample_code, siteCode: site.code, recordId: record.json.id, plannedDate: today, capturedDate: yesterday };
 }
 
 async function main() {
@@ -107,7 +109,11 @@ async function main() {
   const projectCount = await page.locator('#projectList button').count();
   check('项目列表渲染', projectCount >= 2, `count=${projectCount}`);
   check('待采样入口存在', await page.locator('#dateList button').filter({ hasText: '待采样' }).count() === 1);
-  check('按拍摄日期归档存在', await page.locator('#dateList button').filter({ hasText: '年' }).count() >= 1);
+  const dateFormat = new Intl.DateTimeFormat('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+  const plannedLabel = dateFormat.format(new Date(`${seeded.plannedDate}T00:00:00`));
+  const capturedLabel = dateFormat.format(new Date(`${seeded.capturedDate}T00:00:00`));
+  check('逾期记录归档在计划日期', await page.locator('#dateList button').filter({ hasText: plannedLabel }).count() === 1);
+  check('实际拍摄日期不生成归档', await page.locator('#dateList button').filter({ hasText: capturedLabel }).count() === 0);
   await page.waitForFunction(() => document.querySelector('#healthText').textContent.includes('磁盘'), null, { timeout: 8000 });
   check('磁盘健康状态显示', (await page.locator('#healthText').textContent()).includes('磁盘'));
 
@@ -150,7 +156,7 @@ async function main() {
   check('解析【WGS84】格式经纬度', latVal === '29.66579301' && lonVal === '94.34286257', `${latVal},${lonVal}`);
   await page.click('#siteDialog button[value=cancel]');
 
-  // 4. 依次点击日期（计划日期+拍摄日期自动归档），找到一条记录 → 审核通过
+  // 4. 依次点击计划日期，找到一条记录 → 审核通过
   let reviewed = false;
   const dateButtons = page.locator('#dateList button').filter({ hasText: '年' });
   const dateCount = await dateButtons.count();

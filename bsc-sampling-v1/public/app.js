@@ -226,12 +226,11 @@ async function loadAll() {
   render();
 }
 
-// 左侧日期 = 待采样任务的计划日期 ∪ 已提交记录的拍摄日期（自动归档）。
+// 所有任务始终按计划采样日期归档；实际拍摄日期只在详情中展示。
 function dateSet() {
   const dates = new Set();
   for (const t of state.tasks) {
-    if (t.record_id && t.captured_at) dates.add(String(t.captured_at).slice(0, 10));
-    else if (!t.record_id && t.planned_date) dates.add(String(t.planned_date).slice(0, 10));
+    if (t.planned_date) dates.add(String(t.planned_date).slice(0, 10));
   }
   return [...dates].sort((a, b) => b.localeCompare(a));
 }
@@ -242,7 +241,7 @@ function renderDates() {
   const pendingCount = state.tasks.filter(t => !t.record_id).length;
   nav.append(dateButton('pending', '待采样任务', pendingCount));
   dateSet().forEach(date => {
-    const count = state.tasks.filter(t => (t.record_id && t.captured_at && String(t.captured_at).slice(0, 10) === date) || (!t.record_id && t.planned_date === date)).length;
+    const count = state.tasks.filter(t => String(t.planned_date || '').slice(0, 10) === date).length;
     nav.append(dateButton(date, formatDate(date), count));
   });
 }
@@ -265,7 +264,7 @@ function dateButton(value, label, count) {
 function currentTasks() {
   if (state.selectedDate === 'pending') return state.tasks.filter(t => !t.record_id);
   const d = state.selectedDate;
-  return state.tasks.filter(t => (t.record_id && t.captured_at && String(t.captured_at).slice(0, 10) === d) || (!t.record_id && t.planned_date === d));
+  return state.tasks.filter(t => String(t.planned_date || '').slice(0, 10) === d);
 }
 
 function render() {

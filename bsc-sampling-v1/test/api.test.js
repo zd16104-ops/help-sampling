@@ -200,6 +200,28 @@ test('track upload with sequence dedup', async () => {
   assert.equal(again.json.inserted, 1, 'duplicate sequence ignored');
 });
 
+test('admin task date filter archives late records by planned date', async () => {
+  const plannedDate = '2026-09-02';
+  const capturedDate = '2026-09-11';
+  const late = await boundaryRecord(
+    10,
+    { capturedAt: `${capturedDate}T14:16:21+08:00` },
+    { plannedDate }
+  );
+  assert.equal(late.res.status, 201);
+  const taskId = late.taskId;
+  const pendingTaskId = await adminCreateTask({ plannedDate });
+
+  const planned = await call('GET', `/api/v1/admin/tasks?projectId=1&date=${plannedDate}`, null, adminToken);
+  assert.equal(planned.status, 200);
+  assert.ok(planned.json.tasks.some(t => t.id === taskId), '逾期拍摄记录必须归档在任务计划日期');
+  assert.ok(planned.json.tasks.some(t => t.id === pendingTaskId), '计划日期视图必须同时包含尚未提交的任务');
+
+  const captured = await call('GET', `/api/v1/admin/tasks?projectId=1&date=${capturedDate}`, null, adminToken);
+  assert.equal(captured.status, 200);
+  assert.ok(!captured.json.tasks.some(t => t.id === taskId), '实际拍摄日期不能生成虚假的任务归档日期');
+});
+
 async function boundaryRecord(offsetM, extra = {}, taskExtra = {}) {
   const taskId = await adminCreateTask(taskExtra);
   const task = await syncTask(mobileA, taskId);
