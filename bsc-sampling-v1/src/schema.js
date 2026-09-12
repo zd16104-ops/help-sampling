@@ -59,6 +59,12 @@ function initialize(db) {
     enabled INTEGER NOT NULL DEFAULT 1,
     activated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_seen_at TEXT,
+    disabled_at TEXT,
+    disabled_reason TEXT,
+    replaced_by_device_id INTEGER REFERENCES devices(id),
+    last_sync_at TEXT,
+    pending_track_count INTEGER NOT NULL DEFAULT 0,
+    pending_record_count INTEGER NOT NULL DEFAULT 0,
     UNIQUE(villager_id, device_uuid)
   );
   CREATE TABLE IF NOT EXISTS activation_codes (
@@ -67,6 +73,9 @@ function initialize(db) {
     token_hash TEXT NOT NULL UNIQUE,
     expires_at TEXT NOT NULL,
     used_at TEXT,
+    purpose TEXT NOT NULL DEFAULT 'initial',
+    current_device_id INTEGER REFERENCES devices(id),
+    created_by TEXT NOT NULL DEFAULT 'admin',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   CREATE TABLE IF NOT EXISTS journeys (
@@ -215,6 +224,17 @@ function migrate(db) {
   if (!recordColumns.includes('server_weather_status')) {
     db.exec("ALTER TABLE records ADD COLUMN server_weather_status TEXT NOT NULL DEFAULT 'pending'");
   }
+  const deviceColumns = db.prepare('PRAGMA table_info(devices)').all().map(c => c.name);
+  if (!deviceColumns.includes('disabled_at')) db.exec('ALTER TABLE devices ADD COLUMN disabled_at TEXT');
+  if (!deviceColumns.includes('disabled_reason')) db.exec('ALTER TABLE devices ADD COLUMN disabled_reason TEXT');
+  if (!deviceColumns.includes('replaced_by_device_id')) db.exec('ALTER TABLE devices ADD COLUMN replaced_by_device_id INTEGER');
+  if (!deviceColumns.includes('last_sync_at')) db.exec('ALTER TABLE devices ADD COLUMN last_sync_at TEXT');
+  if (!deviceColumns.includes('pending_track_count')) db.exec('ALTER TABLE devices ADD COLUMN pending_track_count INTEGER NOT NULL DEFAULT 0');
+  if (!deviceColumns.includes('pending_record_count')) db.exec('ALTER TABLE devices ADD COLUMN pending_record_count INTEGER NOT NULL DEFAULT 0');
+  const activationColumns = db.prepare('PRAGMA table_info(activation_codes)').all().map(c => c.name);
+  if (!activationColumns.includes('purpose')) db.exec("ALTER TABLE activation_codes ADD COLUMN purpose TEXT NOT NULL DEFAULT 'initial'");
+  if (!activationColumns.includes('current_device_id')) db.exec('ALTER TABLE activation_codes ADD COLUMN current_device_id INTEGER');
+  if (!activationColumns.includes('created_by')) db.exec("ALTER TABLE activation_codes ADD COLUMN created_by TEXT NOT NULL DEFAULT 'admin'");
   // 旧库种子点位曾写入 /sample-reference.svg 占位参考图（SVG，安卓端无法解码，
   // 造成"参考图传不到手机"的假象）。清空后由管理员在管理站上传真实照片。
   db.prepare("UPDATE sites SET reference_image='' WHERE reference_image='/sample-reference.svg'").run();
@@ -232,6 +252,18 @@ function migrate(db) {
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(108, '1.2.7', '修复 Android JSON 空值被 optString 误读为文本null导致全部任务被判已取消而隐藏（任务列表空白根因）');
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(109, '1.3.1', '点位删除（自动取消名下未采样任务）、任务删除（限无记录）、新版本定期强提醒通知');
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(110, '1.3.2', '支持激活密钥登录和同一采样员多设备；到达后可直接扫码采样，轨迹记录改为可选');
+  db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(111, '1.4.0', '单采样员单有效设备治理；支持换机、设备失效、离线补传和轨迹分段显示');
+  ensureSingleActiveDeviceIndex(db);
+}
+
+// Existing installations may contain multiple enabled devices. Do not make
+// startup fail: the admin conflict-resolution endpoint will clean them up,
+// then call this function again to install the database-level guard.
+function ensureSingleActiveDeviceIndex(db) {
+  const conflicts = db.prepare('SELECT villager_id,COUNT(*) AS count FROM devices WHERE enabled=1 GROUP BY villager_id HAVING COUNT(*)>1').all();
+  if (conflicts.length) return { ready: false, conflicts: conflicts.map(x => ({ villagerId: x.villager_id, count: x.count })) };
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS one_enabled_device_per_villager ON devices(villager_id) WHERE enabled=1');
+  return { ready: true, conflicts: [] };
 }
 
 function seed(db) {
@@ -274,4 +306,4 @@ function audit(db, role, actorId, action, entityType, entityId, details = {}, ip
     VALUES (?,?,?,?,?,?,?)`).run(role, String(actorId), action, entityType, entityId == null ? null : String(entityId), JSON.stringify(details), ip);
 }
 
-module.exports = { initialize, audit };
+module.exports = { initialize, audit, ensureSingleActiveDeviceIndex };

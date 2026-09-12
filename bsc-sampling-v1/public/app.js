@@ -481,8 +481,12 @@ async function renderMap(tasks) {
   trackTasks.forEach((task, index) => {
     const track = trackResults[index];
     if (track && Array.isArray(track.points) && track.points.length) {
-      const line = L.polyline(track.points.map(p => [p.latitude, p.longitude]), { color: '#2E7CB8', weight: 3, opacity: 0.65 }).addTo(state.map);
-      state.trackPolylines.push(line);
+      const hasSegments = track.display && Array.isArray(track.display.segments);
+      const segments = hasSegments ? track.display.segments.filter(s => Array.isArray(s) && s.length >= 2) : [track.points.map(p => [p.latitude, p.longitude])];
+      for (const segment of segments) {
+        const line = L.polyline(segment.map(p => Array.isArray(p) ? p : [p.latitude, p.longitude]), { color: '#2E7CB8', weight: 3, opacity: 0.65 }).addTo(state.map);
+        state.trackPolylines.push(line);
+      }
     }
   });
 }
@@ -564,7 +568,8 @@ async function showDetail(task) {
         const segs = (track.display && Array.isArray(track.display.segments) ? track.display.segments : [])
           .filter(s => s.length >= 2)
           .map(s => s.map(p => [p[0], p[1]]));
-        if (!segs.length) segs.push(track.points.map(p => [p.latitude, p.longitude]));
+        // 老版本接口没有 display.segments 时才回退原始点；新接口即使每段只有一个点也不跨断点连线。
+        if (!segs.length && !(track.display && Array.isArray(track.display.segments))) segs.push(track.points.map(p => [p.latitude, p.longitude]));
         let bounds = null;
         for (const seg of segs) {
           const line = L.polyline(seg, { color: '#2E7CB8', weight: 4, opacity: 0.8 }).addTo(state.map);
@@ -1047,22 +1052,81 @@ function renderVillagerList() {
   $('#qrcode').innerHTML = '';
   $('#villagerList').innerHTML = state.villagers.map(v => `
     <div class="vill-row">
-      <div><strong>${esc(v.display_name)}</strong><small>${esc(v.username)}${v.enabled ? '' : '（已停用）'}</small></div>
+      <div><strong>${esc(v.display_name)}</strong><small>${esc(v.username)}${v.enabled ? '' : '（已停用）'} · ${Number(v.active_device_count || 0) > 1 ? '多台有效设备，需处理' : Number(v.active_device_count || 0) === 1 ? `当前设备：${esc(v.active_device_name || '未命名')}` : '无有效设备'}</small></div>
       <div class="vill-actions">
-        <button type="button" data-act="${v.id}" ${v.enabled ? '' : 'disabled'} class="secondary">设备激活</button>
+        <button type="button" data-devices="${v.id}" class="ghost">设备详情</button>
+        <button type="button" data-rename="${v.id}" class="ghost">设备改名</button>
+        <button type="button" data-revoke="${v.id}" ${v.enabled && Number(v.active_device_count || 0) === 1 ? '' : 'disabled'} class="btn btn-danger">立即失效</button>
+        <button type="button" data-act="${v.id}" ${v.enabled && !Number(v.active_device_count || 0) ? '' : 'disabled'} class="secondary">首次激活</button>
+        <button type="button" data-replace="${v.id}" ${v.enabled && Number(v.active_device_count || 0) === 1 ? '' : 'disabled'} class="secondary">更换设备</button>
         <button type="button" data-toggle="${v.id}" class="ghost">${v.enabled ? '停用' : '启用'}</button>
       </div>
     </div>`).join('');
+  const showActivation = res => {
+    $('#activationResult').classList.remove('hidden');
+    $('#activationValue').textContent = res.activationKey;
+    $('#activationAccount').textContent = res.username;
+    $('#activationExpires').textContent = `${res.purpose === 'replace' ? '换机码' : '激活码'}有效期至 ${formatTime(res.expiresAt)}（一次性使用）`;
+    $('#qrcode').innerHTML = '';
+    if (window.QRCode) new QRCode($('#qrcode'), { text: res.value, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M });
+    else $('#qrcode').textContent = '二维码组件未加载';
+  };
   $('#villagerList').querySelectorAll('button[data-act]').forEach(button => button.addEventListener('click', async () => {
     try {
-      const res = await post(`/api/v1/admin/villagers/${button.dataset.act}/activation`, {});
-      $('#activationResult').classList.remove('hidden');
-      $('#activationValue').textContent = res.activationKey;
-      $('#activationAccount').textContent = res.username;
-      $('#activationExpires').textContent = `有效期至 ${formatTime(res.expiresAt)}（一次性使用）`;
-      $('#qrcode').innerHTML = '';
-      if (window.QRCode) new QRCode($('#qrcode'), { text: res.value, width: 180, height: 180, correctLevel: QRCode.CorrectLevel.M });
-      else $('#qrcode').textContent = '二维码组件未加载';
+      showActivation(await post(`/api/v1/admin/villagers/${button.dataset.act}/activation`, { mode: 'initial' }));
+    } catch (error) { alert(error.message); }
+  }));
+  $('#villagerList').querySelectorAll('button[data-replace]').forEach(button => button.addEventListener('click', async () => {
+    try {
+      const id = Number(button.dataset.replace);
+      const details = await api(`/api/v1/admin/villagers/${id}/devices`);
+      const current = details.activeDevices?.[0];
+      if (!current) return alert('当前没有可更换的有效设备');
+      const pending = Number(current.pending_track_count || 0) + Number(current.pending_record_count || 0);
+      const warning = pending ? `\n服务器最近记录仍有约 ${pending} 条待传数据。` : '';
+      if (!confirm(`确认生成“${details.villager.display_name}”的换机码？旧设备会在新设备成功扫码后失效。请先确认旧设备已同步。${warning}`)) return;
+      showActivation(await post(`/api/v1/admin/villagers/${id}/activation`, { mode: 'replace', currentDeviceId: current.id }));
+    } catch (error) { alert(error.message); }
+  }));
+  $('#villagerList').querySelectorAll('button[data-devices]').forEach(button => button.addEventListener('click', async () => {
+    try {
+      const details = await api(`/api/v1/admin/villagers/${button.dataset.devices}/devices`);
+      const lines = details.devices.map(d => `#${d.id} ${d.enabled ? '有效' : '历史'} ${d.device_name || '未命名'} · UUID末8位 ${String(d.device_uuid).slice(-8)} · 最后在线 ${formatTime(d.last_seen_at)}${d.enabled ? ` · 锁定任务 ${d.locked_tasks || 0}` : ''}`);
+      alert(`${details.villager.display_name}：${details.conflict ? '存在多台有效设备，请选择唯一设备。' : '有效设备 '+details.activeDevices.length+' 台。'}\n\n${lines.join('\n') || '暂无设备'}`);
+      if (details.conflict) {
+        const selected = prompt(`请输入要保留的设备 ID：\n${lines.join('\n')}`);
+        if (selected && /^\d+$/.test(selected) && confirm('确认将该设备设为唯一有效设备？其他设备会立即失效。')) {
+          await post(`/api/v1/admin/villagers/${details.villager.id}/devices/${selected}/select`, { reason: '管理员处理存量多设备冲突' });
+          await refreshVillagers(); renderVillagerList();
+        }
+      }
+    } catch (error) { alert(error.message); }
+  }));
+  $('#villagerList').querySelectorAll('button[data-rename]').forEach(button => button.addEventListener('click', async () => {
+    try {
+      const details = await api(`/api/v1/admin/villagers/${button.dataset.rename}/devices`);
+      if (!details.devices.length) return alert('该采样员暂无设备记录');
+      const current = details.activeDevices?.[0] || details.devices[0];
+      const selected = details.conflict
+        ? prompt(`请输入要改名的设备 ID：\n${details.devices.map(d => `#${d.id} ${d.device_name || '未命名'}（${d.enabled ? '有效' : '历史'}）`).join('\n')}`, String(current.id))
+        : String(current.id);
+      if (!selected || !/^\d+$/.test(selected)) return;
+      const device = details.devices.find(d => d.id === Number(selected));
+      if (!device) return alert('设备 ID 不存在');
+      const name = prompt('请输入设备名称（最多 120 个字符）：', device.device_name || '');
+      if (name === null || !name.trim()) return;
+      await api(`/api/v1/admin/devices/${device.id}`, { method: 'PATCH', body: JSON.stringify({ deviceName: name.trim() }) });
+      await refreshVillagers(); renderVillagerList();
+    } catch (error) { alert(error.message); }
+  }));
+  $('#villagerList').querySelectorAll('button[data-revoke]').forEach(button => button.addEventListener('click', async () => {
+    try {
+      const details = await api(`/api/v1/admin/villagers/${button.dataset.revoke}/devices`);
+      const current = details.activeDevices?.[0];
+      if (!current) return alert('当前没有有效设备');
+      if (!confirm(`确认立即使设备“${current.device_name || '未命名'}”失效？\n旧设备未上传的数据可能无法恢复。`)) return;
+      await post(`/api/v1/admin/devices/${current.id}/revoke`, { reason: '管理员立即失效' });
+      await refreshVillagers(); renderVillagerList();
     } catch (error) { alert(error.message); }
   }));
   $('#villagerList').querySelectorAll('button[data-toggle]').forEach(button => button.addEventListener('click', async () => {

@@ -267,7 +267,9 @@ async function main() {
   // 6. 设备激活二维码
   await page.click('#villagerButton');
   await page.waitForSelector('#villagerDialog[open]');
-  await page.locator('#villagerList button[data-act]').first().click();
+  const initialActivation = page.locator('#villagerList button[data-act]').first();
+  if (await initialActivation.isEnabled()) await initialActivation.click();
+  else await page.locator('#villagerList button[data-replace]:not([disabled])').first().click();
   await page.waitForSelector('#activationResult:not(.hidden)', { timeout: 8000 });
   const activationValue = await page.locator('#activationValue').textContent();
   check('激活密钥内容生成', activationValue.length >= 20 && !activationValue.includes('|'), activationValue);

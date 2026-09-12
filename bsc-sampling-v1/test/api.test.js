@@ -140,7 +140,9 @@ test('activation + login flow', async () => {
 });
 
 test('activation token single-use and expiry', async () => {
-  const act = await call('POST', `/api/v1/admin/villagers/${villagerId}/activation`, {}, adminToken);
+  const created = await call('POST', '/api/v1/admin/villagers', { username: `single${Date.now()}`, displayName: '一次性测试' }, adminToken);
+  const singleVillagerId = created.json.id;
+  const act = await call('POST', `/api/v1/admin/villagers/${singleVillagerId}/activation`, {}, adminToken);
   const [, , user, raw] = act.json.value.split('|');
   const once = await call('POST', '/api/v1/mobile/activate', { username: user, activationToken: raw, deviceUuid: 'replay-device' });
   assert.equal(once.status, 200);
@@ -148,8 +150,8 @@ test('activation token single-use and expiry', async () => {
   assert.equal(replay.status, 403, 'replayed token rejected');
   // Expired code inserted directly (simulates >24h old activation QR).
   const expiredHash = crypto.createHash('sha256').update('expired-token').digest('hex');
-  rawDb.prepare('INSERT INTO activation_codes(villager_id,token_hash,expires_at) VALUES(?,?,?)').run(villagerId, expiredHash, '2020-01-01T00:00:00.000Z');
-  const expired = await call('POST', '/api/v1/mobile/activate', { username: 'cmy01', activationToken: 'expired-token', deviceUuid: 'expired-device' });
+  rawDb.prepare('INSERT INTO activation_codes(villager_id,token_hash,expires_at) VALUES(?,?,?)').run(singleVillagerId, expiredHash, '2020-01-01T00:00:00.000Z');
+  const expired = await call('POST', '/api/v1/mobile/activate', { username: user, activationToken: 'expired-token', deviceUuid: 'expired-device' });
   assert.equal(expired.status, 403, 'expired token rejected');
 });
 
@@ -189,16 +191,25 @@ test('planned time and device name are synced and reschedulable from mobile', as
   assert.equal(invalid.status, 422);
 });
 
-test('same sampler can use multiple activated devices without task lockout', async () => {
-  mobileB = await newDeviceToken('test-device-B');
-  const taskId = await adminCreateTask();
-  const task = await syncTask(mobileA, taskId);
-  const startA = await call('POST', `/api/v1/mobile/tasks/${taskId}/start`, { latitude: 30.07534404, longitude: 94.14583272, accuracyM: 3 }, mobileA);
-  assert.equal(startA.status, 200);
-  assert.equal(startA.json.weakEvidence, true);
-  const startB = await call('POST', `/api/v1/mobile/tasks/${taskId}/start`, { latitude: 30.07534404, longitude: 94.14583272, accuracyM: 3 }, mobileB);
-  assert.equal(startB.status, 200, 'second activated device for same sampler may sample');
-  assert.ok(task.qr_token, 'sync payload carries qr token');
+test('single active device rejects second activation and supports atomic replacement', async () => {
+  const denied = await call('POST', `/api/v1/admin/villagers/${villagerId}/activation`, {}, adminToken);
+  assert.equal(denied.status, 409);
+  const created = await call('POST', '/api/v1/admin/villagers', { username: `replace${Date.now()}`, displayName: '换机测试' }, adminToken);
+  const replacementVillagerId = created.json.id;
+  const firstAct = await call('POST', `/api/v1/admin/villagers/${replacementVillagerId}/activation`, {}, adminToken);
+  const [, , replacementUser, firstRaw] = firstAct.json.value.split('|');
+  const first = await call('POST', '/api/v1/mobile/activate', { username: replacementUser, activationToken: firstRaw, deviceUuid: 'replacement-old' });
+  assert.equal(first.status, 200);
+  const replacementDeviceId = first.json.deviceId;
+  const replaceAct = await call('POST', `/api/v1/admin/villagers/${replacementVillagerId}/activation`, { mode: 'replace', currentDeviceId: replacementDeviceId }, adminToken);
+  assert.equal(replaceAct.status, 201);
+  const [, , , replaceRaw] = replaceAct.json.value.split('|');
+  const second = await call('POST', '/api/v1/mobile/activate', { username: replacementUser, activationToken: replaceRaw, deviceUuid: 'replacement-new' });
+  assert.equal(second.status, 200);
+  const oldSync = await call('GET', '/api/v1/mobile/sync', null, first.json.token);
+  assert.equal(oldSync.status, 403);
+  const newSync = await call('GET', '/api/v1/mobile/sync', null, second.json.token);
+  assert.equal(newSync.status, 200);
 });
 
 test('track upload with sequence dedup', async () => {
@@ -211,7 +222,7 @@ test('track upload with sequence dedup', async () => {
   assert.equal(up.json.inserted, 3);
   const again = await call('POST', `/api/v1/mobile/journeys/${journeyId}/track`, { points: [{ sequence: 1, recordedAt: new Date().toISOString(), latitude: 0, longitude: 0, accuracyM: 4 }] }, mobileA);
   assert.equal(again.status, 200);
-  assert.equal(again.json.inserted, 1, 'duplicate sequence ignored');
+  assert.equal(again.json.inserted, 0, 'duplicate sequence ignored');
 });
 
 test('admin task date filter archives late records by planned date', async () => {
@@ -419,14 +430,14 @@ test('task cancel rules and unlock', async () => {
   assert.equal(cancel.status, 200);
   const cancelAgain = await call('POST', `/api/v1/admin/tasks/${plain}/cancel`, { reason: 'again' }, adminToken);
   assert.equal(cancelAgain.status, 422, 'double cancel rejected');
-  // 同一采样员的多台已激活设备均可接续；管理员仍可清理旧锁信息。
+  // 单设备策略下同一设备可重复进入任务；管理员仍可清理旧锁信息。
   const lockTask = await adminCreateTask();
   await call('POST', `/api/v1/mobile/tasks/${lockTask}/start`, { latitude: 30.07534404, longitude: 94.14583272, accuracyM: 3 }, mobileA);
-  const blocked = await call('POST', `/api/v1/mobile/tasks/${lockTask}/start`, { latitude: 30.07534404, longitude: 94.14583272, accuracyM: 3 }, mobileB);
+  const blocked = await call('POST', `/api/v1/mobile/tasks/${lockTask}/start`, { latitude: 30.07534404, longitude: 94.14583272, accuracyM: 3 }, mobileA);
   assert.equal(blocked.status, 200);
   const unlock = await call('POST', `/api/v1/admin/tasks/${lockTask}/unlock`, {}, adminToken);
   assert.equal(unlock.status, 200);
-  const afterUnlock = await call('POST', `/api/v1/mobile/tasks/${lockTask}/start`, { latitude: 30.07534404, longitude: 94.14583272, accuracyM: 3 }, mobileB);
+  const afterUnlock = await call('POST', `/api/v1/mobile/tasks/${lockTask}/start`, { latitude: 30.07534404, longitude: 94.14583272, accuracyM: 3 }, mobileA);
   assert.equal(afterUnlock.status, 200, 'task remains usable after an administrative unlock');
 });
 
@@ -578,9 +589,9 @@ test('admin logs filter and CSV export', async () => {
 });
 
 test('disabled device gets 403', async () => {
-  const deviceId = rawDb.prepare("SELECT id FROM devices WHERE device_uuid LIKE 'test-device-B%' ORDER BY id DESC LIMIT 1").get().id;
+  const deviceId = rawDb.prepare("SELECT id FROM devices WHERE villager_id=? AND enabled=1 ORDER BY id DESC LIMIT 1").get(villagerId).id;
   rawDb.prepare('UPDATE devices SET enabled=0 WHERE id=?').run(deviceId);
-  const res = await call('GET', '/api/v1/mobile/sync', null, mobileB);
+  const res = await call('GET', '/api/v1/mobile/sync', null, mobileA);
   assert.equal(res.status, 403);
   rawDb.prepare('UPDATE devices SET enabled=1 WHERE id=?').run(deviceId);
 });
@@ -633,7 +644,9 @@ test('signed image URLs: 无签名 403，签名 URL 200', async () => {
 });
 
 test('activation code messages distinguish used vs invalid', async () => {
-  const act = await call('POST', `/api/v1/admin/villagers/${villagerId}/activation`, {}, adminToken);
+  const created = await call('POST', '/api/v1/admin/villagers', { username: `used${Date.now()}`, displayName: '已用码测试' }, adminToken);
+  const testVillagerId = created.json.id;
+  const act = await call('POST', `/api/v1/admin/villagers/${testVillagerId}/activation`, {}, adminToken);
   const [, , user, raw] = act.json.value.split('|');
   const first = await call('POST', '/api/v1/mobile/activate', {
     username: user, activationToken: raw, deviceUuid: `used-${Date.now()}`, appVersion: '1.0.0'
@@ -654,8 +667,8 @@ test('activation code messages distinguish used vs invalid', async () => {
 test('app-version endpoint returns latest version', async () => {
   const res = await call('GET', '/api/v1/mobile/app-version', null, null);
   assert.equal(res.status, 200);
-  assert.ok(res.json.versionCode >= 110, `versionCode=${res.json.versionCode}`);
-  assert.equal(res.json.versionName, '1.3.2');
+  assert.ok(res.json.versionCode >= 111, `versionCode=${res.json.versionCode}`);
+  assert.equal(res.json.versionName, '1.4.0');
   assert.equal(res.json.mandatory, 0, 'mandatory 字段应下发（默认0）');
 });
 
