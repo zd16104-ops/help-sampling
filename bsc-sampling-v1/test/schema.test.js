@@ -17,6 +17,8 @@ test('initialize creates all V1 tables', () => {
     'tasks', 'track_points', 'live_locations', 'records', 'audit_logs', 'app_logs', 'app_versions']) {
     assert.ok(names.includes(expected), `missing table ${expected}`);
   }
+  const taskColumns = db.prepare('PRAGMA table_info(tasks)').all().map(c => c.name);
+  assert.ok(taskColumns.includes('planned_time'), 'tasks includes optional planned time');
 });
 
 test('seed inserts 2 projects, 25 formal sites and villager cmy01', () => {

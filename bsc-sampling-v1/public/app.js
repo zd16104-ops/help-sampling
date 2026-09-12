@@ -226,12 +226,11 @@ async function loadAll() {
   render();
 }
 
-// 左侧日期 = 待采样任务的计划日期 ∪ 已提交记录的拍摄日期（自动归档）。
+// 所有任务始终按计划采样日期归档；实际拍摄日期只在详情中展示。
 function dateSet() {
   const dates = new Set();
   for (const t of state.tasks) {
-    if (t.record_id && t.captured_at) dates.add(String(t.captured_at).slice(0, 10));
-    else if (!t.record_id && t.planned_date) dates.add(String(t.planned_date).slice(0, 10));
+    if (t.planned_date) dates.add(String(t.planned_date).slice(0, 10));
   }
   return [...dates].sort((a, b) => b.localeCompare(a));
 }
@@ -242,7 +241,7 @@ function renderDates() {
   const pendingCount = state.tasks.filter(t => !t.record_id).length;
   nav.append(dateButton('pending', '待采样任务', pendingCount));
   dateSet().forEach(date => {
-    const count = state.tasks.filter(t => (t.record_id && t.captured_at && String(t.captured_at).slice(0, 10) === date) || (!t.record_id && t.planned_date === date)).length;
+    const count = state.tasks.filter(t => String(t.planned_date || '').slice(0, 10) === date).length;
     nav.append(dateButton(date, formatDate(date), count));
   });
 }
@@ -265,7 +264,7 @@ function dateButton(value, label, count) {
 function currentTasks() {
   if (state.selectedDate === 'pending') return state.tasks.filter(t => !t.record_id);
   const d = state.selectedDate;
-  return state.tasks.filter(t => (t.record_id && t.captured_at && String(t.captured_at).slice(0, 10) === d) || (!t.record_id && t.planned_date === d));
+  return state.tasks.filter(t => String(t.planned_date || '').slice(0, 10) === d);
 }
 
 function render() {
@@ -590,7 +589,7 @@ async function showDetail(task) {
       ${task.reference_image ? `<img class="record-photo" src="${esc(task.reference_image)}" alt="现场参考图">` : ''}
       ${statusLine}
       <div class="empty-detail"><strong>等待村民采样</strong>
-      <p>计划日期 ${esc(task.planned_date)} · ${esc(TYPE_NAMES[task.sample_type] || task.sample_type)} · ${esc(task.villager_name || '')}</p>
+      <p>计划日期 ${esc(task.planned_date)}${task.planned_time ? ` ${esc(task.planned_time)}` : ''} · ${esc(TYPE_NAMES[task.sample_type] || task.sample_type)} · ${esc(task.villager_name || '')}</p>
       <p>${esc(task.instructions || '暂无采样说明')}</p>
       <p>正常范围 ${task.normal_radius_m || 30}m · 异常上限 ${task.exception_radius_m || 80}m · 硬上限 300m</p>
       ${task.canceled_at ? `<p class="cancel-note">取消原因：${esc(task.canceled_reason || '未填写')}（记录保留，供审计）</p>` : ''}</div>
@@ -982,6 +981,7 @@ $('#newTaskButton').addEventListener('click', async () => {
   $('#labelResult').classList.add('hidden');
   $('#printLabel').classList.add('hidden');
   $('#plannedDate').value = new Date().toISOString().slice(0, 10);
+  $('#plannedTime').value = '';
   $('#taskVillager').innerHTML = state.villagers.filter(v => v.enabled).map(v => `<option value="${v.id}">${esc(v.display_name)}（${esc(v.username)}）</option>`).join('');
   const enabled = state.sites.filter(s => s.enabled).sort(compareSiteCode);
   $('#taskSiteList').innerHTML = `<label class="site-pick select-all"><input type="checkbox" id="taskSiteAll"> <strong>全选 / 全不选</strong></label>` +
@@ -1009,7 +1009,8 @@ $('#createTask').addEventListener('click', async () => {
     for (const siteId of siteIds) {
       const res = await post('/api/v1/admin/tasks', {
         siteId, villagerId: Number($('#taskVillager').value),
-        plannedDate: $('#plannedDate').value
+        plannedDate: $('#plannedDate').value,
+        plannedTime: $('#plannedTime').value
       });
       const siteName = state.sites.find(s => s.id === siteId)?.name || `点位${siteId}`;
       for (const c of (res.codes || [])) createdItems.push({ code: c, name: siteName });

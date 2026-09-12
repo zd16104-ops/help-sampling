@@ -175,6 +175,20 @@ test('task code generation sequential and concurrent uniqueness', async () => {
   for (const c of concurrentCodes) assert.match(c, new RegExp(`^${base.replace('.', '\\.')}\\d{2}$`));
 });
 
+test('planned time and device name are synced and reschedulable from mobile', async () => {
+  const taskId = await adminCreateTask({ plannedTime: '09:30' });
+  const created = await syncTask(mobileA, taskId);
+  assert.equal(created.planned_time, '09:30');
+  assert.equal(created.device_name, 'Test A');
+  assert.ok(created.device_id);
+  const updated = await call('POST', `/api/v1/mobile/tasks/${taskId}/schedule`, { plannedTime: '14:05' }, mobileA);
+  assert.equal(updated.status, 200, JSON.stringify(updated.json));
+  assert.equal(updated.json.plannedTime, '14:05');
+  assert.equal((await syncTask(mobileA, taskId)).planned_time, '14:05');
+  const invalid = await call('POST', `/api/v1/mobile/tasks/${taskId}/schedule`, { plannedTime: '25:61' }, mobileA);
+  assert.equal(invalid.status, 422);
+});
+
 test('same sampler can use multiple activated devices without task lockout', async () => {
   mobileB = await newDeviceToken('test-device-B');
   const taskId = await adminCreateTask();
@@ -198,6 +212,28 @@ test('track upload with sequence dedup', async () => {
   const again = await call('POST', `/api/v1/mobile/journeys/${journeyId}/track`, { points: [{ sequence: 1, recordedAt: new Date().toISOString(), latitude: 0, longitude: 0, accuracyM: 4 }] }, mobileA);
   assert.equal(again.status, 200);
   assert.equal(again.json.inserted, 1, 'duplicate sequence ignored');
+});
+
+test('admin task date filter archives late records by planned date', async () => {
+  const plannedDate = '2026-09-02';
+  const capturedDate = '2026-09-11';
+  const late = await boundaryRecord(
+    10,
+    { capturedAt: `${capturedDate}T14:16:21+08:00` },
+    { plannedDate }
+  );
+  assert.equal(late.res.status, 201);
+  const taskId = late.taskId;
+  const pendingTaskId = await adminCreateTask({ plannedDate });
+
+  const planned = await call('GET', `/api/v1/admin/tasks?projectId=1&date=${plannedDate}`, null, adminToken);
+  assert.equal(planned.status, 200);
+  assert.ok(planned.json.tasks.some(t => t.id === taskId), '逾期拍摄记录必须归档在任务计划日期');
+  assert.ok(planned.json.tasks.some(t => t.id === pendingTaskId), '计划日期视图必须同时包含尚未提交的任务');
+
+  const captured = await call('GET', `/api/v1/admin/tasks?projectId=1&date=${capturedDate}`, null, adminToken);
+  assert.equal(captured.status, 200);
+  assert.ok(!captured.json.tasks.some(t => t.id === taskId), '实际拍摄日期不能生成虚假的任务归档日期');
 });
 
 async function boundaryRecord(offsetM, extra = {}, taskExtra = {}) {

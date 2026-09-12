@@ -91,6 +91,7 @@ function initialize(db) {
     site_id INTEGER NOT NULL REFERENCES sites(id),
     villager_id INTEGER NOT NULL REFERENCES villagers(id),
     planned_date TEXT NOT NULL,
+    planned_time TEXT NOT NULL DEFAULT '',
     base_sample_code TEXT NOT NULL,
     sample_code TEXT NOT NULL UNIQUE,
     sample_type TEXT NOT NULL,
@@ -203,6 +204,10 @@ function initialize(db) {
 // Incremental migrations for databases created by earlier schema versions.
 // New columns use ALTER TABLE so existing deployments keep their data.
 function migrate(db) {
+  const taskColumns = db.prepare('PRAGMA table_info(tasks)').all().map(c => c.name);
+  if (!taskColumns.includes('planned_time')) {
+    db.exec("ALTER TABLE tasks ADD COLUMN planned_time TEXT NOT NULL DEFAULT ''");
+  }
   const recordColumns = db.prepare('PRAGMA table_info(records)').all().map(c => c.name);
   if (!recordColumns.includes('server_weather_text')) {
     db.exec("ALTER TABLE records ADD COLUMN server_weather_text TEXT NOT NULL DEFAULT ''");

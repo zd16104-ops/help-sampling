@@ -1,0 +1,13 @@
+---
+description: Keep every coding session synchronized with the latest shared-worktree files
+alwaysApply: true
+---
+
+# Shared Worktree Coordination
+
+- Treat the files currently on disk as the source of truth because several sessions may edit this project concurrently.
+- Start by checking `git status --short` and reading every file you plan to modify.
+- Re-read each target file immediately before editing; do not rely only on cached context or pasted snapshots.
+- Preserve unrelated staged, unstaged, and untracked work.
+- Merge into the current file contents if another session changed them; never overwrite or revert newer work.
+- Inspect the final diff and stage only files belonging to the current task.
