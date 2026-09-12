@@ -175,6 +175,20 @@ test('task code generation sequential and concurrent uniqueness', async () => {
   for (const c of concurrentCodes) assert.match(c, new RegExp(`^${base.replace('.', '\\.')}\\d{2}$`));
 });
 
+test('planned time and device name are synced and reschedulable from mobile', async () => {
+  const taskId = await adminCreateTask({ plannedTime: '09:30' });
+  const created = await syncTask(mobileA, taskId);
+  assert.equal(created.planned_time, '09:30');
+  assert.equal(created.device_name, 'Test A');
+  assert.ok(created.device_id);
+  const updated = await call('POST', `/api/v1/mobile/tasks/${taskId}/schedule`, { plannedTime: '14:05' }, mobileA);
+  assert.equal(updated.status, 200, JSON.stringify(updated.json));
+  assert.equal(updated.json.plannedTime, '14:05');
+  assert.equal((await syncTask(mobileA, taskId)).planned_time, '14:05');
+  const invalid = await call('POST', `/api/v1/mobile/tasks/${taskId}/schedule`, { plannedTime: '25:61' }, mobileA);
+  assert.equal(invalid.status, 422);
+});
+
 test('same sampler can use multiple activated devices without task lockout', async () => {
   mobileB = await newDeviceToken('test-device-B');
   const taskId = await adminCreateTask();

@@ -1,2 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="vertical" android:padding="12dp"><TextView android:id="@+id/listHint" android:layout_width="match_parent" android:layout_height="wrap_content" android:background="@drawable/card" android:padding="12dp"/><ExpandableListView android:id="@+id/list" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:divider="@android:color/transparent" android:dividerHeight="8dp" android:childDivider="@android:color/transparent"/></LinearLayout>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:background="@color/bg">
+  <LinearLayout android:id="@+id/datePanel" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1.02" android:orientation="vertical" android:padding="8dp" android:background="#EEF5F3">
+    <TextView android:id="@+id/datePanelTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="下发任务" android:textSize="18sp" android:textStyle="bold" android:textColor="@color/ink" android:padding="8dp"/>
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true"><LinearLayout android:id="@+id/dateTaskList" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"/></ScrollView>
+  </LinearLayout>
+  <View android:layout_width="1dp" android:layout_height="match_parent" android:background="#D4E2DE"/>
+  <LinearLayout android:id="@+id/pointPanel" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1.98" android:orientation="vertical" android:padding="12dp">
+    <TextView android:id="@+id/pointPanelTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="请选择日期任务" android:textSize="21sp" android:textStyle="bold" android:textColor="@color/ink" android:padding="4dp"/>
+    <TextView android:id="@+id/pointPanelSummary" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#55706D" android:textSize="13sp" android:padding="4dp"/>
+    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true"><LinearLayout android:id="@+id/pointList" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"/></ScrollView>
+  </LinearLayout>
+  <TextView android:id="@+id/listHint" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone"/>
+  <ExpandableListView android:id="@+id/list" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone"/>
+</LinearLayout>

@@ -589,7 +589,7 @@ async function showDetail(task) {
       ${task.reference_image ? `<img class="record-photo" src="${esc(task.reference_image)}" alt="现场参考图">` : ''}
       ${statusLine}
       <div class="empty-detail"><strong>等待村民采样</strong>
-      <p>计划日期 ${esc(task.planned_date)} · ${esc(TYPE_NAMES[task.sample_type] || task.sample_type)} · ${esc(task.villager_name || '')}</p>
+      <p>计划日期 ${esc(task.planned_date)}${task.planned_time ? ` ${esc(task.planned_time)}` : ''} · ${esc(TYPE_NAMES[task.sample_type] || task.sample_type)} · ${esc(task.villager_name || '')}</p>
       <p>${esc(task.instructions || '暂无采样说明')}</p>
       <p>正常范围 ${task.normal_radius_m || 30}m · 异常上限 ${task.exception_radius_m || 80}m · 硬上限 300m</p>
       ${task.canceled_at ? `<p class="cancel-note">取消原因：${esc(task.canceled_reason || '未填写')}（记录保留，供审计）</p>` : ''}</div>
@@ -981,6 +981,7 @@ $('#newTaskButton').addEventListener('click', async () => {
   $('#labelResult').classList.add('hidden');
   $('#printLabel').classList.add('hidden');
   $('#plannedDate').value = new Date().toISOString().slice(0, 10);
+  $('#plannedTime').value = '';
   $('#taskVillager').innerHTML = state.villagers.filter(v => v.enabled).map(v => `<option value="${v.id}">${esc(v.display_name)}（${esc(v.username)}）</option>`).join('');
   const enabled = state.sites.filter(s => s.enabled).sort(compareSiteCode);
   $('#taskSiteList').innerHTML = `<label class="site-pick select-all"><input type="checkbox" id="taskSiteAll"> <strong>全选 / 全不选</strong></label>` +
@@ -1008,7 +1009,8 @@ $('#createTask').addEventListener('click', async () => {
     for (const siteId of siteIds) {
       const res = await post('/api/v1/admin/tasks', {
         siteId, villagerId: Number($('#taskVillager').value),
-        plannedDate: $('#plannedDate').value
+        plannedDate: $('#plannedDate').value,
+        plannedTime: $('#plannedTime').value
       });
       const siteName = state.sites.find(s => s.id === siteId)?.name || `点位${siteId}`;
       for (const c of (res.codes || [])) createdItems.push({ code: c, name: siteName });
