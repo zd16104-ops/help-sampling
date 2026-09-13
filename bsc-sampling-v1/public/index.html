@@ -78,13 +78,14 @@
             <option value="canceled">已取消</option>
           </select>
           <input id="tableSearch" placeholder="搜索编号/点位名称">
-          <label class="checkbox-line"><input type="checkbox" id="tableCheckAll"> 全选本页待审核</label>
+          <label class="checkbox-line"><input type="checkbox" id="tableCheckAll"> 全选本页任务</label>
+          <button id="batchPrintLabels" class="secondary" data-icon="print">打印所选标签</button>
           <button id="batchApprove" class="secondary">批量审核通过</button>
           <button id="batchWeather" class="secondary">补齐本页天气</button>
         </div>
         <div class="task-table-scroll">
           <table class="task-table">
-            <thead><tr><th></th><th>编号</th><th>点位</th><th>类型</th><th>日期</th><th>采样员</th><th>距离</th><th>审核状态</th><th>操作</th></tr></thead>
+            <thead><tr><th></th><th>编号</th><th>点位</th><th>类型</th><th>日期</th><th>采样人员</th><th>距离</th><th>任务状态</th><th>操作</th></tr></thead>
             <tbody id="taskTableBody"></tbody>
           </table>
         </div>
@@ -178,7 +179,9 @@
       <div id="taskFields" class="form-grid">
         <label class="wide field">计划采样日期<input id="plannedDate" type="date" required></label>
         <label class="wide field">计划采样时间（可选）<input id="plannedTime" type="time"></label>
-        <label class="wide field">采样人员<select id="taskVillager" required></select></label>
+        <label class="field">主采样人<select id="taskVillager" required></select><small>初始拥有采样权，可由备用人员接管。</small></label>
+        <label class="field">备用采样人（可选）<select id="taskBackupVillager"><option value="">不设置备用人员</option></select><small>可实时查看进度，输入确认码 1234 后直接接管。</small></label>
+        <label class="wide checkbox-line"><input type="checkbox" id="saveDefaultBackup"> 将此备用人员保存为当前项目默认值</label>
         <div class="wide field-block"><span class="form-label">选择固定采样点（可多选，每个点位按其样品类型生成任务）</span>
           <div id="taskSiteList" class="site-pick-list"><label class="site-pick select-all"><input type="checkbox" id="taskSiteAll"> <strong>全选 / 全不选</strong></label></div>
         </div>
@@ -190,6 +193,19 @@
         <p>已生成图形化藏汉双语标签。使用 33.6 × 19.8mm A4 不干胶纸，按 100% 比例打印；不要选择“适合页面”。</p>
       </section>
       <div class="dialog-actions"><span></span><button value="cancel" formnovalidate class="btn btn-ghost">关闭</button><button id="printLabel" type="button" class="btn btn-secondary hidden" data-icon="print">下载双语标签 PDF（90枚/页）</button><button id="createTask" type="button" class="btn btn-primary" data-icon="qr_code_2">生成任务和二维码</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="assignmentDialog">
+    <form method="dialog">
+      <div class="dialog-head"><div><small>双人协作</small><h3 id="assignmentDialogTitle">修改任务采样人</h3></div><button value="cancel" formnovalidate aria-label="关闭" data-icon="close"></button></div>
+      <div class="form-grid">
+        <label class="field">主采样人<select id="assignmentPrimary" required></select></label>
+        <label class="field">备用采样人<select id="assignmentBackup"><option value="">不设置备用人员</option></select></label>
+        <label class="wide field">修改原因<input id="assignmentReason" required maxlength="120" placeholder="例如：管理员临时替班"></label>
+        <p class="wide dialog-tip">开始采样后主采样人不可更换；未激活的备用人员仍可更换。正在采样的备用人员不能被替换。</p>
+      </div>
+      <div class="dialog-actions"><span></span><button value="cancel" class="btn btn-ghost">关闭</button><button id="saveAssignment" type="button" class="btn btn-primary" data-icon="badge">保存人员</button></div>
     </form>
   </dialog>
 

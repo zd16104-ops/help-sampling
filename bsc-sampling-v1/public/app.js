@@ -44,7 +44,8 @@ const SEVERE_RISKS = new Set(['distance_80_300m', 'manual_bottle_code', 'mock_lo
 const state = {
   projects: [], villagers: [], projectId: null, selectedDate: 'pending',
   tasks: [], sites: [], map: null, markers: [], siteMode: false, tableMode: false,
-  editingSiteId: null, editingProjectId: null, pickMarker: null, pickPending: false, lastCreatedTaskIds: [], trackPolylines: [], translationReview: null
+  editingSiteId: null, editingProjectId: null, editingAssignmentTaskId: null, pickMarker: null, pickPending: false, lastCreatedTaskIds: [], trackPolylines: [], translationReview: null,
+  samplingSettings: []
 };
 
 function token() { return localStorage.getItem(TOKEN_KEY); }
@@ -140,6 +141,7 @@ async function init() {
     const boot = await api('/api/v1/admin/bootstrap');
     state.projects = boot.projects;
     state.villagers = boot.villagers;
+    state.samplingSettings = boot.samplingSettings || [];
     setTypeCatalog(boot.sampleTypes);
     state.translationReview = boot.translationReview || null;
     renderProjects();
@@ -195,6 +197,7 @@ async function refreshProjects() {
   const boot = await api('/api/v1/admin/bootstrap');
   state.projects = boot.projects;
   state.villagers = boot.villagers;
+  state.samplingSettings = boot.samplingSettings || [];
   setTypeCatalog(boot.sampleTypes);
   state.translationReview = boot.translationReview || null;
   if (!state.projects.some(p => p.id === state.projectId)) state.projectId = state.projects[0]?.id || null;
@@ -321,13 +324,13 @@ function render() {
 // ---------- 表格视图（筛选 + 批量审核 + 批量天气） ----------
 function renderTable(tasks) {
   const vill = $('#tableVillager');
-  const names = [...new Set(state.tasks.map(t => t.villager_name).filter(Boolean))].sort();
+  const names = [...new Set(state.tasks.flatMap(t => [t.primary_villager_name, t.backup_villager_name]).filter(Boolean))].sort();
   vill.innerHTML = '<option value="">全部采样员</option>' + names.map(n => `<option${vill.value === n ? ' selected' : ''}>${esc(n)}</option>`).join('');
   const q = $('#tableSearch').value.trim().toLowerCase();
   const status = $('#tableStatus').value;
   const vf = vill.value;
   const rows = tasks.filter(t => {
-    if (vf && t.villager_name !== vf) return false;
+    if (vf && t.primary_villager_name !== vf && t.backup_villager_name !== vf) return false;
     if (q && !(String(t.sample_code).toLowerCase().includes(q) || String(t.site_name).toLowerCase().includes(q))) return false;
     if (status === 'pending') return !t.record_id && !t.canceled_at;
     if (status === 'review') return t.record_id && t.review_status !== 'approved' && t.review_status !== 'rejected';
@@ -339,16 +342,17 @@ function renderTable(tasks) {
   $('#taskTableBody').innerHTML = rows.map(t => {
     const reviewable = t.record_id && t.review_status !== 'approved' && t.review_status !== 'rejected';
     const cancellable = !t.record_id && !t.canceled_at;
+    const people = `<strong>${esc(t.primary_villager_name || t.villager_name || '-')}</strong>${t.backup_villager_name ? `<small>备用：${esc(t.backup_villager_name)}</small>` : '<small>未设备用</small>'}${t.active_villager_name ? `<small class="active-sampler">当前：${esc(t.active_villager_name)}</small>` : ''}`;
     return `<tr data-id="${t.id}">
-      <td>${reviewable ? `<input type="checkbox" class="row-check" data-record="${t.record_id}">` : ''}</td>
+      <td><input type="checkbox" class="row-check" data-task="${t.id}" data-record="${reviewable ? t.record_id : ''}" ${t.canceled_at ? 'disabled' : ''}></td>
       <td>${esc(t.sample_code)}</td>
       <td>${esc(t.site_name)}${t.canceled_at ? '<br><span class="cancel-note">已取消</span>' : ''}</td>
       <td>${esc(TYPE_NAMES[t.sample_type] || t.sample_type)}</td>
       <td>${esc(t.planned_date)}</td>
-      <td>${esc(t.villager_name || '')}</td>
+      <td class="assignment-cell">${people}</td>
       <td>${t.distance_m != null ? Math.round(Number(t.distance_m)) + ' 米' : '-'}</td>
-      <td>${t.record_id ? reviewName(t.review_status) : (t.canceled_at ? '已取消' : '待采样')}</td>
-      <td><button class="ghost row-open" data-icon="description">查看</button>${!t.canceled_at ? `<button class="ghost row-label" data-icon="print" data-task="${t.id}">标签PDF</button>` : ''}${cancellable ? `<button class="ghost row-cancel" data-icon="block" data-task="${t.id}">取消</button><button class="ghost-danger row-delete" data-icon="delete" data-task="${t.id}">删除</button>` : ''}</td>
+      <td>${t.record_id ? reviewName(t.review_status) : (t.canceled_at ? '已取消' : t.backup_villager_id ? '协作待采样' : '待采样')}</td>
+      <td><button class="ghost row-open" data-icon="description">查看</button>${!t.canceled_at ? `<button class="ghost row-label" data-icon="print" data-task="${t.id}">标签PDF</button>` : ''}${cancellable ? `<button class="ghost row-assignment" data-icon="badge" data-task="${t.id}">人员</button><button class="ghost row-cancel" data-icon="block" data-task="${t.id}">取消</button><button class="ghost-danger row-delete" data-icon="delete" data-task="${t.id}">删除</button>` : ''}</td>
     </tr>`;
   }).join('');
   window.decorateMaterialIcons?.($('#taskTableBody'));
@@ -358,8 +362,9 @@ function renderTable(tasks) {
   }));
   document.querySelectorAll('#taskTableBody .row-label').forEach(b => b.addEventListener('click', () => {
     const task = state.tasks.find(t => t.id === Number(b.dataset.task));
-    if (task) downloadFile(`/api/v1/admin/labels?taskIds=${task.id}`, `bsc-label-${task.base_sample_code || task.sample_code}.pdf`);
+    if (task) printTaskLabels([task.id], `bsc-label-${task.base_sample_code || task.sample_code}.pdf`);
   }));
+  document.querySelectorAll('#taskTableBody .row-assignment').forEach(b => b.addEventListener('click', () => openAssignmentDialog(Number(b.dataset.task))));
   document.querySelectorAll('#taskTableBody .row-cancel').forEach(b => b.addEventListener('click', async () => {
     const id = Number(b.dataset.task);
     const t = state.tasks.find(x => x.id === id);
@@ -541,9 +546,14 @@ $('#tableViewButton').addEventListener('click', () => { state.tableMode = !state
 $('#tableVillager').addEventListener('change', () => renderTable(currentTasks()));
 $('#tableStatus').addEventListener('change', () => renderTable(currentTasks()));
 $('#tableSearch').addEventListener('input', () => renderTable(currentTasks()));
-$('#tableCheckAll').addEventListener('change', e => document.querySelectorAll('#taskTableBody .row-check').forEach(c => { c.checked = e.target.checked; }));
+$('#tableCheckAll').addEventListener('change', e => document.querySelectorAll('#taskTableBody .row-check:not(:disabled)').forEach(c => { c.checked = e.target.checked; }));
+$('#batchPrintLabels').addEventListener('click', async () => {
+  const ids = [...document.querySelectorAll('#taskTableBody .row-check:checked')].map(c => Number(c.dataset.task)).filter(Boolean);
+  if (!ids.length) return alert('请先勾选要打印标签的任务');
+  await printTaskLabels(ids, `bsc-labels-${state.selectedDate === 'pending' ? 'pending' : state.selectedDate}.pdf`);
+});
 $('#batchApprove').addEventListener('click', async () => {
-  const ids = [...document.querySelectorAll('#taskTableBody .row-check:checked')].map(c => Number(c.dataset.record));
+  const ids = [...document.querySelectorAll('#taskTableBody .row-check:checked')].map(c => Number(c.dataset.record)).filter(Boolean);
   if (!ids.length) return alert('请先勾选要审核的记录');
   if (!confirm(`批量审核通过 ${ids.length} 条记录？`)) return;
   let ok = 0, failed = 0;
@@ -574,33 +584,69 @@ function riskBadges(task) {
   return `<div class="risk"><div class="risk-title">${icon('warning')}需要复核的证据（自动标记，不代表结论）</div><div class="risk-list">${items}</div></div>`;
 }
 
+function collaborationPanel(task, detail) {
+  const assignment = detail?.assignment || task.assignment || {};
+  const events = (detail?.assignmentEvents || []).filter(e => e.event_type !== 'assigned').slice(-5).reverse();
+  const progress = (detail?.progressEvents || []).slice(-8).reverse();
+  const records = detail?.records || [];
+  const eventNames = { takeover: '接管采样', assignees_changed: '管理员调整人员' };
+  const progressNames = {
+    journey_started: '开始前往', arrived: '到达采样点', qr_scanned: '已扫描标签',
+    photo_captured: '已拍现场照片', record_saved_local: '已保存到手机', record_submitted: '已上传完成'
+  };
+  const scopeNames = { active: '当前阶段', pre_handover: '接管前保留', stale_after_handover: '接管后补传' };
+  return `<section class="collaboration-panel">
+    <div class="collaboration-title">${icon('badge')}<strong>双人协作</strong><span>已接管 ${Number(assignment.handoverCount || 0)} 次</span></div>
+    <div class="record-grid">
+      <div><small>主采样人</small><strong>${esc(assignment.primaryVillagerName || task.primary_villager_name || task.villager_name || '-')}</strong></div>
+      <div><small>备用采样人</small><strong>${esc(assignment.backupVillagerName || task.backup_villager_name || '未设置')}</strong></div>
+      <div><small>当前采样人</small><strong>${esc(assignment.activeVillagerName || task.active_villager_name || '-')}</strong></div>
+      <div><small>最终提交人</small><strong>${esc(assignment.finalVillagerName || task.final_villager_name || '尚未提交')}</strong></div>
+    </div>
+    ${events.length ? `<div class="collaboration-events">${events.map(e => `<p><b>${esc(eventNames[e.event_type] || e.event_type)}</b><span>${esc(e.from_name || '-')} → ${esc(e.to_name || '-')} · ${formatTime(e.created_at)}</span>${e.reason_text ? `<small>${esc(e.reason_text)}</small>` : ''}</p>`).join('')}</div>` : '<p class="dialog-tip">暂无接管记录。</p>'}
+    ${progress.length ? `<h4 class="collaboration-subtitle">合并操作进度</h4><div class="collaboration-events">${progress.map(e => `<p><b>${esc(progressNames[e.event_type] || e.event_type)}</b><span>${esc(e.villager_name || '-')} · ${formatTime(e.occurred_at)}</span><small>${esc(scopeNames[e.evidence_scope] || e.evidence_scope || '')}</small></p>`).join('')}</div>` : ''}
+    ${records.length ? `<h4 class="collaboration-subtitle">合并采样证据（${records.length} 份）</h4><div class="collaboration-evidence">${records.map(r => `<a href="${esc(r.photo_path || '#')}" ${r.photo_path ? 'target="_blank"' : ''}><span>${r.photo_path ? `<img src="${esc(r.photo_path)}" alt="${esc(r.villager_name || '采样人')}的采样证据">` : icon('image_not_supported')}</span><b>${esc(r.villager_name || '-')}</b><small>${r.is_primary ? '最终记录' : esc(scopeNames[r.evidence_scope] || '保留证据')} · ${formatTime(r.captured_at)}</small></a>`).join('')}</div>` : ''}
+  </section>`;
+}
+
 async function showDetail(task) {
   $('#detail').classList.remove('hidden');
   $('#detailCode').textContent = task.sample_code;
   $('#detailTitle').textContent = task.site_name;
   state.trackPolylines.forEach(p => p.remove());
   state.trackPolylines = [];
+  let collaborationDetail = null;
+  try { collaborationDetail = await api(`/api/v1/admin/tasks/${task.id}/collaboration`); } catch {}
+  const collaborationHtml = collaborationPanel(task, collaborationDetail);
+  const journeyIds = [...new Set((collaborationDetail?.journeys || []).map(j => Number(j.id)).filter(Boolean))];
+  if (!journeyIds.length && task.journey_id) journeyIds.push(Number(task.journey_id));
+  const hasJourneys = journeyIds.length > 0;
   let trackInfo = '<div class="empty-detail"><strong>暂无轨迹</strong><p>该任务没有关联轨迹点。</p></div>';
-  if (task.journey_id) {
+  if (hasJourneys) {
     try {
-      const track = await api(`/api/v1/admin/journeys/${task.journey_id}/track`);
-      if (track.points && track.points.length) {
-        // 优先画平滑分段（漂移点已滤除、时间断点断开、滑动平均去锯齿）；原始点不变。
+      const tracks = await Promise.all(journeyIds.map(async id => ({ id, track: await api(`/api/v1/admin/journeys/${id}/track`) })));
+      const colors = ['#2E7CB8', '#D97706', '#7C3AED', '#15803D'];
+      let bounds = null, pointCount = 0, mockCount = 0, droppedCount = 0, segmentCount = 0;
+      tracks.forEach(({ track }, trackIndex) => {
+        pointCount += (track.points || []).length;
+        mockCount += (track.points || []).filter(p => p.mock_location).length;
+        droppedCount += Number(track.display?.dropped || 0);
         const segs = (track.display && Array.isArray(track.display.segments) ? track.display.segments : [])
-          .filter(s => s.length >= 2)
-          .map(s => s.map(p => [p[0], p[1]]));
-        // 老版本接口没有 display.segments 时才回退原始点；新接口即使每段只有一个点也不跨断点连线。
-        if (!segs.length && !(track.display && Array.isArray(track.display.segments))) segs.push(track.points.map(p => [p.latitude, p.longitude]));
-        let bounds = null;
-        for (const seg of segs) {
-          const line = L.polyline(seg, { color: '#2E7CB8', weight: 4, opacity: 0.8 }).addTo(state.map);
+          .filter(s => s.length >= 2).map(s => s.map(p => [p[0], p[1]]));
+        if (!segs.length && !(track.display && Array.isArray(track.display.segments)) && track.points?.length >= 2) {
+          segs.push(track.points.map(p => [p.latitude, p.longitude]));
+        }
+        segmentCount += segs.length;
+        segs.forEach(seg => {
+          const line = L.polyline(seg, { color: colors[trackIndex % colors.length], weight: 4, opacity: 0.82 }).addTo(state.map);
           state.trackPolylines.push(line);
           bounds = bounds ? bounds.extend(line.getBounds()) : line.getBounds();
-        }
-        if (bounds) state.map.fitBounds(bounds, { padding: [70, 70], maxZoom: 16, animate: false });
-        const dropped = (track.display && track.display.dropped) || 0;
-        const segNote = segs.length > 1 ? `，${segs.length} 段（暂停/信号中断处断开）` : '';
-        trackInfo = `<div class="record-grid"><div><small>轨迹点数</small><strong>${track.points.length}</strong></div><div><small>模拟位置点</small><strong>${track.points.filter(p => p.mock_location).length}</strong></div></div>${(dropped || segNote) ? `<p class="dialog-tip">轨迹已平滑显示${dropped ? `（滤除 ${dropped} 个漂移点）` : ''}${segNote}；原始数据与 GPX 导出未改动。</p>` : ''}`;
+        });
+      });
+      if (bounds) state.map.fitBounds(bounds, { padding: [70, 70], maxZoom: 16, animate: false });
+      if (pointCount) {
+        const journeyRows = (collaborationDetail?.journeys || []).map((j, index) => `<span><i style="background:${colors[index % colors.length]}"></i>${esc(j.villager_name || '-')} · 第${Number(j.assignment_version || 1)}阶段 · ${Number(j.track_point_count || 0)}点${j.interrupted ? ' · 已接管中断' : ''}</span>`).join('');
+        trackInfo = `<div class="record-grid"><div><small>合并轨迹</small><strong>${journeyIds.length} 段 / ${pointCount} 点</strong></div><div><small>模拟位置点</small><strong>${mockCount}</strong></div></div>${journeyRows ? `<div class="track-legend">${journeyRows}</div>` : ''}${(droppedCount || segmentCount > journeyIds.length) ? `<p class="dialog-tip">轨迹按采样人分色并合并显示${droppedCount ? `，滤除 ${droppedCount} 个显示漂移点` : ''}；接管或信号中断处不跨段连线，原始数据未改动。</p>` : ''}`;
       }
     } catch { trackInfo = '<div class="empty-detail">轨迹读取失败。</div>'; }
   }
@@ -614,18 +660,20 @@ async function showDetail(task) {
     body.innerHTML = `
       ${task.reference_image ? `<img class="record-photo" src="${esc(task.reference_image)}" alt="现场参考图">` : ''}
       ${statusLine}
+      ${collaborationHtml}
       <div class="empty-detail"><strong>等待村民采样</strong>
       <p>计划日期 ${esc(task.planned_date)}${task.planned_time ? ` ${esc(task.planned_time)}` : ''} · ${esc(TYPE_NAMES[task.sample_type] || task.sample_type)} · ${esc(task.villager_name || '')}</p>
       <p>${esc(task.instructions || '暂无采样说明')}</p>
       <p>正常范围 ${task.normal_radius_m || 30}m · 异常上限 ${task.exception_radius_m || 80}m · 硬上限 300m</p>
       ${task.canceled_at ? `<p class="cancel-note">取消原因：${esc(task.canceled_reason || '未填写')}（记录保留，供审计）</p>` : ''}</div>
       ${task.locked_device_id ? `<p class="dialog-tip">最近使用设备开始于 ${formatTime(task.locked_at)}</p><button class="ghost-danger" id="unlockTask" data-icon="block">清除进行中状态</button>` : ''}
-      ${!task.canceled_at ? `<div class="detail-actions"><button class="secondary" id="downloadTaskLabel" data-icon="print">下载标签 PDF</button><button class="ghost-danger" id="cancelTask" data-icon="block">取消此任务</button>${!task.record_id ? `<button class="ghost-danger" id="deleteTask" data-icon="delete">删除此任务</button>` : ''}<button class="secondary" id="rescheduleTask" data-icon="restart_alt">改期（重新编号）</button></div>` : ''}
-      ${task.journey_id ? `<a class="secondary gpx-link" href="#" id="exportGpx">导出本任务轨迹 GPX</a>` : ''}
-      ${task.journey_id ? trackInfo : ''}`;
+      ${!task.canceled_at ? `<div class="detail-actions"><button class="secondary" id="editTaskAssignment" data-icon="badge">修改采样人</button><button class="secondary" id="downloadTaskLabel" data-icon="print">下载标签 PDF</button><button class="ghost-danger" id="cancelTask" data-icon="block">取消此任务</button>${!task.record_id ? `<button class="ghost-danger" id="deleteTask" data-icon="delete">删除此任务</button>` : ''}<button class="secondary" id="rescheduleTask" data-icon="restart_alt">改期（重新编号）</button></div>` : ''}
+      ${task.journey_id ? `<a class="secondary gpx-link" href="#" id="exportGpx">导出当前采样阶段 GPX</a>` : ''}
+      ${hasJourneys ? trackInfo : ''}`;
     window.decorateMaterialIcons?.(body);
     if (task.journey_id && $('#exportGpx')) $('#exportGpx').addEventListener('click', e => { e.preventDefault(); downloadFile(`/api/v1/admin/exports/gpx?journeyId=${task.journey_id}`, `journey-${task.journey_id}.gpx`); });
-    if ($('#downloadTaskLabel')) $('#downloadTaskLabel').addEventListener('click', () => downloadFile(`/api/v1/admin/labels?taskIds=${task.id}`, `bsc-label-${task.base_sample_code || task.sample_code}.pdf`));
+    if ($('#editTaskAssignment')) $('#editTaskAssignment').addEventListener('click', () => openAssignmentDialog(task.id));
+    if ($('#downloadTaskLabel')) $('#downloadTaskLabel').addEventListener('click', () => printTaskLabels([task.id], `bsc-label-${task.base_sample_code || task.sample_code}.pdf`));
     if ($('#cancelTask')) $('#cancelTask').addEventListener('click', async () => {
       const reason = prompt('请输入取消原因（会保留记录，供审计）：', '管理员取消');
       if (reason === null) return;
@@ -663,6 +711,7 @@ async function showDetail(task) {
   body.innerHTML = `
     ${task.reference_image ? `<div class="compare-grid"><figure><img src="${esc(task.photo_path)}" alt="现场采样照片"><figcaption>现场照片</figcaption></figure><figure><img src="${esc(task.reference_image)}" alt="管理员参考图"><figcaption>管理员参考图</figcaption></figure></div>` : `<img class="record-photo" src="${esc(task.photo_path)}" alt="现场采样照片">`}
     ${riskBadges(task)}
+    ${collaborationHtml}
     <div class="record-grid">
       <div><small>历史序号</small><strong>${esc(task.site_code)}</strong></div>
       <div><small>样品类型</small><strong>${esc(TYPE_NAMES[task.sample_type] || task.sample_type)}</strong></div>
@@ -679,7 +728,7 @@ async function showDetail(task) {
       <div><small>异常说明</small><strong>${esc(task.exception_detail || '-')}</strong></div>
       <div><small>审核状态</small><strong>${reviewName(task.review_status)}</strong></div>
     </div>
-    ${task.journey_id ? trackInfo : ''}
+    ${hasJourneys ? trackInfo : ''}
     ${journeyMeta}
     ${task.reference_image ? `<div class="reference"><strong>管理员参考照片</strong><small>${esc(task.instructions || '对照现场地形和水体位置。')}</small></div>` : ''}
     ${task.printed_count ? `<p class="dialog-tip">标签已打印 ${task.printed_count} 次${task.printed_last ? `（最近 ${formatTime(task.printed_last)}）` : ''}；改期后旧标签作废，需重新打印。</p>` : ''}
@@ -690,7 +739,7 @@ async function showDetail(task) {
     <div class="detail-actions">
       <button id="downloadTaskLabel" class="secondary" data-icon="print">下载标签 PDF</button>
       ${task.server_weather_status !== 'complete' ? `<button id="backfillWeather" class="secondary" data-icon="refresh">补齐服务器天气</button>` : ''}
-      ${task.journey_id ? `<button id="exportGpx2" class="secondary" data-icon="download">导出轨迹 GPX</button>` : ''}
+      ${task.journey_id ? `<button id="exportGpx2" class="secondary" data-icon="download">导出当前采样阶段 GPX</button>` : ''}
       <a class="secondary" href="${esc(task.photo_path)}" target="_blank" download>下载原图</a>
     </div>`;
   window.decorateMaterialIcons?.(body);
@@ -702,7 +751,7 @@ async function showDetail(task) {
       showDetail(state.tasks.find(t => t.id === task.id));
     } catch (error) { alert(error.message); }
   }));
-  $('#downloadTaskLabel').addEventListener('click', () => downloadFile(`/api/v1/admin/labels?taskIds=${task.id}`, `bsc-label-${task.base_sample_code || task.sample_code}.pdf`));
+  $('#downloadTaskLabel').addEventListener('click', () => printTaskLabels([task.id], `bsc-label-${task.base_sample_code || task.sample_code}.pdf`));
   if ($('#backfillWeather')) $('#backfillWeather').addEventListener('click', async () => {
     try { await post(`/api/v1/admin/records/${task.record_id}/backfill-weather`, {}); await loadAll(); render(); showDetail(state.tasks.find(t => t.id === task.id)); }
     catch (error) { alert(error.message); }
@@ -1008,6 +1057,38 @@ function deriveSampleTypes(code, remarks, explicit) {
   return result.length ? result : ['R'];
 }
 
+function villagerOptions(selectedId, includeEmpty = false) {
+  const options = state.villagers.filter(v => v.enabled).map(v => `<option value="${v.id}"${Number(selectedId) === Number(v.id) ? ' selected' : ''}>${esc(v.display_name)}（${esc(v.username)}）</option>`).join('');
+  return (includeEmpty ? '<option value="">不设置备用人员</option>' : '') + options;
+}
+
+function openAssignmentDialog(taskId) {
+  const task = state.tasks.find(t => Number(t.id) === Number(taskId));
+  if (!task) return;
+  state.editingAssignmentTaskId = task.id;
+  $('#assignmentDialogTitle').textContent = `${task.sample_code} · 修改采样人`;
+  $('#assignmentPrimary').innerHTML = villagerOptions(task.villager_id);
+  $('#assignmentBackup').innerHTML = villagerOptions(task.backup_villager_id, true);
+  $('#assignmentReason').value = '';
+  $('#assignmentDialog').showModal();
+}
+
+$('#saveAssignment').addEventListener('click', async () => {
+  const taskId = state.editingAssignmentTaskId;
+  const primaryVillagerId = Number($('#assignmentPrimary').value);
+  const backupVillagerId = $('#assignmentBackup').value ? Number($('#assignmentBackup').value) : null;
+  const reason = $('#assignmentReason').value.trim();
+  if (!primaryVillagerId) return alert('请选择主采样人');
+  if (backupVillagerId === primaryVillagerId) return alert('主采样人和备用采样人不能相同');
+  if (!reason) return alert('请填写修改原因');
+  try {
+    await api(`/api/v1/admin/tasks/${taskId}/assignees`, { method: 'PUT', body: JSON.stringify({ primaryVillagerId, backupVillagerId, reason }) });
+    $('#assignmentDialog').close();
+    await loadAll();
+    alert('采样人员已更新，双方 APP 下次同步即可看到。');
+  } catch (error) { alert(error.message); }
+});
+
 // ---------- 任务下发与标签 ----------
 $('#newTaskButton').addEventListener('click', async () => {
   $('#taskFields').classList.remove('hidden');
@@ -1016,11 +1097,15 @@ $('#newTaskButton').addEventListener('click', async () => {
   $('#printLabel').classList.add('hidden');
   $('#plannedDate').value = new Date().toISOString().slice(0, 10);
   $('#plannedTime').value = '';
-  $('#taskVillager').innerHTML = state.villagers.filter(v => v.enabled).map(v => `<option value="${v.id}">${esc(v.display_name)}（${esc(v.username)}）</option>`).join('');
+  $('#taskVillager').innerHTML = villagerOptions();
+  const setting = state.samplingSettings.find(s => Number(s.project_id) === Number(state.projectId));
+  $('#taskBackupVillager').innerHTML = villagerOptions(setting?.default_backup_villager_id, true);
+  $('#saveDefaultBackup').checked = false;
   const enabled = state.sites.filter(s => s.enabled).sort(compareSiteCode);
+  const overridePeople = state.villagers.filter(v => v.enabled).map(v => `<option value="${v.id}">${esc(v.display_name)}</option>`).join('');
   $('#taskSiteList').innerHTML = `<label class="site-pick select-all"><input type="checkbox" id="taskSiteAll"> <strong>全选 / 全不选</strong></label>` +
     (enabled.length
-      ? enabled.map(s => `<label class="site-pick" data-site-code="${esc(s.code)}"><input type="checkbox" value="${s.id}">${(s.sample_types || []).map(t => icon(sampleType(t).icon)).join('')}<span class="site-pick-copy"><strong lang="bo">${esc(s.name_bo || '藏文名称待补充')}</strong><small>${esc(s.code)} · ${esc(s.name)}（${(s.sample_types || []).map(t => TYPE_NAMES[t] || t).join('/')}）</small></span></label>`).join('')
+      ? enabled.map(s => `<div class="site-pick" data-site-code="${esc(s.code)}"><input class="site-task-check" type="checkbox" value="${s.id}">${(s.sample_types || []).map(t => icon(sampleType(t).icon)).join('')}<span class="site-pick-copy"><strong lang="bo">${esc(s.name_bo || '藏文名称待补充')}</strong><small>${esc(s.code)} · ${esc(s.name)}（${(s.sample_types || []).map(t => TYPE_NAMES[t] || t).join('/')}）</small></span><span class="site-override"><select class="site-primary" aria-label="${esc(s.name)}主采样人"><option value="__inherit__">主：使用批量设置</option>${overridePeople}</select><select class="site-backup" aria-label="${esc(s.name)}备用采样人"><option value="__inherit__">备：使用批量设置</option><option value="">备：不设置</option>${overridePeople}</select></span></div>`).join('')
       : '<p class="dialog-tip">没有启用的点位，请先设置采样点。</p>');
   const all = $('#taskSiteAll');
   if (all) all.addEventListener('change', () => {
@@ -1034,15 +1119,29 @@ $('#createTask').addEventListener('click', async () => {
     .filter(input => input.id !== 'taskSiteAll')
     .map(input => Number(input.value));
   if (!siteIds.length) return alert('请选择至少一个采样点');
-  if (!$('#taskVillager').value) return alert('请选择采样人员');
+  if (!$('#taskVillager').value) return alert('请选择主采样人');
+  const primaryVillagerId = Number($('#taskVillager').value);
+  const backupVillagerId = $('#taskBackupVillager').value ? Number($('#taskBackupVillager').value) : null;
+  if (backupVillagerId === primaryVillagerId) return alert('主采样人和备用采样人不能相同');
   const villager = state.villagers.find(v => v.id === Number($('#taskVillager').value));
   const villagerLabel = villager ? `${villager.display_name}（${villager.username}）` : '所选采样员';
   try {
+    if ($('#saveDefaultBackup').checked) {
+      const saved = await api('/api/v1/admin/settings/sampling', { method: 'PUT', body: JSON.stringify({ projectId: state.projectId, defaultBackupVillagerId: backupVillagerId }) });
+      state.samplingSettings = state.samplingSettings.filter(s => Number(s.project_id) !== Number(state.projectId));
+      state.samplingSettings.push({ project_id: state.projectId, default_backup_villager_id: saved.defaultBackupVillagerId });
+    }
     const created = [];
     const createdItems = [];
     for (const siteId of siteIds) {
+      const row = [...$('#taskSiteList').querySelectorAll('.site-task-check')].find(input => Number(input.value) === siteId)?.closest('.site-pick');
+      const sitePrimaryValue = row?.querySelector('.site-primary')?.value || '__inherit__';
+      const siteBackupValue = row?.querySelector('.site-backup')?.value ?? '__inherit__';
+      const sitePrimaryId = sitePrimaryValue === '__inherit__' ? primaryVillagerId : Number(sitePrimaryValue);
+      const siteBackupId = siteBackupValue === '__inherit__' ? backupVillagerId : (siteBackupValue ? Number(siteBackupValue) : null);
+      if (sitePrimaryId === siteBackupId) throw new Error(`点位 ${row?.dataset.siteCode || siteId} 的主采样人和备用采样人不能相同`);
       const res = await post('/api/v1/admin/tasks', {
-        siteId, villagerId: Number($('#taskVillager').value),
+        siteId, primaryVillagerId: sitePrimaryId, backupVillagerId: siteBackupId,
         plannedDate: $('#plannedDate').value,
         plannedTime: $('#plannedTime').value
       });
@@ -1054,7 +1153,8 @@ $('#createTask').addEventListener('click', async () => {
     const after = await api(`/api/v1/admin/tasks?projectId=${state.projectId}`);
     state.tasks = after.tasks;
     state.lastCreatedTaskIds = after.tasks.filter(t => created.includes(t.sample_code)).map(t => t.id);
-    $('#labelCodes').innerHTML = createdItems.map(x => `<div class="label-code-item">${esc(x.name)} · ${esc(x.code)}</div>`).join('') + `<p class="dialog-tip">已为 ${esc(villagerLabel)} 生成 ${created.length} 个任务</p>`;
+    const backup = state.villagers.find(v => v.id === backupVillagerId);
+    $('#labelCodes').innerHTML = createdItems.map(x => `<div class="label-code-item">${esc(x.name)} · ${esc(x.code)}</div>`).join('') + `<p class="dialog-tip">已为主采样人 ${esc(villagerLabel)} 生成 ${created.length} 个任务${backup ? `；备用采样人：${esc(backup.display_name)}` : ''}</p>`;
     const previewTask = after.tasks.find(t => created.includes(t.sample_code));
     if (previewTask) {
       const type = sampleType(previewTask.sample_type);
@@ -1073,7 +1173,7 @@ $('#createTask').addEventListener('click', async () => {
 
 $('#printLabel').addEventListener('click', async () => {
   if (!state.lastCreatedTaskIds.length) return alert('没有可打印的任务');
-  await downloadFile(`/api/v1/admin/labels?taskIds=${state.lastCreatedTaskIds.join(',')}`, `bsc-labels-${$('#plannedDate').value}.pdf`);
+  await printTaskLabels(state.lastCreatedTaskIds, `bsc-labels-${$('#plannedDate').value}.pdf`);
 });
 
 // ---------- 设备激活与采样员管理 ----------
@@ -1247,9 +1347,9 @@ async function checkHealth() {
 }
 
 // ---------- 导出 ----------
-async function downloadFile(url, name) {
+async function downloadFile(url, name, options = {}) {
   try {
-    const res = await fetch(url, { headers: { Authorization: `Bearer ${token()}` } });
+    const res = await fetch(url, { ...options, headers: { ...(options.headers || {}), Authorization: `Bearer ${token()}` } });
     if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.message || `导出失败：${res.status}`); }
     const blob = await res.blob();
     const a = document.createElement('a');
@@ -1260,6 +1360,18 @@ async function downloadFile(url, name) {
     a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   } catch (error) { alert(error.message); }
+}
+async function printTaskLabels(taskIds, name) {
+  const ids = [...new Set(taskIds.map(Number).filter(Boolean))];
+  if (!ids.length) return alert('没有可打印的任务');
+  if (ids.length > 500) return alert('一次最多打印 500 个任务标签');
+  const selected = ids.map(id => state.tasks.find(t => Number(t.id) === id)).filter(Boolean);
+  const repeated = selected.filter(t => Number(t.printed_count || 0) > 0);
+  if (repeated.length && !confirm(`所选任务中有 ${repeated.length} 个标签已经打印过。\n继续将记录为重复打印，是否继续？`)) return;
+  await downloadFile('/api/v1/admin/labels/pdf', name, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ taskIds: ids })
+  });
+  await loadAll();
 }
 $('#exportCsv').addEventListener('click', () => downloadFile(`/api/v1/admin/exports/csv?projectId=${state.projectId}`, 'bsc-records.csv'));
 $('#exportGeo').addEventListener('click', () => downloadFile(`/api/v1/admin/exports/geojson?projectId=${state.projectId}`, 'bsc-records.geojson'));

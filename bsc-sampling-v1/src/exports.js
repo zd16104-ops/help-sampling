@@ -34,11 +34,12 @@ function toCsv(headers, rows) {
 
 // Records as flattened CSV rows (BOM-prefixed so Excel opens UTF-8 correctly).
 function recordsCsv(records) {
-  const headers = ['样品编号', '历史序号', '点位名称', '样品类型', '项目', '采样员', '计划日期', '拍摄时间', '接收时间',
+  const headers = ['样品编号', '历史序号', '点位名称', '样品类型', '项目', '本条证据采样员', '主采样人', '备用采样人', '最终提交人', '接管次数', '证据归属', '是否最终记录', '计划日期', '拍摄时间', '接收时间',
     '纬度(WGS84)', '经度(WGS84)', '距目标米', '精度米', '天气(手机)', '天气(服务器)', '瓶号输入', '无水', '异常类别', '异常说明',
     '模拟位置', '审核状态', '审核意见', '风险标志代码', '风险标志中文', '照片SHA-256', '照片路径'];
   const rows = records.map(r => [
-    r.sample_code, r.site_code, r.site_name, r.sample_type, r.project_name, r.villager_name, r.planned_date,
+    r.sample_code, r.site_code, r.site_name, r.sample_type, r.project_name, r.villager_name, r.primary_villager_name,
+    r.backup_villager_name, r.final_villager_name, r.handover_count || 0, r.evidence_scope || 'active', r.is_primary ? '是' : '否', r.planned_date,
     r.captured_at, r.received_at, r.latitude, r.longitude, Number(r.distance_m || 0).toFixed(1), r.accuracy_m,
     r.weather_text, r.server_weather_text || '', r.manual_code ? '手动输入' : '二维码扫描', r.no_water ? '是' : '否',
     r.exception_category, r.exception_detail, r.mock_location ? '是' : '否', r.review_status, r.review_note,
@@ -67,7 +68,10 @@ function recordsGeoJson(records) {
       properties: {
         sample_code: r.sample_code, site_code: r.site_code, site_name: r.site_name,
         captured_at: r.captured_at, distance_m: r.distance_m, accuracy_m: r.accuracy_m,
-        review_status: r.review_status, risk_flags: r.risk_flags, photo_sha256: r.photo_sha256
+        review_status: r.review_status, risk_flags: r.risk_flags, photo_sha256: r.photo_sha256,
+        evidence_collector: r.villager_name, primary_collector: r.primary_villager_name,
+        backup_collector: r.backup_villager_name, final_collector: r.final_villager_name,
+        handover_count: r.handover_count || 0, evidence_scope: r.evidence_scope, is_primary: Boolean(r.is_primary)
       }
     }))
   }, null, 2);

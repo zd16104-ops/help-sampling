@@ -181,18 +181,16 @@ test('task code generation sequential and concurrent uniqueness', async () => {
   for (const c of concurrentCodes) assert.match(c, new RegExp(`^${base.replace('.', '\\.')}\\d{2}$`));
 });
 
-test('planned time and device name are synced and reschedulable from mobile', async () => {
+test('planned time is synced read-only and mobile edits are rejected', async () => {
   const taskId = await adminCreateTask({ plannedTime: '09:30' });
   const created = await syncTask(mobileA, taskId);
   assert.equal(created.planned_time, '09:30');
   assert.equal(created.device_name, 'Test A');
   assert.ok(created.device_id);
   const updated = await call('POST', `/api/v1/mobile/tasks/${taskId}/schedule`, { plannedTime: '14:05' }, mobileA);
-  assert.equal(updated.status, 200, JSON.stringify(updated.json));
-  assert.equal(updated.json.plannedTime, '14:05');
-  assert.equal((await syncTask(mobileA, taskId)).planned_time, '14:05');
-  const invalid = await call('POST', `/api/v1/mobile/tasks/${taskId}/schedule`, { plannedTime: '25:61' }, mobileA);
-  assert.equal(invalid.status, 422);
+  assert.equal(updated.status, 410, JSON.stringify(updated.json));
+  assert.equal(updated.json.code, 'MOBILE_SCHEDULE_REMOVED');
+  assert.equal((await syncTask(mobileA, taskId)).planned_time, '09:30');
 });
 
 test('single active device rejects second activation and supports atomic replacement', async () => {
@@ -214,6 +212,75 @@ test('single active device rejects second activation and supports atomic replace
   assert.equal(oldSync.status, 403);
   const newSync = await call('GET', '/api/v1/mobile/sync', null, second.json.token);
   assert.equal(newSync.status, 200);
+});
+
+test('two-person task supports viewer progress, password takeover, merged stale evidence and final ownership', async () => {
+  const created = await call('POST', '/api/v1/admin/villagers', { username: `backup${Date.now()}`, displayName: '备用管理员' }, adminToken);
+  assert.equal(created.status, 201);
+  const backupId = created.json.id;
+  const activation = await call('POST', `/api/v1/admin/villagers/${backupId}/activation`, {}, adminToken);
+  const [, , backupUser, backupKey] = activation.json.value.split('|');
+  const activated = await call('POST', '/api/v1/mobile/activate', { username: backupUser, activationToken: backupKey, deviceUuid: `backup-device-${Date.now()}`, deviceName: '管理员采样手机' });
+  assert.equal(activated.status, 200);
+  const backupToken = activated.json.token;
+
+  const setting = await call('PUT', '/api/v1/admin/settings/sampling', { projectId: 1, defaultBackupVillagerId: backupId }, adminToken);
+  assert.equal(setting.status, 200);
+  assert.equal(setting.json.defaultBackupVillagerId, backupId);
+  const taskId = await adminCreateTask({ primaryVillagerId: villagerId, backupVillagerId: backupId });
+  const primaryTask = await syncTask(mobileA, taskId);
+  const backupTask = await syncTask(backupToken, taskId);
+  assert.equal(primaryTask.viewerRole, 'primary');
+  assert.equal(primaryTask.canSample, true);
+  assert.equal(backupTask.viewerRole, 'backup');
+  assert.equal(backupTask.canSample, false);
+  assert.equal(backupTask.canTakeover, true);
+
+  const primaryStart = await call('POST', `/api/v1/mobile/tasks/${taskId}/start`, { latitude: primaryTask.target_latitude, longitude: primaryTask.target_longitude, accuracyM: 4 }, mobileA);
+  assert.equal(primaryStart.status, 200);
+  const primaryJourneyId = primaryStart.json.journey.id;
+  const primaryTrack = await call('POST', `/api/v1/mobile/journeys/${primaryJourneyId}/track`, { points: [
+    { sequence: 1, recordedAt: new Date().toISOString(), latitude: primaryTask.target_latitude, longitude: primaryTask.target_longitude, accuracyM: 4 },
+    { sequence: 2, recordedAt: new Date().toISOString(), latitude: primaryTask.target_latitude + 0.00001, longitude: primaryTask.target_longitude, accuracyM: 4 }
+  ] }, mobileA);
+  assert.equal(primaryTrack.status, 200);
+  const blockedStart = await call('POST', `/api/v1/mobile/tasks/${taskId}/start`, { latitude: backupTask.target_latitude, longitude: backupTask.target_longitude, accuracyM: 4 }, backupToken);
+  assert.equal(blockedStart.status, 403);
+  assert.equal(blockedStart.json.code, 'NOT_ACTIVE_COLLECTOR');
+  const wrongCode = await call('POST', `/api/v1/mobile/tasks/${taskId}/takeover`, { confirmationCode: '0000', reasonCode: 'ADMIN_ON_SITE_REPLACEMENT', expectedAssignmentVersion: 1, clientRequestId: `wrong-${Date.now()}` }, backupToken);
+  assert.equal(wrongCode.status, 403);
+  const requestId = `takeover-${Date.now()}`;
+  const takeover = await call('POST', `/api/v1/mobile/tasks/${taskId}/takeover`, { confirmationCode: '1234', reasonCode: 'ADMIN_ON_SITE_REPLACEMENT', reasonText: '管理员到场采样', expectedAssignmentVersion: 1, clientRequestId: requestId }, backupToken);
+  assert.equal(takeover.status, 200, JSON.stringify(takeover.json));
+  assert.equal(takeover.json.assignment.activeVillagerId, backupId);
+  assert.equal(takeover.json.assignment.assignmentVersion, 2);
+  const repeat = await call('POST', `/api/v1/mobile/tasks/${taskId}/takeover`, { confirmationCode: '1234', reasonCode: 'ADMIN_ON_SITE_REPLACEMENT', expectedAssignmentVersion: 1, clientRequestId: requestId }, backupToken);
+  assert.equal(repeat.status, 200);
+  assert.equal(repeat.json.idempotent, true);
+
+  const progress = await call('POST', `/api/v1/mobile/tasks/${taskId}/progress`, { events: [{ clientEventId: `photo-${Date.now()}`, eventType: 'photo_captured', assignmentVersion: 2, occurredAt: new Date().toISOString(), metadata: {} }] }, backupToken);
+  assert.equal(progress.status, 200);
+  const watched = await call('GET', `/api/v1/mobile/tasks/${taskId}/progress`, null, mobileA);
+  assert.equal(watched.status, 200);
+  assert.ok(watched.json.progressEvents.some(event => event.event_type === 'photo_captured'));
+
+  const photo = await jpegDataUrl(240);
+  const baseRecord = { capturedAt: new Date().toISOString(), latitude: primaryTask.target_latitude, longitude: primaryTask.target_longitude, accuracyM: 4, weatherText: '晴', noWater: false, manualCode: false, qrToken: primaryTask.qr_token, journeyId: 0, photoDataUrl: photo };
+  const stale = await call('POST', `/api/v1/mobile/tasks/${taskId}/record`, { ...baseRecord, clientRecordId: `stale-${Date.now()}`, assignmentVersion: 1 }, mobileA);
+  assert.equal(stale.status, 409);
+  assert.equal(stale.json.code, 'STALE_ASSIGNMENT');
+  assert.equal(stale.json.evidenceScope, 'pre_handover');
+  const final = await call('POST', `/api/v1/mobile/tasks/${taskId}/record`, { ...baseRecord, clientRecordId: `final-${Date.now()}`, assignmentVersion: 2 }, backupToken);
+  assert.equal(final.status, 201, JSON.stringify(final.json));
+  assert.equal(final.json.primary, true);
+  const detail = await call('GET', `/api/v1/admin/tasks/${taskId}/collaboration`, null, adminToken);
+  assert.equal(detail.status, 200);
+  assert.equal(detail.json.records.length, 2);
+  assert.equal(detail.json.records.filter(record => record.is_primary).length, 1);
+  assert.equal(detail.json.journeys.length, 1);
+  assert.equal(detail.json.journeys[0].track_point_count, 2);
+  assert.equal(detail.json.journeys[0].interrupted, 1);
+  assert.equal(detail.json.assignment.finalVillagerId, backupId);
 });
 
 test('track upload with sequence dedup', async () => {
@@ -455,6 +522,21 @@ test('labels endpoint downloads a PDF file', async () => {
   assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
 });
 
+test('already-issued tasks support batch label reprints and canceled tasks are rejected', async () => {
+  const ids = await Promise.all([adminCreateTask(), adminCreateTask()]);
+  const first = await call('POST', '/api/v1/admin/labels/pdf', { taskIds: ids }, adminToken);
+  assert.equal(first.status, 200);
+  assert.match(first.raw.headers.get('content-type') || '', /^application\/pdf/);
+  const second = await call('POST', '/api/v1/admin/labels/pdf', { taskIds: ids }, adminToken);
+  assert.equal(second.status, 200, 'repeat printing remains allowed and is recorded');
+  const listed = await call('GET', '/api/v1/admin/tasks?projectId=1', null, adminToken);
+  for (const id of ids) assert.ok(listed.json.tasks.find(task => task.id === id).printed_count >= 2);
+  await call('POST', `/api/v1/admin/tasks/${ids[0]}/cancel`, { reason: '测试取消' }, adminToken);
+  const invalid = await call('POST', '/api/v1/admin/labels/pdf', { taskIds: ids }, adminToken);
+  assert.equal(invalid.status, 422);
+  assert.equal(invalid.json.code, 'LABEL_TASK_INVALID');
+});
+
 test('villager management (create/duplicate/activate-no-pin/disable)', async () => {
   const created = await call('POST', '/api/v1/admin/villagers', { username: 'E2EV', displayName: '测试村民' }, adminToken);
   assert.equal(created.status, 201);
@@ -688,8 +770,8 @@ test('app-version endpoint returns latest version', async () => {
   const res = await call('GET', '/api/v1/mobile/app-version', null, null);
   assert.equal(res.status, 200);
   assert.ok(res.json.versionCode >= 113, `versionCode=${res.json.versionCode}`);
-  assert.equal(res.json.versionName, '1.5.0');
-  assert.equal(res.json.mandatory, 0, 'mandatory 字段应下发（默认0）');
+  assert.equal(res.json.versionName, '1.6.0');
+  assert.equal(res.json.mandatory, 1, '协作采样协议升级必须强制更新');
 });
 
 test('captured time in the future adds risk flag', async () => {

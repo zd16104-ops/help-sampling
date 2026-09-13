@@ -25,6 +25,7 @@
     <string name="action_no_water">ཆུ་མེད་པའམ་ཉེ་སར་འགྲོ་མི་ཐུབ།\n现场无水 / 无法靠近</string>
     <string name="action_take_photo">3　ཤེལ་དམ་དང་ས་གནས་པར་རྒྱོབ།\n拍摄瓶子与现场环境</string>
     <string name="action_save">4　ཉར་ཚགས་བྱེད།\n完成并保存，等待上传</string>
+    <string name="action_takeover">དཔེ་ཚད་ལེན་དབང་ལེན་པ།\n接管采样（确认码 1234）</string>
     <string name="scan_step">2 / 4　ཨང་རྟགས་བཤེར།\n第2步 / 共4步　扫描二维码</string>
     <string name="scan_hint">ཤེལ་དམ་གྱི་རྩ་གཉིས་ཨང་རྟགས་སྒྲོམ་ནང་འཇོག\n把瓶子二维码放入方框</string>
     <string name="scan_working">ངོས་འཛིན་བྱེད་བཞིན་པ། / 识别中…</string>

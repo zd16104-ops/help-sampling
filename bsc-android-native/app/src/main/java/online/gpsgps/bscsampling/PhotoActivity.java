@@ -51,6 +51,10 @@ public final class PhotoActivity extends AppCompatActivity {
         setContentView(R.layout.activity_photo);
         camera = findViewById(R.id.camera);
         shutter = findViewById(R.id.shutter);
+        MaterialButton back = findViewById(R.id.back);
+        back.setIcon(MaterialSymbols.drawable("arrow_back", 0xffffffff));
+        back.setIconTint(null);
+        back.setOnClickListener(v -> finish());
         shutter.setIcon(MaterialSymbols.drawable("photo_camera", 0xffffffff));
         shutter.setIconTint(null);
         shutter.setOnClickListener(v -> shoot());

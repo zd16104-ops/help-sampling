@@ -81,11 +81,18 @@ function initialize(db) {
     created_by TEXT NOT NULL DEFAULT 'admin',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+  CREATE TABLE IF NOT EXISTS sampling_settings (
+    project_id INTEGER PRIMARY KEY REFERENCES projects(id),
+    default_backup_villager_id INTEGER REFERENCES villagers(id),
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
   CREATE TABLE IF NOT EXISTS journeys (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     villager_id INTEGER NOT NULL REFERENCES villagers(id),
     device_id INTEGER NOT NULL REFERENCES devices(id),
     site_id INTEGER NOT NULL REFERENCES sites(id),
+    task_id INTEGER REFERENCES tasks(id),
+    assignment_version INTEGER NOT NULL DEFAULT 1,
     status TEXT NOT NULL DEFAULT 'active',
     started_at TEXT NOT NULL,
     ended_at TEXT,
@@ -102,6 +109,12 @@ function initialize(db) {
     project_id INTEGER NOT NULL REFERENCES projects(id),
     site_id INTEGER NOT NULL REFERENCES sites(id),
     villager_id INTEGER NOT NULL REFERENCES villagers(id),
+    backup_villager_id INTEGER REFERENCES villagers(id),
+    active_villager_id INTEGER REFERENCES villagers(id),
+    final_villager_id INTEGER REFERENCES villagers(id),
+    assignment_version INTEGER NOT NULL DEFAULT 1,
+    handover_count INTEGER NOT NULL DEFAULT 0,
+    last_handover_at TEXT,
     planned_date TEXT NOT NULL,
     planned_time TEXT NOT NULL DEFAULT '',
     base_sample_code TEXT NOT NULL,
@@ -146,6 +159,8 @@ function initialize(db) {
     task_id INTEGER NOT NULL REFERENCES tasks(id),
     device_id INTEGER NOT NULL REFERENCES devices(id),
     journey_id INTEGER REFERENCES journeys(id),
+    assignment_version INTEGER NOT NULL DEFAULT 1,
+    evidence_scope TEXT NOT NULL DEFAULT 'active',
     is_primary INTEGER NOT NULL DEFAULT 0,
     conflict_status TEXT NOT NULL DEFAULT 'none',
     no_water INTEGER NOT NULL DEFAULT 0,
@@ -170,6 +185,51 @@ function initialize(db) {
     invalidated_reason TEXT
   );
   CREATE UNIQUE INDEX IF NOT EXISTS one_primary_record_per_task ON records(task_id) WHERE is_primary=1;
+  CREATE TABLE IF NOT EXISTS task_assignment_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id INTEGER NOT NULL REFERENCES tasks(id),
+    event_type TEXT NOT NULL,
+    from_villager_id INTEGER REFERENCES villagers(id),
+    to_villager_id INTEGER REFERENCES villagers(id),
+    actor_role TEXT NOT NULL,
+    actor_id TEXT NOT NULL,
+    client_request_id TEXT UNIQUE,
+    reason_code TEXT NOT NULL DEFAULT '',
+    reason_text TEXT NOT NULL DEFAULT '',
+    assignment_version INTEGER NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS task_progress_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_event_id TEXT NOT NULL UNIQUE,
+    task_id INTEGER NOT NULL REFERENCES tasks(id),
+    event_type TEXT NOT NULL,
+    villager_id INTEGER NOT NULL REFERENCES villagers(id),
+    device_id INTEGER NOT NULL REFERENCES devices(id),
+    journey_id INTEGER REFERENCES journeys(id),
+    assignment_version INTEGER NOT NULL,
+    occurred_at TEXT NOT NULL,
+    received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    evidence_scope TEXT NOT NULL DEFAULT 'active',
+    metadata TEXT NOT NULL DEFAULT '{}'
+  );
+  CREATE TABLE IF NOT EXISTS task_evidence (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_evidence_id TEXT NOT NULL UNIQUE,
+    task_id INTEGER NOT NULL REFERENCES tasks(id),
+    event_id INTEGER REFERENCES task_progress_events(id),
+    evidence_type TEXT NOT NULL,
+    villager_id INTEGER NOT NULL REFERENCES villagers(id),
+    device_id INTEGER NOT NULL REFERENCES devices(id),
+    assignment_version INTEGER NOT NULL,
+    occurred_at TEXT NOT NULL,
+    received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    qr_token_hash TEXT,
+    photo_path TEXT,
+    photo_sha256 TEXT,
+    evidence_scope TEXT NOT NULL DEFAULT 'active',
+    metadata TEXT NOT NULL DEFAULT '{}'
+  );
   CREATE TABLE IF NOT EXISTS audit_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     actor_role TEXT NOT NULL,
@@ -224,6 +284,16 @@ function migrate(db) {
   if (!taskColumns.includes('planned_time')) {
     db.exec("ALTER TABLE tasks ADD COLUMN planned_time TEXT NOT NULL DEFAULT ''");
   }
+  if (!taskColumns.includes('backup_villager_id')) db.exec('ALTER TABLE tasks ADD COLUMN backup_villager_id INTEGER REFERENCES villagers(id)');
+  if (!taskColumns.includes('active_villager_id')) db.exec('ALTER TABLE tasks ADD COLUMN active_villager_id INTEGER REFERENCES villagers(id)');
+  if (!taskColumns.includes('final_villager_id')) db.exec('ALTER TABLE tasks ADD COLUMN final_villager_id INTEGER REFERENCES villagers(id)');
+  if (!taskColumns.includes('assignment_version')) db.exec('ALTER TABLE tasks ADD COLUMN assignment_version INTEGER NOT NULL DEFAULT 1');
+  if (!taskColumns.includes('handover_count')) db.exec('ALTER TABLE tasks ADD COLUMN handover_count INTEGER NOT NULL DEFAULT 0');
+  if (!taskColumns.includes('last_handover_at')) db.exec('ALTER TABLE tasks ADD COLUMN last_handover_at TEXT');
+  db.prepare('UPDATE tasks SET active_villager_id=villager_id WHERE active_villager_id IS NULL').run();
+  const journeyColumns = db.prepare('PRAGMA table_info(journeys)').all().map(c => c.name);
+  if (!journeyColumns.includes('task_id')) db.exec('ALTER TABLE journeys ADD COLUMN task_id INTEGER REFERENCES tasks(id)');
+  if (!journeyColumns.includes('assignment_version')) db.exec('ALTER TABLE journeys ADD COLUMN assignment_version INTEGER NOT NULL DEFAULT 1');
   const recordColumns = db.prepare('PRAGMA table_info(records)').all().map(c => c.name);
   if (!recordColumns.includes('server_weather_text')) {
     db.exec("ALTER TABLE records ADD COLUMN server_weather_text TEXT NOT NULL DEFAULT ''");
@@ -231,6 +301,8 @@ function migrate(db) {
   if (!recordColumns.includes('server_weather_status')) {
     db.exec("ALTER TABLE records ADD COLUMN server_weather_status TEXT NOT NULL DEFAULT 'pending'");
   }
+  if (!recordColumns.includes('assignment_version')) db.exec('ALTER TABLE records ADD COLUMN assignment_version INTEGER NOT NULL DEFAULT 1');
+  if (!recordColumns.includes('evidence_scope')) db.exec("ALTER TABLE records ADD COLUMN evidence_scope TEXT NOT NULL DEFAULT 'active'");
   const deviceColumns = db.prepare('PRAGMA table_info(devices)').all().map(c => c.name);
   if (!deviceColumns.includes('disabled_at')) db.exec('ALTER TABLE devices ADD COLUMN disabled_at TEXT');
   if (!deviceColumns.includes('disabled_reason')) db.exec('ALTER TABLE devices ADD COLUMN disabled_reason TEXT');
@@ -254,6 +326,19 @@ function migrate(db) {
   }
   // 旧库补建标签打印记录表；并登记当前 APP 版本供手机端检查更新。
   db.exec('CREATE TABLE IF NOT EXISTS label_prints (id INTEGER PRIMARY KEY AUTOINCREMENT, task_id INTEGER NOT NULL, sample_code TEXT NOT NULL, printed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)');
+  db.exec(`CREATE TABLE IF NOT EXISTS sampling_settings (project_id INTEGER PRIMARY KEY REFERENCES projects(id),default_backup_villager_id INTEGER REFERENCES villagers(id),updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+    CREATE TABLE IF NOT EXISTS task_assignment_events (id INTEGER PRIMARY KEY AUTOINCREMENT,task_id INTEGER NOT NULL REFERENCES tasks(id),event_type TEXT NOT NULL,from_villager_id INTEGER REFERENCES villagers(id),to_villager_id INTEGER REFERENCES villagers(id),actor_role TEXT NOT NULL,actor_id TEXT NOT NULL,client_request_id TEXT UNIQUE,reason_code TEXT NOT NULL DEFAULT '',reason_text TEXT NOT NULL DEFAULT '',assignment_version INTEGER NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+    CREATE TABLE IF NOT EXISTS task_progress_events (id INTEGER PRIMARY KEY AUTOINCREMENT,client_event_id TEXT NOT NULL UNIQUE,task_id INTEGER NOT NULL REFERENCES tasks(id),event_type TEXT NOT NULL,villager_id INTEGER NOT NULL REFERENCES villagers(id),device_id INTEGER NOT NULL REFERENCES devices(id),journey_id INTEGER REFERENCES journeys(id),assignment_version INTEGER NOT NULL,occurred_at TEXT NOT NULL,received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,evidence_scope TEXT NOT NULL DEFAULT 'active',metadata TEXT NOT NULL DEFAULT '{}');
+    CREATE TABLE IF NOT EXISTS task_evidence (id INTEGER PRIMARY KEY AUTOINCREMENT,client_evidence_id TEXT NOT NULL UNIQUE,task_id INTEGER NOT NULL REFERENCES tasks(id),event_id INTEGER REFERENCES task_progress_events(id),evidence_type TEXT NOT NULL,villager_id INTEGER NOT NULL REFERENCES villagers(id),device_id INTEGER NOT NULL REFERENCES devices(id),assignment_version INTEGER NOT NULL,occurred_at TEXT NOT NULL,received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,qr_token_hash TEXT,photo_path TEXT,photo_sha256 TEXT,evidence_scope TEXT NOT NULL DEFAULT 'active',metadata TEXT NOT NULL DEFAULT '{}');
+    CREATE INDEX IF NOT EXISTS idx_tasks_backup_status ON tasks(backup_villager_id,status);
+    CREATE INDEX IF NOT EXISTS idx_tasks_active_status ON tasks(active_villager_id,status);
+    CREATE INDEX IF NOT EXISTS idx_assignment_events_task ON task_assignment_events(task_id,assignment_version,id);
+    CREATE INDEX IF NOT EXISTS idx_progress_events_task_time ON task_progress_events(task_id,occurred_at,id);
+    CREATE INDEX IF NOT EXISTS idx_evidence_task_time ON task_evidence(task_id,occurred_at,id);`);
+  const assignmentEventColumns = db.prepare('PRAGMA table_info(task_assignment_events)').all().map(c => c.name);
+  if (!assignmentEventColumns.includes('client_request_id')) db.exec('ALTER TABLE task_assignment_events ADD COLUMN client_request_id TEXT');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_assignment_events_request ON task_assignment_events(client_request_id) WHERE client_request_id IS NOT NULL');
+  db.prepare(`UPDATE tasks SET final_villager_id=(SELECT d.villager_id FROM records r JOIN devices d ON d.id=r.device_id WHERE r.task_id=tasks.id AND r.is_primary=1 LIMIT 1) WHERE final_villager_id IS NULL AND EXISTS(SELECT 1 FROM records r WHERE r.task_id=tasks.id AND r.is_primary=1)`).run();
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(107, '1.2.6', '同步按钮点击必有反馈（进行中提示+完成Toast显示任务数），同步完成自动刷新任务页');
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(107, '1.2.6', '修复同步完成后任务列表不刷新（手机收不到下发任务）；恢复任务列表点击日期联动地图日期过滤');
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(108, '1.2.7', '修复 Android JSON 空值被 optString 误读为文本null导致全部任务被判已取消而隐藏（任务列表空白根因）');
@@ -262,6 +347,7 @@ function migrate(db) {
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(111, '1.4.0', '单采样员单有效设备治理；支持换机、设备失效、离线补传和轨迹分段显示');
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(112, '1.4.1', '采样点样品类型新增地下水（G）');
   db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,notes) VALUES (?,?,?)').run(113, '1.5.0', '藏汉双语界面、统一图标、逐条上传状态、四步采样引导与管理员自定义激活密钥');
+  db.prepare('INSERT OR IGNORE INTO app_versions (version_code,version_name,mandatory,notes) VALUES (?,?,1,?)').run(114, '1.6.0', '双人协作采样、在线接管、合并进度证据与已下发任务标签补打');
   ensureSingleActiveDeviceIndex(db);
 }
 

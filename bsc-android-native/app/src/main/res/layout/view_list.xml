@@ -2,13 +2,13 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android" android:layout_width="match_parent" android:layout_height="match_parent" android:orientation="horizontal" android:background="@color/bg">
   <LinearLayout android:id="@+id/datePanel" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1.02" android:orientation="vertical" android:padding="8dp" android:background="#EEF5F3">
     <TextView android:id="@+id/datePanelTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/task_date_title" android:textSize="17sp" android:textStyle="bold" android:textColor="@color/ink" android:padding="8dp" android:lineSpacingMultiplier="1.15"/>
-    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true"><LinearLayout android:id="@+id/dateTaskList" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"/></ScrollView>
+    <ScrollView android:id="@+id/dateTaskScroll" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true"><LinearLayout android:id="@+id/dateTaskList" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"/></ScrollView>
   </LinearLayout>
   <View android:layout_width="1dp" android:layout_height="match_parent" android:background="#D4E2DE"/>
   <LinearLayout android:id="@+id/pointPanel" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1.98" android:orientation="vertical" android:padding="12dp">
     <TextView android:id="@+id/pointPanelTitle" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="@string/task_choose_date" android:textSize="20sp" android:textStyle="bold" android:textColor="@color/ink" android:padding="4dp" android:lineSpacingMultiplier="1.15"/>
     <TextView android:id="@+id/pointPanelSummary" android:layout_width="match_parent" android:layout_height="wrap_content" android:textColor="#55706D" android:textSize="13sp" android:padding="4dp"/>
-    <ScrollView android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true"><LinearLayout android:id="@+id/pointList" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"/></ScrollView>
+    <ScrollView android:id="@+id/pointTaskScroll" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:fillViewport="true"><LinearLayout android:id="@+id/pointList" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical"/></ScrollView>
   </LinearLayout>
   <TextView android:id="@+id/listHint" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone"/>
   <ExpandableListView android:id="@+id/list" android:layout_width="0dp" android:layout_height="0dp" android:visibility="gone"/>
