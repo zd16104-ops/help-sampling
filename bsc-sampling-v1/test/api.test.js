@@ -954,3 +954,70 @@ test('batch delete tasks by date keeps tasks with records', async () => {
   assert.equal(rawDb.prepare('SELECT COUNT(*) c FROM tasks WHERE id IN (?,?)').get(clean1, clean2).c, 0, '无记录任务已删除');
   assert.ok(rawDb.prepare('SELECT id FROM tasks WHERE id=?').get(withRecord), '有记录任务保留');
 });
+
+test('admin tasks recover unique orphan tracks without replacing explicit journeys or mixing collectors', async () => {
+  const date = '2026-06-18';
+  const taskId = await adminCreateTask({ plannedDate: date });
+  const otherVillager = Number(rawDb.prepare("INSERT INTO villagers(username,display_name,pin_salt,pin_hash) VALUES('track-outsider','其他采样人','','')").run().lastInsertRowid);
+  const otherDevice = Number(rawDb.prepare("INSERT INTO devices(villager_id,device_uuid) VALUES(?,'track-outsider')").run(otherVillager).lastInsertRowid);
+  const otherTask = await adminCreateTask({ plannedDate: date, villagerId: otherVillager });
+  const device = rawDb.prepare('SELECT id FROM devices WHERE villager_id=? LIMIT 1').get(villagerId).id;
+  const createJourney = (collector, deviceId, owner, distance) => Number(rawDb.prepare(`INSERT INTO journeys
+    (villager_id,device_id,site_id,task_id,started_at,start_distance_m) VALUES(?,?,?,?,?,?)`)
+    .run(collector, deviceId, site5Id, owner, `${date}T01:00:00+08:00`, distance).lastInsertRowid);
+  const addPoint = id => rawDb.prepare(`INSERT INTO track_points(journey_id,sequence,recorded_at,latitude,longitude)
+    VALUES(?,1,'2026-06-17T17:00:00Z',30,94)`).run(id);
+  const foreign = createJourney(otherVillager, otherDevice, otherTask, 999);
+  const linkedElsewhere = createJourney(villagerId, device, otherTask, 888);
+  const orphan = createJourney(villagerId, device, null, 123);
+  for (const id of [foreign, linkedElsewhere, orphan]) addPoint(id);
+  const tasks = await call('GET', `/api/v1/admin/tasks?projectId=1&date=${date}`, null, adminToken);
+  assert.equal(tasks.status, 200, JSON.stringify(tasks.json));
+  const recovered = tasks.json.tasks.find(t => t.id === taskId);
+  assert.equal(recovered.journey_id, orphan);
+  assert.equal(recovered.start_distance_m, 123);
+  const progress = await call('GET', `/api/v1/mobile/tasks/${taskId}/progress`, null, mobileA);
+  assert.equal(progress.status, 200);
+  assert.deepEqual(progress.json.journeys.map(j => j.id), [orphan]);
+  const track = await call('GET', `/api/v1/admin/journeys/${recovered.journey_id}/track`, null, adminToken);
+  assert.equal(track.status, 200);
+  assert.equal(track.json.points.length, 1);
+  const explicit = createJourney(villagerId, device, taskId, 456);
+  rawDb.prepare('UPDATE tasks SET journey_id=? WHERE id=?').run(explicit, taskId);
+  const again = await call('GET', `/api/v1/admin/tasks?projectId=1&date=${date}`, null, adminToken);
+  assert.equal(again.json.tasks.find(t => t.id === taskId).journey_id, explicit, 'existing task link takes precedence over longer orphan track');
+});
+
+test('admin tasks expose late journeys linked by records or backfill even without task journey_id', async () => {
+  const date = '2026-06-20';
+  const recordTask = await adminCreateTask({ plannedDate: date });
+  const backfilledTask = await adminCreateTask({ plannedDate: date });
+  const device = rawDb.prepare('SELECT id FROM devices WHERE villager_id=? LIMIT 1').get(villagerId).id;
+  const createJourney = owner => Number(rawDb.prepare(`INSERT INTO journeys(villager_id,device_id,site_id,task_id,started_at)
+    VALUES(?,?,?,?,'2026-06-21T01:00:00+08:00')`).run(villagerId, device, site5Id, owner).lastInsertRowid);
+  const recordJourney = createJourney(null);
+  const backfilledJourney = createJourney(backfilledTask);
+  rawDb.prepare(`INSERT INTO records(client_record_id,task_id,device_id,journey_id,captured_at,latitude,longitude,photo_path,photo_sha256)
+    VALUES('track-late-record',?,?,?,'2026-06-21T01:00:00+08:00',30,94,'/x','hash')`).run(recordTask, device, recordJourney);
+  const tasks = await call('GET', `/api/v1/admin/tasks?projectId=1&date=${date}`, null, adminToken);
+  assert.equal(tasks.status, 200, JSON.stringify(tasks.json));
+  assert.equal(tasks.json.tasks.find(t => t.id === recordTask).journey_id, recordJourney);
+  assert.equal(tasks.json.tasks.find(t => t.id === backfilledTask).journey_id, backfilledJourney);
+});
+
+test('primary record submission persists the supplied journey when the task has no link', async () => {
+  const taskId = await adminCreateTask();
+  const task = await syncTask(mobileA, taskId);
+  const device = rawDb.prepare("SELECT id FROM devices WHERE device_uuid='test-device-A'").get();
+  assert.ok(device);
+  const journeyId = Number(rawDb.prepare(`INSERT INTO journeys(villager_id,device_id,site_id,started_at)
+    VALUES(?,?,?,?)`).run(villagerId, device.id, site5Id, new Date().toISOString()).lastInsertRowid);
+  const res = await call('POST', `/api/v1/mobile/tasks/${taskId}/record`, {
+    clientRecordId: `track-link-${taskId}`, capturedAt: new Date().toISOString(),
+    latitude: task.target_latitude, longitude: task.target_longitude, accuracyM: 4,
+    weatherText: '晴', qrToken: task.qr_token, journeyId, photoDataUrl: await jpegDataUrl(250)
+  }, mobileA);
+  assert.equal(res.status, 201, JSON.stringify(res.json));
+  assert.equal(res.json.primary, true);
+  assert.equal(rawDb.prepare('SELECT journey_id FROM tasks WHERE id=?').get(taskId).journey_id, journeyId);
+});

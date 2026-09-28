@@ -15,6 +15,29 @@ const PROGRESS_TYPES = new Set([
   'record_saved_local', 'record_submitted'
 ]);
 
+// Only infer a task when the orphan's collector, site and actual track dates
+// identify one candidate. Dates use the sampling site's UTC+8 time zone.
+// Materialize orphan_journey_links once per query to avoid repeating the
+// inference for every task. The match expects aliases j and t and that CTE.
+const ORPHAN_JOURNEY_TASK_SQL = `SELECT MIN(candidate.id) FROM tasks candidate
+  WHERE candidate.site_id=j.site_id AND candidate.canceled_at IS NULL
+    AND j.villager_id IN (candidate.villager_id,candidate.backup_villager_id,candidate.final_villager_id)
+    AND (EXISTS(SELECT 1 FROM track_points tp WHERE tp.journey_id=j.id
+          AND date(tp.recorded_at,'+8 hours')=candidate.planned_date)
+      OR EXISTS(SELECT 1 FROM records r JOIN track_points tp ON tp.journey_id=j.id
+          AND date(tp.recorded_at,'+8 hours')=date(r.captured_at,'+8 hours')
+          WHERE r.task_id=candidate.id AND r.device_id=j.device_id))
+  HAVING COUNT(*)=1`;
+const ORPHAN_JOURNEY_LINKS_SQL = `SELECT j.id journey_id,(${ORPHAN_JOURNEY_TASK_SQL}) task_id
+  FROM journeys j WHERE j.task_id IS NULL
+    AND NOT EXISTS(SELECT 1 FROM tasks linked WHERE linked.journey_id=j.id)
+    AND NOT EXISTS(SELECT 1 FROM records linked WHERE linked.journey_id=j.id)
+    AND NOT EXISTS(SELECT 1 FROM task_progress_events linked WHERE linked.journey_id=j.id)
+    AND EXISTS(SELECT 1 FROM track_points tp WHERE tp.journey_id=j.id)`;
+const TASK_JOURNEY_MATCH_SQL = `j.task_id=t.id OR j.id=t.journey_id
+  OR EXISTS(SELECT 1 FROM records r WHERE r.task_id=t.id AND r.journey_id=j.id)
+  OR j.id IN (SELECT journey_id FROM orphan_journey_links WHERE task_id=t.id)`;
+
 function fault(status, code, message, extra = {}) {
   const error = new Error(message);
   error.status = status;
@@ -226,12 +249,14 @@ function getProgress(db, taskId, viewerId = 0, isAdmin = false) {
   const progressEvents = db.prepare(`SELECT e.*,v.display_name villager_name,d.device_name
     FROM task_progress_events e JOIN villagers v ON v.id=e.villager_id JOIN devices d ON d.id=e.device_id
     WHERE e.task_id=? ORDER BY e.occurred_at,e.id`).all(taskId).map(e => ({ ...e, metadata: parseJson(e.metadata, {}) }));
-  const journeys = db.prepare(`SELECT j.id,j.villager_id,j.device_id,j.assignment_version,j.status,j.started_at,j.ended_at,
+  const journeys = db.prepare(`WITH orphan_journey_links AS MATERIALIZED (${ORPHAN_JOURNEY_LINKS_SQL})
+    SELECT j.id,j.villager_id,j.device_id,j.assignment_version,j.status,j.started_at,j.ended_at,
       j.interrupted,j.start_distance_m,v.display_name villager_name,d.device_name,
       (SELECT COUNT(*) FROM track_points tp WHERE tp.journey_id=j.id) track_point_count
     FROM journeys j JOIN villagers v ON v.id=j.villager_id JOIN devices d ON d.id=j.device_id
-    WHERE j.task_id=? OR j.id=(SELECT journey_id FROM tasks WHERE id=?)
-    ORDER BY j.started_at,j.id`).all(taskId, taskId);
+    JOIN tasks t ON t.id=?
+    WHERE ${TASK_JOURNEY_MATCH_SQL}
+    ORDER BY j.started_at,j.id`).all(taskId);
   const records = db.prepare(`SELECT r.id,r.client_record_id,r.is_primary,r.conflict_status,r.assignment_version,r.evidence_scope,
       r.captured_at,r.received_at,r.photo_path,r.review_status,r.risk_flags,d.villager_id,v.display_name villager_name,d.device_name
     FROM records r JOIN devices d ON d.id=r.device_id JOIN villagers v ON v.id=d.villager_id
@@ -261,6 +286,8 @@ function setDefaultBackup(db, projectId, villagerId) {
 }
 
 module.exports = {
+  ORPHAN_JOURNEY_LINKS_SQL,
+  TASK_JOURNEY_MATCH_SQL,
   TAKEOVER_CODE,
   TAKEOVER_COOLDOWN_SECONDS,
   TAKEOVER_REASONS,

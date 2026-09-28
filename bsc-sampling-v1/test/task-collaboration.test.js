@@ -2,12 +2,16 @@
 
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const { DatabaseSync } = require('node:sqlite');
 const { initialize } = require('../src/schema');
 const collaboration = require('../src/task-collaboration');
 
-function fixture() {
-  const db = new DatabaseSync(':memory:');
+function fixture(dbPath = ':memory:') {
+  const db = new DatabaseSync(dbPath);
   initialize(db);
   const primary = db.prepare("SELECT id FROM villagers WHERE username='cmy01'").get().id;
   const backup = Number(db.prepare("INSERT INTO villagers(username,display_name,pin_salt,pin_hash) VALUES('backup','备用管理员','','')").run().lastInsertRowid);
@@ -75,4 +79,103 @@ test('admin may replace inactive backup but not active backup after progress', (
   collaboration.takeover(f.db, { taskId: f.task, villagerId: f.third, deviceId: thirdDevice,
     confirmationCode: '1234', reasonCode: 'PRIMARY_CANNOT_ARRIVE', expectedVersion: 2, clientRequestId: 'third-takeover' });
   assert.throws(() => collaboration.updateAssignees(f.db, { taskId: f.task, primaryVillagerId: f.primary, backupVillagerId: f.backup, reason: '再次调整' }), e => e.code === 'BACKUP_IS_ACTIVE');
+});
+
+function journey(f, { villagerId = f.primary, deviceId = f.primaryDevice, taskId = null,
+  recordedAt = '2026-09-19T17:00:00Z' } = {}) {
+  const id = Number(f.db.prepare(`INSERT INTO journeys(villager_id,device_id,site_id,task_id,started_at)
+    VALUES(?,?,1,?,?)`).run(villagerId, deviceId, taskId, recordedAt).lastInsertRowid);
+  f.db.prepare(`INSERT INTO track_points(journey_id,sequence,recorded_at,latitude,longitude)
+    VALUES(?,1,?,30,94)`).run(id, recordedAt);
+  return id;
+}
+
+function anotherTask(f, villagerId = f.primary, date = '2026-09-20') {
+  const suffix = f.db.prepare('SELECT COUNT(*) count FROM tasks').get().count;
+  return Number(f.db.prepare(`INSERT INTO tasks(project_id,site_id,villager_id,planned_date,
+    base_sample_code,sample_code,sample_type,qr_token) VALUES(1,1,?,?,'base',?,'R',?)`)
+    .run(villagerId, date, `extra-${suffix}`, `qr-${suffix}`).lastInsertRowid);
+}
+
+test('progress recovers unique orphan tracks in sampling-site time and excludes other owners', () => {
+  const f = fixture();
+  try {
+    const thirdDevice = Number(f.db.prepare("INSERT INTO devices(villager_id,device_uuid) VALUES(?,'outsider')").run(f.third).lastInsertRowid);
+    const otherTask = anotherTask(f, f.third);
+    journey(f, { villagerId: f.third, deviceId: thirdDevice, taskId: otherTask });
+    journey(f, { taskId: otherTask });
+    journey(f, { villagerId: f.third, deviceId: thirdDevice });
+    journey(f, { recordedAt: '2026-09-18T17:00:00Z' });
+    const evidenceTask = anotherTask(f, f.primary, '2026-09-18');
+    const evidenceJourney = journey(f);
+    collaboration.addProgress(f.db, { taskId: evidenceTask, villagerId: f.primary, deviceId: f.primaryDevice,
+      events: [{ clientEventId: 'owned-evidence', eventType: 'journey_started', journeyId: evidenceJourney }] });
+    const recovered = journey(f);
+    const backup = journey(f, { villagerId: f.backup, deviceId: f.backupDevice, recordedAt: '2026-09-20T01:00:00+08:00' });
+    assert.deepEqual(collaboration.getProgress(f.db, f.task, f.primary).journeys.map(j => j.id), [recovered, backup]);
+    assert.equal(f.db.prepare('SELECT task_id FROM journeys WHERE id=?').get(recovered).task_id, null, 'viewing must not mutate the database');
+  } finally { f.db.close(); }
+});
+
+test('progress skips ambiguous orphan tracks and honors record-linked late journeys', () => {
+  const f = fixture();
+  try {
+    const ambiguous = journey(f);
+    const otherTask = anotherTask(f);
+    assert.equal(collaboration.getProgress(f.db, f.task, f.primary).journeys.length, 0);
+    assert.equal(collaboration.getProgress(f.db, otherTask, f.primary).journeys.length, 0);
+    const late = journey(f, { recordedAt: '2026-09-21T01:00:00+08:00' });
+    f.db.prepare(`INSERT INTO records(client_record_id,task_id,device_id,journey_id,captured_at,
+      latitude,longitude,photo_path,photo_sha256) VALUES('late',?,?,?,'2026-09-21T01:00:00+08:00',30,94,'/x','hash')`)
+      .run(f.task, f.primaryDevice, late);
+    assert.deepEqual(collaboration.getProgress(f.db, f.task, f.primary).journeys.map(j => j.id), [late]);
+    f.db.prepare('UPDATE tasks SET journey_id=? WHERE id=?').run(ambiguous, otherTask);
+    assert.deepEqual(collaboration.getProgress(f.db, f.task, f.primary).journeys.map(j => j.id), [late]);
+  } finally { f.db.close(); }
+});
+
+test('backfill honors DATA_DIR, defaults to dry-run, skips ambiguity and is idempotent', () => {
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bsc-journey-backfill-'));
+  const f = fixture(path.join(dataDir, 'bsc-v1.sqlite'));
+  try {
+    const unique = journey(f);
+    const ambiguousTask = anotherTask(f, f.primary, '2026-09-22');
+    anotherTask(f, f.primary, '2026-09-22');
+    const ambiguous = journey(f, { recordedAt: '2026-09-22T01:00:00+08:00' });
+    const outsiderDevice = Number(f.db.prepare("INSERT INTO devices(villager_id,device_uuid) VALUES(?,'outsider')").run(f.third).lastInsertRowid);
+    const outsider = journey(f, { villagerId: f.third, deviceId: outsiderDevice });
+    const gapTask = anotherTask(f, f.primary, '2026-09-25');
+    const gap = journey(f, { recordedAt: '2026-09-24T01:00:00+08:00' });
+    f.db.prepare('INSERT INTO track_points(journey_id,sequence,recorded_at,latitude,longitude) VALUES(?,2,?,30,94)')
+      .run(gap, '2026-09-26T01:00:00+08:00');
+    const lateTask = anotherTask(f, f.primary, '2026-09-27');
+    const late = journey(f, { recordedAt: '2026-09-28T01:00:00+08:00' });
+    const evidenceTask = anotherTask(f, f.primary, '2026-09-29');
+    const evidenceJourney = journey(f, { recordedAt: '2026-09-29T01:00:00+08:00' });
+    collaboration.addProgress(f.db, { taskId: f.task, villagerId: f.primary, deviceId: f.primaryDevice,
+      events: [{ clientEventId: 'backfill-evidence', eventType: 'journey_started', journeyId: evidenceJourney }] });
+    f.db.prepare(`INSERT INTO records(client_record_id,task_id,device_id,captured_at,
+      latitude,longitude,photo_path,photo_sha256) VALUES('late-unlinked',?,?,'2026-09-28T01:00:00+08:00',30,94,'/x','hash')`)
+      .run(lateTask, f.primaryDevice);
+    const tool = path.join(__dirname, '..', 'tools', 'backfill-journey-task.js');
+    const run = args => spawnSync(process.execPath, [tool, ...args], { env: { ...process.env, DATA_DIR: dataDir }, encoding: 'utf8' });
+    const dry = run([]);
+    assert.equal(dry.status, 0, dry.stderr);
+    assert.match(dry.stdout, /DRY-RUN/);
+    assert.equal(f.db.prepare('SELECT COUNT(*) count FROM journeys WHERE task_id IS NOT NULL').get().count, 0);
+    const apply = run(['--apply']);
+    assert.equal(apply.status, 0, apply.stderr);
+    assert.equal(f.db.prepare('SELECT task_id FROM journeys WHERE id=?').get(unique).task_id, f.task);
+    assert.equal(f.db.prepare('SELECT task_id FROM journeys WHERE id=?').get(late).task_id, lateTask);
+    for (const id of [ambiguous, outsider, gap, evidenceJourney]) assert.equal(f.db.prepare('SELECT task_id FROM journeys WHERE id=?').get(id).task_id, null);
+    assert.equal(collaboration.getProgress(f.db, ambiguousTask, f.primary).journeys.length, 0);
+    assert.equal(collaboration.getProgress(f.db, gapTask, f.primary).journeys.length, 0);
+    assert.equal(collaboration.getProgress(f.db, evidenceTask, f.primary).journeys.length, 0);
+    const again = run(['--apply']);
+    assert.equal(again.status, 0, again.stderr);
+    assert.match(again.stdout, /\[APPLIED\] 0 journeys/);
+  } finally {
+    f.db.close();
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
 });
